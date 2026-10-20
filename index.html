@@ -485,6 +485,8 @@
     let checklistCacheAvailable = true;
     let checklistLoading = false;
     let dragWatchdogTimer = null;
+    const checklistActivePointers = new Set();
+    let checklistLastInteractionAt = 0;
 
     const progressTasks = new Map();
     let progressHideTimer = null;
@@ -760,7 +762,8 @@
     }
     function saveNow() {
       if(!data || !checklistDirty || !navigator.onLine)return;
-      const remain=CHECKLIST_SAVE_IDLE_MS-(Date.now()-checklistLastChangeAt);
+      if(checklistActivePointers.size || dragState){queueChecklistSave(400);return;}
+      const remain=CHECKLIST_SAVE_IDLE_MS-(Date.now()-Math.max(checklistLastChangeAt,checklistLastInteractionAt));
       if(remain>0){queueChecklistSave(remain);return;}
       if(!checklistServerChecked){
         setSaveStatus("기기 기록 유지 · 서버 최신본 확인 후 저장","saving");
@@ -795,7 +798,7 @@
             showAppProgress("checklist-save","추가 변경 저장 대기","done");
             setSaveStatus("기기 저장 완료 · 추가 변경 전송 대기","saving");
             if(!saveTimer){
-              queueChecklistSave(Math.max(0,CHECKLIST_SAVE_IDLE_MS-(Date.now()-checklistLastChangeAt)));
+              queueChecklistSave(Math.max(0,CHECKLIST_SAVE_IDLE_MS-(Date.now()-Math.max(checklistLastChangeAt,checklistLastInteractionAt))));
             }
           }else{
             checklistDirty=false;
@@ -1427,6 +1430,9 @@
       window.addEventListener("pointermove", onDragMove, { passive: false });
       window.addEventListener("pointerup", endDrag, { once: true });
       window.addEventListener("pointercancel", cancelDrag, { once: true });
+      itemEl.addEventListener("lostpointercapture",()=>{
+        if(dragState && dragState.sourceEl===itemEl)cancelDrag();
+      },{once:true});
       clearTimeout(dragWatchdogTimer);
       dragWatchdogTimer=setTimeout(()=>{if(dragState)cancelDrag();},15000);
     }
@@ -2560,6 +2566,25 @@
       return escapeHtml(value);
     }
 
+    // '마지막 체크 변경'뿐 아니라 터치·롱프레스·스크롤 입력의 종료 시각도 유휴 저장에 반영.
+    document.addEventListener("pointerdown",ev=>{
+      if(ev.target.closest(".check-list")){
+        checklistActivePointers.add(ev.pointerId);
+        checklistLastInteractionAt=Date.now();
+      }
+    },true);
+    const endChecklistPointer=ev=>{
+      if(!checklistActivePointers.delete(ev.pointerId))return;
+      checklistLastInteractionAt=Date.now();
+      if(checklistDirty)queueChecklistSave(CHECKLIST_SAVE_IDLE_MS);
+    };
+    window.addEventListener("pointerup",endChecklistPointer,true);
+    window.addEventListener("pointercancel",endChecklistPointer,true);
+    window.addEventListener("blur",()=>{
+      checklistActivePointers.clear();
+      if(checklistDirty)saveClientCache();
+    });
+
     document.getElementById("resetCurrentBtn").addEventListener("click", resetCurrentTab);
     document.getElementById("resetAllBtn").addEventListener("click", resetAllTabs);
     document.getElementById("cancelEditBtn").addEventListener("click", closeEditModal);
@@ -2593,7 +2618,7 @@
       if(document.visibilityState==="hidden"){
         if(checklistDirty)saveClientCache();
       }else if(checklistDirty && navigator.onLine){
-        queueChecklistSave(Math.max(0,CHECKLIST_SAVE_IDLE_MS-(Date.now()-checklistLastChangeAt)));
+        queueChecklistSave(Math.max(0,CHECKLIST_SAVE_IDLE_MS-(Date.now()-Math.max(checklistLastChangeAt,checklistLastInteractionAt))));
       }
     });
     window.addEventListener("pagehide",()=>{
