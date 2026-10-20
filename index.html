@@ -1422,9 +1422,15 @@
       if(!force&&sleepLoadTokens[key])return;
       const token=(sleepLoadTokens[key]||0)+1;sleepLoadTokens[key]=token;
       if(!navigator.onLine){setSleepStatus("오프라인 · 기기에 저장한 기록 표시 중");return;}
+      showAppProgress("sleep-fetch-"+key, key+" 수면 기록 확인 중", "busy");
       google.script.run
         .withSuccessHandler(result=>{
-          if(sleepLoadTokens[key]!==token||!result||!result.ok)return;
+          if(sleepLoadTokens[key]!==token)return;
+          if(!result||!result.ok){
+            showAppProgress("sleep-fetch-"+key, key+" 수면 기록 조회 실패", "error");
+            setSleepStatus("수면 기록 서버 조회 실패 · 기기 저장본 표시 중","error");
+            return;
+          }
           sleepSessionOnline=true;
           sleepServerMonths[key]=result.records||{};
           try{localStorage.setItem(SLEEP_SERVER_CACHE+key,JSON.stringify(sleepServerMonths[key]));}catch(_){}
@@ -1441,6 +1447,7 @@
             if(!pendingBirth) birthDate=birthServerBase;
             localStorage.setItem(SLEEP_BIRTH_KEY,birthDate);
           }
+          showAppProgress("sleep-fetch-"+key, key+" 수면 기록 갱신 완료", "done");
           setSleepStatus(sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:"자동 저장 연결됨",sleepPending.length?"":"saved");
           if(currentTab==="sleep") renderSleepTab();
           if(currentTab==="settings") {
@@ -1451,7 +1458,10 @@
           }
           if(sleepPending.length&&!sleepCacheOnly) requestSleepSync(false);
         })
-        .withFailureHandler(err=>setSleepStatus("서버 조회 실패 · 기기 저장본 표시 중: "+(err.message||err),"error"))
+        .withFailureHandler(err=>{
+          showAppProgress("sleep-fetch-"+key, key+" 수면 기록 조회 실패", "error");
+          setSleepStatus("서버 조회 실패 · 기기 저장본 표시 중: "+(err.message||err),"error");
+        })
         .getSleepMonth(year,month);
     }
     function fetchSleepMonth(force=false) {
