@@ -1489,6 +1489,7 @@
     let sleepAutoSyncScheduled = false;
     let sleepSyncTimer = null;
     let sleepSessionOnline = false;
+    let sleepServerNap2Ready = false;
     let sleepIsEditing = false;
 
     function localDateKey(date) {
@@ -1583,6 +1584,7 @@
             return;
           }
           sleepSessionOnline=true;
+          sleepServerNap2Ready=result.nap2Supported===true;
           sleepServerMonths[key]=result.records||{};
           try{localStorage.setItem(SLEEP_SERVER_CACHE+key,JSON.stringify(sleepServerMonths[key]));}catch(_){}
           sleepMonths[key]=JSON.parse(JSON.stringify(sleepServerMonths[key]));
@@ -1599,7 +1601,11 @@
             localStorage.setItem(SLEEP_BIRTH_KEY,birthDate);
           }
           showAppProgress("sleep-fetch-"+key, "수면 기록 갱신 완료", "done");
-          setSleepStatus(sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:"자동 저장 연결됨",sleepPending.length?"":"saved");
+          const waitingNap2=sleepPending.some(op=>op.field==="nap2Start"||op.field==="nap2End");
+          setSleepStatus(waitingNap2&&!sleepServerNap2Ready?
+            "2차 낮잠은 기기에 보관 중 · Apps Script Code.gs 새 버전 배포 필요":
+            sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:"자동 저장 연결됨",
+            waitingNap2&&!sleepServerNap2Ready?"error":sleepPending.length?"":"saved");
           if(currentTab==="sleep") renderSleepTab();
           if(currentTab==="settings") {
             const bd=document.getElementById("sleepBirthDateSettings");
@@ -1658,8 +1664,14 @@
       if(sleepSaving||!sleepPending.length)return;
       if(!navigator.onLine){setSleepStatus("오프라인 · 기기에 저장됨");return;}
       if(sleepConflicts.length&&!manual)return;
+      const snapshot=sleepPending
+        .filter(op=>sleepServerNap2Ready||(op.field!=="nap2Start"&&op.field!=="nap2End"))
+        .map(op=>({...op}));
+      if(!snapshot.length){
+        setSleepStatus("2차 낮잠 기기 저장됨 · 서버 Code.gs 새 버전 배포 필요","error");
+        return;
+      }
       sleepSaving=true;
-      const snapshot=sleepPending.map(op=>({...op}));
       setSleepStatus("서버에 자동 저장 중");
       showAppProgress("sleep-save","수면 기록 저장 중","busy");
       google.script.run
@@ -1683,7 +1695,9 @@
           showAppProgress("sleep-save",sleepPending.length?"추가 수면 기록 저장 중":"수면 기록 저장 완료",
             sleepPending.length?"busy":"done");
           setSleepStatus(sleepPending.length?`자동 저장 중 · 남은 ${sleepPending.length}건`:"자동 저장 완료","saved");
-          if(sleepPending.length)requestSleepSync(false);
+          if(sleepPending.length && snapshot.some(op=>op.field==="nap2Start"||op.field==="nap2End") ||
+            sleepPending.some(op=>op.field!=="nap2Start"&&op.field!=="nap2End"))
+            requestSleepSync(false);
           if(currentTab==="sleep")renderSleepTab();
         })
         .withFailureHandler(err=>{
@@ -1922,7 +1936,7 @@
       const empty={level:hasAny?"partial":"empty",label:hasAny?"부분 기록":"미기록",
         total:null,night,nap,partial:partial||null,score:null,latency,rec,
         napCount:napData.intervals.length,breakdown:[],missing,notes:[
-          hasAny?missing.join(" · ")+"을 확인하면 점수가 계산됩니다.":"아직 입력된 기록이 없습니다."
+          hasAny?"확인할 기록: "+missing.join(" · "):"아직 입력된 기록이 없습니다."
         ]};
       if(total===null)return empty;
       if(rec.min===null)return {...empty,level:"partial",label:"평가 기준 없음",total,partial:total,
@@ -2017,7 +2031,8 @@
       const score=Math.min(100,Math.max(0,Math.round(earned/available*100)));
       const coverage=Math.round(available);
       const level=score>=90?"excellent":score>=80?"good":score>=65?"watch":"concern";
-      const label={excellent:"패턴 양호",good:"대체로 양호",watch:"살펴보기",concern:"점검 권장"}[level];
+      const label=(coverage<75?"잠정 · ":"")+
+        {excellent:"패턴 양호",good:"대체로 양호",watch:"살펴보기",concern:"점검 권장"}[level];
       const notes=breakdown.filter(x=>x.penalty>0).map(x=>x.title+" −"+x.penalty+"/"+x.max+"점");
       if(!notes.length)notes.push("평가 가능한 항목에서 감점 없음");
       if(coverage<75)notes.push("입력된 정보가 제한적이어서 점수의 신뢰도가 낮습니다.");
