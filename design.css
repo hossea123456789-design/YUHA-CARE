@@ -438,3 +438,52 @@ body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bot
   .overall-meter-bar,.progress-percent{transition:none!important}
   .overall-meter-bar::before,.overall-meter-bar::after{animation:none!important}
 }
+
+
+/* Polished vector success indicator for server-save toast.
+   SVG ensures the same crisp shape across Samsung/Android/desktop fonts. */
+.app-progress-icon{position:relative;overflow:visible}
+.app-progress .progress-success-svg{
+  display:none;width:23px;height:23px;flex:none;overflow:visible;
+  filter:drop-shadow(0 1px 2px rgba(12,115,76,.14));
+}
+.app-progress[data-state="done"] .app-progress-icon{
+  background:transparent;border-color:transparent;box-shadow:none;
+}
+.app-progress[data-state="done"] .app-progress-icon::after{
+  content:none!important;display:none!important;animation:none!important;
+}
+.app-progress[data-state="done"] .app-progress-icon::before{
+  content:none!important;display:none!important;
+}
+.app-progress[data-state="done"] .progress-success-svg{
+  display:block;
+  animation:yuha-success-enter .34s cubic-bezier(.22,1.45,.32,1) both;
+}
+.progress-success-circle{
+  fill:#269a75;
+  stroke:#ffffff;
+  stroke-width:.65;
+}
+.progress-success-check{
+  stroke:#ffffff;stroke-width:2.45;stroke-linecap:round;stroke-linejoin:round;
+  stroke-dasharray:19;stroke-dashoffset:19;
+}
+.app-progress[data-state="done"] .progress-success-check{
+  animation:yuha-success-draw .32s .09s cubic-bezier(.21,.8,.24,1) both;
+}
+@keyframes yuha-success-enter{
+  0%{opacity:0;transform:scale(.7)}
+  75%{opacity:1;transform:scale(1.055)}
+  100%{opacity:1;transform:scale(1)}
+}
+@keyframes yuha-success-draw{
+  to{stroke-dashoffset:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .app-progress[data-state="done"] .progress-success-svg,
+  .app-progress[data-state="done"] .progress-success-check{
+    animation:none!important;opacity:1!important;transform:none!important;
+  }
+  .app-progress[data-state="done"] .progress-success-check{stroke-dashoffset:0!important}
+}
