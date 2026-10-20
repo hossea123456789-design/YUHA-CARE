@@ -320,16 +320,28 @@
       .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
     }
   </style>
+  <link rel="stylesheet" href="design.css?v=20261020-ds1" />
 </head>
 
 <body>
   <div class="app">
     <header>
       <div class="brand-bar">
-        <h1>유하 육아 도구 모음</h1>
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.4-9.1-9.2C1.4 8.1 3 4.8 6.4 4.2c2.2-.4 4.1.6 5.6 2.4 1.5-1.8 3.4-2.8 5.6-2.4 3.4.6 5 3.9 3.5 7.6C19 16.6 12 21 12 21Z"/><path d="M8.7 12.2h2l1.3-2.5 1.1 4.6 1.1-2.1h1.7"/></svg>
+          </div>
+          <div class="brand-heading">
+            <div class="brand-eyebrow">YUHA · DAILY CARE</div>
+            <h1>유하 육아 도구 모음</h1>
+          </div>
+        </div>
         <div class="connection-state" id="connectionState" role="status" data-state="connecting" title="서버 연결을 확인하고 있습니다">연결 중</div>
       </div>
-      <div class="summary" id="summary">서버 데이터를 불러오는 중입니다.</div>
+      <div class="summary" id="summary">마지막 저장 기록 준비 중</div>
+      <div class="overall-meter" role="progressbar" aria-label="전체 준비 항목 달성률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="overallMeter">
+        <div class="overall-meter-bar" id="overallMeterBar"></div>
+      </div>
       <div class="save-status" id="saveStatus">연결 준비 중</div>
       <div class="tabs" id="tabs"></div>
     </header>
@@ -400,8 +412,12 @@
         const escape = v => String(v == null ? '' : v).replace(/[&<>"']/g,
           c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         const all = ['daycare','outing','daily','weekly'].flatMap(k => (d[k]?.sections || []).flatMap(s => s.items || []));
+        const done = all.filter(i => i.checked).length;
         document.getElementById('summary').textContent =
-          '전체 ' + all.filter(i => i.checked).length + ' / ' + all.length + '개 완료';
+          '오늘의 준비 · ' + done + '/' + all.length + '개 완료';
+        const pct = all.length ? Math.round(done / all.length * 100) : 0;
+        document.getElementById('overallMeterBar').style.width = pct + '%';
+        document.getElementById('overallMeter').setAttribute('aria-valuenow', String(pct));
         const choices = ['daycare','sleep','outing','daily','weekly','settings'];
         const labels = {'sleep':'수면 기록','settings':'설정'};
         document.getElementById('tabs').innerHTML = choices.map((k,i) =>
@@ -712,21 +728,35 @@
       return raw;
     }
 
+
+    const TAB_ICONS = {
+      daycare:'<rect x="3" y="7" width="18" height="14" rx="3"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/><path d="M8 13h8M12 10v6"/>',
+      sleep:'<path d="M20 15.1A8.4 8.4 0 0 1 8.9 4 8.5 8.5 0 1 0 20 15.1Z"/><path d="m16 3 .5 1.5L18 5l-1.5.5L16 7l-.5-1.5L14 5l1.5-.5Z"/>',
+      outing:'<path d="M5 7h14v13H5z"/><path d="M9 7V5a3 3 0 0 1 6 0v2M5 13h14"/>',
+      daily:'<path d="M8 3h8l2 4-2 4H8L6 7Z"/><path d="m9 7 2 2 4-4M5 15h14M5 19h14"/>',
+      weekly:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5 2 2 5-5"/>',
+      settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/>'
+    };
     function renderTabs() {
       const tabs = document.getElementById("tabs");
       tabs.innerHTML = "";
-
       tabOrder.forEach((tabKey) => {
         const button = document.createElement("button");
+        button.type = "button";
         button.className = "tab-btn" + (tabKey === currentTab ? " active" : "");
-        button.textContent = tabKey === "settings" ? "설정" : (tabKey === "sleep" ? "수면 기록" : data[tabKey].label);
-
+        const label = tabKey === "settings" ? "설정" : (tabKey === "sleep" ? "수면 기록" : data[tabKey].label);
+        button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + TAB_ICONS[tabKey] +
+          '</svg><span class="tab-label"></span>';
+        button.querySelector(".tab-label").textContent = label;
+        if (tabKey === currentTab) button.setAttribute("aria-current","page");
         button.addEventListener("click", () => {
           if (currentTab === tabKey) return;
           currentTab = tabKey;
           render();
+          const active = document.querySelector(".tab-btn.active");
+          if (active) active.scrollIntoView({block:"nearest",inline:"nearest",behavior:"smooth"});
+          window.scrollTo({top:0,behavior:"instant"});
         });
-
         tabs.appendChild(button);
       });
     }
@@ -751,9 +781,10 @@
             <span class="count">${checked} / ${total}</span>
           </div>
         </div>
-        <p class="help-note">
-          항목은 각 작은 제목 아래에서 추가됩니다. 작은 제목별 초기화가 가능하고, 항목은 0.5초 정도 길게 누른 뒤 끌면 제목 간 이동과 순서 변경이 가능합니다.
-        </p>
+        <details class="quick-tip">
+          <summary>체크리스트 사용 팁</summary>
+          <p>체크하면 자동 저장됩니다. 항목을 길게 누르면 순서와 구역을 옮길 수 있습니다.</p>
+        </details>
         <div id="sectionsWrap"></div>
       `;
 
@@ -779,7 +810,7 @@
 
         sectionEl.innerHTML = `
           <div class="section-title-row">
-            <span class="section-title">• ${escapeHtml(section.title)}</span>
+            <span class="section-title">${escapeHtml(section.title)}</span>
             <span class="section-count">${checkedCount} / ${totalCount}</span>
             <button class="section-reset-btn" data-section-id="${section.id}">초기화</button>
           </div>
@@ -820,6 +851,7 @@
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.className = "item-check";
+      checkbox.setAttribute("aria-label", item.text + " 완료 상태");
       checkbox.checked = item.checked;
       checkbox.addEventListener("pointerdown", (event) => event.stopPropagation());
       checkbox.addEventListener("change", () => {
@@ -848,12 +880,14 @@
       const editButton = document.createElement("button");
       editButton.className = "mini-btn";
       editButton.textContent = "수정";
+      editButton.setAttribute("aria-label", item.text + " 수정");
       editButton.addEventListener("pointerdown", (event) => event.stopPropagation());
       editButton.addEventListener("click", () => openItemEdit(item.id));
 
       const deleteButton = document.createElement("button");
       deleteButton.className = "mini-btn delete";
       deleteButton.textContent = "삭제";
+      deleteButton.setAttribute("aria-label", item.text + " 삭제");
       deleteButton.addEventListener("pointerdown", (event) => event.stopPropagation());
       deleteButton.addEventListener("click", () => deleteItem(item.id));
 
@@ -1371,7 +1405,12 @@
       const allItems = ["daycare", "outing", "daily", "weekly"].flatMap((tabKey) => getAllItems(tabKey));
       const checked = allItems.filter((item) => item.checked).length;
       const total = allItems.length;
-      document.getElementById("summary").textContent = `전체 ${checked} / ${total}개 완료`;
+      document.getElementById("summary").textContent = `오늘의 준비 · ${checked}/${total}개 완료`;
+      const pct = total ? Math.min(100, Math.round(checked * 100 / total)) : 0;
+      const bar = document.getElementById("overallMeterBar");
+      if (bar) bar.style.width = pct + "%";
+      const meter = document.getElementById("overallMeter");
+      if (meter) meter.setAttribute("aria-valuenow", String(pct));
     }
 
     function render() {
