@@ -716,3 +716,46 @@ body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bot
 @media(max-width:355px){
  .app-progress .app-progress-percent{font-size:13px!important;min-width:41px}
 }
+
+
+/* Stable, no-layout-shift sticky navigation across checklist, sleep and settings tabs.
+   Keep space for the completion meter even when that meter is not applicable. */
+header .brand-bar{
+  height:40px;min-height:40px;max-height:40px;
+  margin-bottom:12px;
+}
+header .progress-meta{
+  height:21px;min-height:21px;max-height:21px;
+  margin:0 3px 9px!important;
+}
+header .progress-meta .summary{
+  display:block;min-height:18px;line-height:18px;
+  white-space:nowrap;text-overflow:ellipsis;overflow:hidden;
+}
+header .progress-percent{height:21px;align-items:center;line-height:21px;flex-shrink:0}
+header .overall-meter{
+  display:block!important;min-height:6px;max-height:6px;height:6px;
+  margin:0 3px 15px!important;
+}
+header.no-checklist-progress .overall-meter{
+  display:block!important;visibility:hidden;pointer-events:none;
+}
+header.no-checklist-progress .progress-percent{
+  display:inline-flex!important;visibility:hidden;pointer-events:none;
+}
+header.no-checklist-progress .progress-meta{margin:0 3px 9px!important}
+header .tabs{
+  height:46px;min-height:46px;max-height:46px;
+  flex-shrink:0;align-items:center;
+  overflow-x:auto!important;overflow-y:hidden!important;
+}
+header .tab-btn{height:39px;min-height:39px;max-height:39px;align-self:center}
+/* Switching tabs no longer changes the sticky header's geometry. */
+@media(max-width:420px){
+  header .brand-bar{height:38px;min-height:38px;max-height:38px;margin-bottom:11px}
+  header .tabs{height:45px;min-height:45px;max-height:45px}
+  header .tab-btn{height:38px;min-height:38px;max-height:38px}
+}
+@media(max-width:355px){
+  header .brand-bar{height:36px;min-height:36px;max-height:36px}
+}
