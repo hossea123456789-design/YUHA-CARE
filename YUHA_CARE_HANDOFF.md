@@ -347,3 +347,23 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - `YYYY-MM-DD HH:mm KST`, 요청의 실제 원문 요지, 사용자 불편/원인, UX 결정, 구현 함수/파일, 캐시/시트/API 영향, QA, 커밋 SHA, Pages run URL, Apps Script 배포 확인 여부를 각 작업마다 기록한다.
 - **기존 내용을 삭제하는 식의 요약이 아니라** 누적된 판단 배경을 보존하며, 현재 스펙과 중복되거나 충돌하는 오래된 설명은 새 구현 기준으로 명시적으로 정정한다.
 - 다른 세션 작업에서도 이 문서를 같은 이름으로 업데이트해야 인수인계가 이어진다.
+
+
+## 14. 2026-10-21 최신 배포 파일로 실시한 반응형 UI QA 기록
+
+> **이 항목은 실제 Chrome/Chromium의 로컬 테스트 화면에 바인딩한 샘플 체크리스트 데이터로 재현한 결과**다. 실사용 Google Sheets에 쓰거나 공개 Apps Script 웹앱의 응답을 검증한 것이 아니다.
+
+- QA 대상: GitHub Pages Actions 실행 **39508566917**의 정적 산출물(`index.html` + `design.css` + 공통 설정/통신 JS). 로컬 테스트 브라우저는 외부 네트워크 접속을 제한하므로, HTML/CSS를 같은 문서에 합치고 `localStorage`·백엔드 호출에 **비파괴 mock**을 적용하여 화면을 렌더했다.
+- QA 툴: headless Chromium + Playwright; 검증 뷰포트 320×780, 360×780, 390×780, 768×780 CSS px.
+- 동작: `setProgressVisual("체크리스트 저장 중","busy",68)`로 진행 중 UI를 강제하고, 진행 텍스트 `저장 중` / 퍼센트 `68%` / 바·숫자·연결 배지의 좌표를 측정.
+- **320px:** 진행선 폭 42px, 퍼센트 29px, 바-숫자 간격 3px, 숫자-연결 배지 7px, 가로 overflow 0.
+- **360/390px:** 진행선 폭 45px, 퍼센트 29px, 간격 각각 3px / 9px, 가로 overflow 0.
+- **768px:** 진행선 폭 50px, 퍼센트 31px, 간격 각각 3px / 10px, 가로 overflow 0.
+- 상단 헤더 높이는 320px에서 약 170px, 360/390px에서 약 172px, 768px에서 약 182px. 모든 테스트 폭에서 JavaScript `pageerror` 0건.
+- 저장 표시에는 별도 네모 박스가 없고, 위쪽 문구와 펄스 점 + 아래쪽 짧은 막대/숫자 구조를 유지한다. 완료 시 숫자 슬롯의 SVG 체크로 교체하는 것은 현행 DOM/CSS로 구현되어 있다.
+- **검증 한계:** 연결 배지는 로컬 mock 환경에서 `연결 중`으로 렌더될 수 있다. 실제 원격 Apps Script 연결/Google Sheets 쓰기, 2기기 충돌, 수면 계산의 의학적 타당성은 이 시각 검증 범위 밖이다. 이 구분을 유지해야 한다.
+
+### 2026-10-21 작업 마감 상태
+- UI 최신 소스 반영: `index.html`의 `design.css?v=20261021-inline-sync3`, `design.css`의 활성 상태 문구/펄스 및 막대·퍼센트 정렬.
+- 세션 재개 문서: `YUHA_CARE_HANDOFF.md` 신규 작성 및 README 첫머리 링크.
+- **이후 모든 구현 변경 시 이 파일의 `13. 상세 변경 로그` 및 현재 규칙을 반드시 함께 갱신한다.** GitHub Pages Actions 자동 배포 결과는 해당 변경의 최신 commit SHA로 확인한다.
