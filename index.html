@@ -508,7 +508,7 @@
       const pct=Math.max(0,Math.min(100,Math.round(percentage)));
       label.textContent=String(message||"").slice(0,55);
       el.dataset.state=state;
-      percentEl.textContent=(state==="done"?"":"~")+pct+"%";
+      percentEl.textContent=pct+"%";
       percentEl.title=state==="done"?"서버 처리 완료":
         "서버 응답 대기 중 · 실제 전송량이 아닌 시각적 추정 진행률";
       fill.style.width=pct+"%";
