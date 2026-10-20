@@ -392,6 +392,7 @@
     let checklistVersion = 0;
     let checklistSaving = false;
     let checklistSaveQueued = false;
+    let checklistServerChecked = false;
     const progressTasks = new Map();
     let progressHideTimer = null;
 
@@ -426,8 +427,14 @@
     window.addEventListener("yuha-db-status", event => {
       const state = event.detail?.state || "connecting";
       setConnectionState(state, event.detail?.message || "");
-      if (state === "error") showAppProgress("connection",
-        event.detail?.message || "서버 연결 지연 · 기기 데이터 유지", "error");
+      if (state === "error") {
+        for (const key of [...progressTasks.keys()]) {
+          if (key === "checklist" || key.startsWith("sleep-fetch-"))
+            showAppProgress(key, "서버 응답 지연 · 기기에 저장된 기록 유지", "error");
+        }
+        showAppProgress("connection",
+          event.detail?.message || "서버 연결 지연 · 기기 데이터 유지", "error");
+      }
       if (state === "connected" && progressTasks.has("connection"))
         showAppProgress("connection", "서버 연결 완료", "done");
     });
@@ -491,6 +498,7 @@
     // 이전 세션에서 서버 저장에 실패한 변경사항(dirty)은 서버 응답으로 덮어쓰지 않습니다.
     function loadFromServer() {
       const hadCache = !!data || loadClientCache();
+      checklistServerChecked = false;
       if (!hadCache) setSaveStatus("최초 연결 · 서버 기록 불러오는 중", "saving");
       if (!navigator.onLine) {
         setSaveStatus(hadCache ? "오프라인 · 기기 기록 표시 중" : "오프라인 · 최초 연결 시 인터넷이 필요합니다", "error");
@@ -515,6 +523,7 @@
                 checklistDirty = false;
                 checklistVersion++;
                 serverUpdatedAt = incomingAt;
+                checklistServerChecked = true;
                 saveClientCache();
                 setSaveStatus("서버 최신 기록으로 갱신됨", "saved");
                 render();
@@ -522,6 +531,7 @@
               }
             }
             serverUpdatedAt = incomingAt;
+            checklistServerChecked = true;
             saveClientCache();
             saveNow();
             return;
@@ -529,6 +539,7 @@
           data = normalizeData(result.data);
           serverUpdatedAt = incomingAt;
           checklistDirty = false;
+          checklistServerChecked = true;
           saveClientCache();
           setSaveStatus(result.fromCache ? "서버 기록 확인 완료" : "서버 최신 기록 반영 완료", "saved");
           render();
@@ -552,6 +563,10 @@
 
     function saveNow() {
       if (!data || !checklistDirty || !navigator.onLine) return;
+      if (!checklistServerChecked) {
+        setSaveStatus("기기 저장 완료 · 서버 상태 확인 후 자동 저장", "saving");
+        return;
+      }
       if (checklistSaving) {
         checklistSaveQueued = true;
         return;
