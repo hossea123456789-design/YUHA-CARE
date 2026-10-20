@@ -476,8 +476,15 @@
     let checklistSaveQueued = false;
     let checklistServerChecked = false;
     // 연속 체크는 화면과 기기에 즉시 반영, 서버 전송만 마지막 조작 뒤에 묶어서 수행합니다.
-    const CHECKLIST_SAVE_IDLE_MS = 2500;
+    const CHECKLIST_SAVE_IDLE_MS = 2000; // 마지막 수정 2초 후 서버 전송
+    const CHECKLIST_RETRY_BASE_MS = 5000;
+    const CHECKLIST_RETRY_MAX_MS = 60000;
     let checklistLastChangeAt = 0;
+    let checklistRetryTimer = null;
+    let checklistRetryCount = 0;
+    let checklistCacheAvailable = true;
+    let checklistLoading = false;
+    let dragWatchdogTimer = null;
 
     const progressTasks = new Map();
     let progressHideTimer = null;
@@ -636,25 +643,30 @@
 
     function saveClientCache() {
       try {
-        localStorage.setItem(
-          CLIENT_CACHE_KEY,
-          JSON.stringify({
-            data,
-            updatedAt: serverUpdatedAt || "",
-            dirty: checklistDirty,
-            cachedAt: new Date().toISOString()
-          })
-        );
-      } catch (error) {}
+        localStorage.setItem(CLIENT_CACHE_KEY,JSON.stringify({
+          data,updatedAt:serverUpdatedAt||"",dirty:checklistDirty,
+          cachedAt:new Date().toISOString()
+        }));
+        checklistCacheAvailable=true;
+        return true;
+      } catch(error) {
+        checklistCacheAvailable=false;
+        console.error("[YUHA] 기기 체크리스트 저장 실패",error);
+        setSaveStatus("주의: 기기 저장 실패 · 저장 공간을 확인해 주세요","error");
+        return false;
+      }
     }
 
     // 마지막 화면은 로컬 캐시에서 즉시 띄우고, 서버 확인은 비동기로 수행합니다.
     // 이전 세션에서 서버 저장에 실패한 변경사항(dirty)은 서버 응답으로 덮어쓰지 않습니다.
     function loadFromServer() {
       const hadCache = !!data || loadClientCache();
+      if(checklistLoading)return;
+      checklistLoading=true;
       checklistServerChecked = false;
       if (!hadCache) setSaveStatus("최초 연결 · 서버 기록 불러오는 중", "saving");
       if (!navigator.onLine) {
+        checklistLoading=false;
         setSaveStatus(hadCache ? "오프라인 · 기기 기록 표시 중" : "오프라인 · 최초 연결 시 인터넷이 필요합니다", "error");
         return;
       }
@@ -662,7 +674,9 @@
       showAppProgress("checklist-read","목록 동기화 중","busy");
       google.script.run
         .withSuccessHandler((result) => {
+          checklistLoading=false;
           if (!result || !result.ok) {
+            if(checklistDirty)scheduleChecklistRetry();
             showAppProgress("checklist-read","목록 조회 실패","error");
             setSaveStatus(hadCache ? "기기 기록 유지 · 서버 조회 실패" : "서버 조회 실패", "error");
             return;
@@ -693,15 +707,18 @@
             saveNow();
             return;
           }
-          data = normalizeData(result.data);
-          serverUpdatedAt = incomingAt;
-          checklistDirty = false;
-          checklistServerChecked = true;
+          const sameServerVersion=!!data&&!!incomingAt&&serverUpdatedAt===incomingAt;
+          if(!sameServerVersion)data=normalizeData(result.data);
+          serverUpdatedAt=incomingAt;
+          checklistDirty=false;
+          checklistServerChecked=true;
           saveClientCache();
-          setSaveStatus(result.fromCache ? "서버 기록 확인 완료" : "서버 최신 기록 반영 완료", "saved");
-          render();
+          setSaveStatus(result.fromCache?"서버 기록 확인 완료":"서버 최신 기록 반영 완료","saved");
+          if(!sameServerVersion)render();
         })
         .withFailureHandler((error) => {
+          checklistLoading=false;
+          if(checklistDirty)scheduleChecklistRetry();
           showAppProgress("checklist-read","목록 조회 실패","error");
           setSaveStatus(hadCache ? "기기 기록 유지 · 서버 연결 실패" :
             "서버 연결 실패: " + (error.message || error), "error");
@@ -709,76 +726,94 @@
         .getAppData();
     }
 
-    function scheduleSave() {
-      checklistDirty = true;
-      checklistVersion++;
-      saveClientCache();
+    function queueChecklistSave(delayMs=CHECKLIST_SAVE_IDLE_MS) {
       clearTimeout(saveTimer);
-      setSaveStatus(navigator.onLine ? "기기 저장 완료 · 서버 자동 저장 대기 중" :
-        "오프라인 · 기기 저장 완료", navigator.onLine ? "saving" : "error");
-      checklistLastChangeAt = Date.now();
-      if (navigator.onLine) {
-        saveTimer = setTimeout(() => { saveTimer = null; saveNow(); }, CHECKLIST_SAVE_IDLE_MS);
-      }
+      saveTimer=null;
+      if(!checklistDirty || !navigator.onLine)return;
+      saveTimer=setTimeout(()=>{saveTimer=null;saveNow();},Math.max(0,delayMs));
     }
-
+    function clearChecklistRetry() {
+      if(checklistRetryTimer!==null)clearTimeout(checklistRetryTimer);
+      checklistRetryTimer=null;
+    }
+    function scheduleChecklistRetry() {
+      if(!checklistDirty || !navigator.onLine)return;
+      clearChecklistRetry();
+      const delay=Math.min(CHECKLIST_RETRY_MAX_MS,CHECKLIST_RETRY_BASE_MS*Math.pow(2,Math.min(checklistRetryCount++,5)));
+      checklistRetryTimer=setTimeout(()=>{
+        checklistRetryTimer=null;
+        if(!checklistDirty || !navigator.onLine)return;
+        if(checklistServerChecked)saveNow();
+        else loadFromServer();
+      },delay);
+    }
+    function scheduleSave() {
+      checklistDirty=true;
+      checklistVersion++;
+      checklistLastChangeAt=Date.now();
+      const saved=saveClientCache();
+      clearChecklistRetry();
+      if(checklistSaving)checklistSaveQueued=true;
+      if(saved)setSaveStatus(navigator.onLine?"기기 저장 완료 · 서버 자동 저장 대기 중":"오프라인 · 기기 저장 완료",
+        navigator.onLine?"saving":"error");
+      queueChecklistSave();
+    }
     function saveNow() {
-      if (!data || !checklistDirty || !navigator.onLine) return;
-      const remaining = CHECKLIST_SAVE_IDLE_MS - (Date.now() - checklistLastChangeAt);
-      if (remaining > 0) {
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => { saveTimer = null; saveNow(); }, remaining);
+      if(!data || !checklistDirty || !navigator.onLine)return;
+      const remain=CHECKLIST_SAVE_IDLE_MS-(Date.now()-checklistLastChangeAt);
+      if(remain>0){queueChecklistSave(remain);return;}
+      if(!checklistServerChecked){
+        setSaveStatus("기기 기록 유지 · 서버 최신본 확인 후 저장","saving");
+        if(!checklistLoading)loadFromServer();
         return;
       }
-      if (!checklistServerChecked) {
-        setSaveStatus("기기 저장 완료 · 서버 상태 확인 후 자동 저장", "saving");
-        return;
-      }
-      if (checklistSaving) {
-        checklistSaveQueued = true;
-        return;
-      }
-      checklistSaving = true;
-      checklistSaveQueued = false;
-      const savingVersion = checklistVersion;
-      const snapshot = JSON.parse(JSON.stringify(data));
-      setSaveStatus("서버에 자동 저장 중", "saving");
+      if(checklistSaving){checklistSaveQueued=true;return;}
+      checklistSaving=true;
+      checklistSaveQueued=false;
+      clearChecklistRetry();
+      const savingVersion=checklistVersion;
+      const snapshot=JSON.parse(JSON.stringify(data));
+      setSaveStatus("서버에 자동 저장 중","saving");
       showAppProgress("checklist-save","체크리스트 저장 중","busy");
       google.script.run
-        .withSuccessHandler((result) => {
-          checklistSaving = false;
-          if (!result || !result.ok) {
-            showAppProgress("checklist-save","저장 실패 · 기기 보관","error");
-            setSaveStatus("저장 실패 · 기기에 변경사항 보관 중", "error");
+        .withSuccessHandler(result=>{
+          checklistSaving=false;
+          if(!result || !result.ok){
+            checklistDirty=true;
+            saveClientCache();
+            showAppProgress("checklist-save","저장 실패 · 기기 기록 유지","error");
+            setSaveStatus("서버 저장 실패 · 재시도 예정 · 기기 기록 유지","error");
+            scheduleChecklistRetry();
             return;
           }
-          serverUpdatedAt = result.updatedAt || "";
-          if (checklistVersion !== savingVersion || checklistSaveQueued) {
-            checklistDirty = true;
+          serverUpdatedAt=result.updatedAt||"";
+          checklistRetryCount=0;
+          clearChecklistRetry();
+          if(checklistVersion!==savingVersion || checklistSaveQueued){
+            checklistDirty=true;
             saveClientCache();
-            // 후속 저장이 남아 있으면 진행 상태를 유지합니다.
-            showAppProgress("checklist-save","추가 변경 저장 중","busy");
-            setSaveStatus("추가 변경사항 서버 저장 중", "saving");
-            // 저장 도중 들어온 변경도 마지막 체크 이후 충분한 유휴 시간을 확보합니다.
-            if (!saveTimer) {
-              saveTimer = setTimeout(() => { saveTimer = null; saveNow(); }, CHECKLIST_SAVE_IDLE_MS);
+            showAppProgress("checklist-save","추가 변경 저장 대기","done");
+            setSaveStatus("기기 저장 완료 · 추가 변경 전송 대기","saving");
+            if(!saveTimer){
+              queueChecklistSave(Math.max(0,CHECKLIST_SAVE_IDLE_MS-(Date.now()-checklistLastChangeAt)));
             }
-          } else {
-            checklistDirty = false;
+          }else{
+            checklistDirty=false;
             saveClientCache();
             showAppProgress("checklist-save","체크리스트 저장 완료","done");
-            const now = new Date().toLocaleTimeString("ko-KR", {hour:"2-digit",minute:"2-digit"});
-            setSaveStatus("자동 저장 완료 · " + now, "saved");
+            const now=new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+            setSaveStatus("자동 저장 완료 · "+now,"saved");
           }
         })
-        .withFailureHandler((error) => {
-          checklistSaving = false;
-          checklistDirty = true;
+        .withFailureHandler(error=>{
+          checklistSaving=false;
+          checklistDirty=true;
           saveClientCache();
-          showAppProgress("checklist-save","저장 실패 · 기기 보관","error");
-          setSaveStatus("서버 저장 실패 · 기기 기록 유지: " + (error.message || error), "error");
+          showAppProgress("checklist-save","저장 실패 · 기기 기록 유지","error");
+          setSaveStatus("서버 저장 실패 · 재시도 예정: "+(error?.message||error),"error");
+          scheduleChecklistRetry();
         })
-        .saveAppData({data:snapshot, updatedAt:serverUpdatedAt});
+        .saveAppData({data:snapshot,updatedAt:serverUpdatedAt});
     }
 
     function normalizeData(raw) {
@@ -1326,6 +1361,7 @@
 
     function onItemPointerDown(event) {
       if (event.button !== undefined && event.button !== 0) return;
+      if(event.target.closest(".item-check, .item-actions"))return;
 
       const itemEl = event.currentTarget;
       const startX = event.clientX;
@@ -1391,6 +1427,8 @@
       window.addEventListener("pointermove", onDragMove, { passive: false });
       window.addEventListener("pointerup", endDrag, { once: true });
       window.addEventListener("pointercancel", cancelDrag, { once: true });
+      clearTimeout(dragWatchdogTimer);
+      dragWatchdogTimer=setTimeout(()=>{if(dragState)cancelDrag();},15000);
     }
 
     function onDragMove(event) {
@@ -1442,6 +1480,10 @@
     }
 
     function cleanupDrag() {
+      clearTimeout(dragWatchdogTimer);
+      dragWatchdogTimer=null;
+      window.removeEventListener("pointerup",endDrag);
+      window.removeEventListener("pointercancel",cancelDrag);
       if (!dragState) return;
 
       dragState.floating.remove();
@@ -2542,7 +2584,20 @@
     document.getElementById("sleepConflictApply").addEventListener("click",applySleepConflictChoices);
     loadFromServer();
     window.addEventListener("online", () => {
-      if (data) loadFromServer();
+      if(data){
+        clearChecklistRetry();
+        loadFromServer();
+      }
+    });
+    document.addEventListener("visibilitychange",()=>{
+      if(document.visibilityState==="hidden"){
+        if(checklistDirty)saveClientCache();
+      }else if(checklistDirty && navigator.onLine){
+        queueChecklistSave(Math.max(0,CHECKLIST_SAVE_IDLE_MS-(Date.now()-checklistLastChangeAt)));
+      }
+    });
+    window.addEventListener("pagehide",()=>{
+      if(checklistDirty)saveClientCache();
     });
     // 기기 저장분은 서버 정보를 먼저 확인한 뒤 안전하게 병합합니다.
   </script>
