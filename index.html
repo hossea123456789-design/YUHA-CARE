@@ -320,7 +320,7 @@
       .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
     }
   </style>
-  <link rel="stylesheet" href="design.css?v=20261020-whitepercent7" />
+  <link rel="stylesheet" href="design.css?v=20261021-microsync1" />
 </head>
 
 <body>
@@ -527,12 +527,13 @@
     function renderActiveProgress() {
       if(!progressTasks.size)return;
       const active=[...progressTasks.values()].pop();
+      active.visible=true;
       setProgressVisual(active.message,"busy",estimatedRequestPercent(active));
     }
     function stopProgressTicker(){
       if(progressTickTimer!==null){clearInterval(progressTickTimer);progressTickTimer=null;}
     }
-    function startProgressTicker() {
+    function startProgressTicker(){
       if(progressTickTimer!==null)return;
       progressTickTimer=setInterval(()=>{
         if(!progressTasks.size){stopProgressTicker();return;}
@@ -546,16 +547,20 @@
       if(state==="busy"){
         const info=progressTasks.get(task);
         if(info)info.message=message;
-        else progressTasks.set(task,{message,startedAt:Date.now()});
+        else progressTasks.set(task,{message,startedAt:Date.now(),visible:false});
         if(el.classList.contains("show")&&el.dataset.state==="busy"){
           clearTimeout(progressShowTimer);
           renderActiveProgress();
           startProgressTicker();
         }else{
+          el.classList.remove("show");
           clearTimeout(progressShowTimer);
+          // 체크리스트 저장은 짧은 네트워크 요청이면 표시하지 않습니다.
+          // 이미 1.8초 묶음 저장을 기다린 뒤라 사용자에게 또 대기 애니메이션을 강조하지 않습니다.
+          const delay=task==="checklist-save"?850:PROGRESS_SHOW_DELAY;
           progressShowTimer=setTimeout(()=>{
             if(progressTasks.size){renderActiveProgress();startProgressTicker();}
-          },PROGRESS_SHOW_DELAY);
+          },delay);
         }
         return;
       }
@@ -569,11 +574,16 @@
       }
       stopProgressTicker();
       clearTimeout(progressShowTimer);
+      // 체크리스트 빠른 저장은 불필요한 100% 깜빡임도 띄우지 않습니다.
+      if(task==="checklist-save"&&!completed?.visible&&state==="done"){
+        el.classList.remove("show");
+        return;
+      }
       const pct=state==="done"?100:(completed?estimatedRequestPercent(completed):0);
       setProgressVisual(message,state,pct);
       progressHideTimer=setTimeout(()=>{
         if(!progressTasks.size)el.classList.remove("show");
-      },state==="error"?PROGRESS_ERROR_MS:PROGRESS_SUCCESS_MS);
+      },state==="error"?PROGRESS_ERROR_MS:(task==="checklist-save"?580:PROGRESS_SUCCESS_MS));
     }
 
     window.addEventListener("yuha-db-status", event => {
