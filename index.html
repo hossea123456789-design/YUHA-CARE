@@ -1461,7 +1461,9 @@
     // ============================================================
     // 수면 기록: 기상은 당일 아침, 밤잠은 전날 취침 → 오늘 기상, 낮잠은 당일.
     // ============================================================
-    const SLEEP_KEYS = ["bedTime", "asleepTime", "napStart", "napEnd", "wakeTime"];
+    const SLEEP_KEYS = ["bedTime", "asleepTime", "napStart", "napEnd", "wakeTime", "nap2Start", "nap2End"];
+    const sleepNap2Expanded=new Set();
+    const sleepNap2Collapsed=new Set();
     const SLEEP_MONTH_CACHE = "yuha_sleep_month_v5_"; // 기상일 기준 스키마
     const SLEEP_SERVER_CACHE = "yuha_sleep_server_v5_";
     const SLEEP_PENDING_KEY = "yuha_sleep_pending_v5";
@@ -1533,7 +1535,7 @@
       try{localStorage.setItem(SLEEP_PENDING_KEY,JSON.stringify(sleepPending));}catch(e){setSleepStatus("기기 저장공간에 기록을 저장하지 못했습니다: "+e.message,"error");}
       const n=document.getElementById("sleepPendingCount");if(n)n.textContent=sleepPending.length?`기기 임시 저장 ${sleepPending.length}건`:"자동 저장";      const retry=document.getElementById("sleepRetry");if(retry)retry.style.display=sleepPending.length?"":"none";
     }
-    function defaultSleepRecord() {return {bedTime:"",asleepTime:"",napStart:"",napEnd:"",wakeTime:""};}
+    function defaultSleepRecord() {return {bedTime:"",asleepTime:"",napStart:"",napEnd:"",wakeTime:"",nap2Start:"",nap2End:""};}
     function ensureSleepMonth(year,month) {
       const key=sleepMonthKey(year,month);
       if(!sleepMonths[key]){
@@ -1793,12 +1795,26 @@
       return h * 60 + m;
     }
 
+    function napIntervals(row) {
+      const intervals=[];
+      for (const [startKey,endKey] of [["napStart","napEnd"],["nap2Start","nap2End"]]) {
+        const a=String(row[startKey]||""), b=String(row[endKey]||"");
+        if (!a&&!b) continue;
+        const start=sleepMinutes(a), end=sleepMinutes(b);
+        if (start===null||end===null||end<=start||end-start>360)
+          return {complete:false, intervals:[],error:startKey.startsWith("nap2")?"2차 낮잠 시작·종료를 확인해 주세요.":"1차 낮잠 시작·종료를 확인해 주세요."};
+        intervals.push({start,end,minutes:end-start,phase:startKey.startsWith("nap2")?2:1});
+      }
+      intervals.sort((a,b)=>a.start-b.start);
+      if(intervals.length===2&&intervals[0].end>intervals[1].start)
+        return {complete:false,intervals,error:"낮잠 1·2차 시간대가 서로 겹칩니다."};
+      if(!intervals.length)
+        return {complete:false,intervals:[],error:"낮잠 기록이 없습니다."};
+      return {complete:true,intervals,total:intervals.reduce((sum,part)=>sum+part.minutes,0)};
+    }
     function napDuration(row) {
-      const start = sleepMinutes(row.napStart), end = sleepMinutes(row.napEnd);
-      if (start === null || end === null) return null;
-      let d = end - start;
-      if (d < 0) d += 1440;
-      return d <= 720 ? d : null;
+      const n=napIntervals(row);
+      return n.complete?n.total:null;
     }
 
     function nightDuration(dateKey) {
@@ -2115,9 +2131,32 @@
           if(field==="napEnd")return;
           const td=document.createElement("td");
           if(field==="napStart"){
-            const stack=document.createElement("div");stack.className="sleep-nap-stack";
-            [["napStart","낮잠 시작"],["napEnd","낮잠 종료"]].forEach(([key,desc])=>stack.appendChild(makeSleepTimeButton(dateKey,key,record[key],desc)));
-            td.appendChild(stack);
+            const group=document.createElement("div");
+            group.className="sleep-nap-group";
+            const first=document.createElement("div");first.className="sleep-nap-stack";
+            [["napStart","1차 시작"],["napEnd","1차 종료"]].forEach(([key,desc])=>
+              first.appendChild(makeSleepTimeButton(dateKey,key,record[key],desc)));
+            group.appendChild(first);
+            const hasSecond=!!(record.nap2Start||record.nap2End);
+            const expanded=sleepNap2Expanded.has(dateKey)||(hasSecond&&!sleepNap2Collapsed.has(dateKey));
+            if(expanded){
+              const second=document.createElement("div");second.className="sleep-nap-stack second";
+              [["nap2Start","2차 시작"],["nap2End","2차 종료"]].forEach(([key,desc])=>
+                second.appendChild(makeSleepTimeButton(dateKey,key,record[key],desc)));
+              group.appendChild(second);
+            }
+            const toggle=document.createElement("button");
+            toggle.type="button";toggle.className="sleep-nap-toggle";
+            toggle.textContent=expanded?"− 2차 접기":"+ 2차 낮잠";
+            toggle.setAttribute("aria-expanded",String(expanded));
+            toggle.setAttribute("aria-label",dateKey+" "+(expanded?"2차 낮잠 접기":"2차 낮잠 입력 보이기"));
+            toggle.addEventListener("click",()=>{
+              if(expanded){sleepNap2Expanded.delete(dateKey);sleepNap2Collapsed.add(dateKey);}
+              else{sleepNap2Collapsed.delete(dateKey);sleepNap2Expanded.add(dateKey);}
+              drawSleepTable();
+            });
+            group.appendChild(toggle);
+            td.appendChild(group);
           } else td.appendChild(makeSleepTimeButton(dateKey,field,record[field],label));
           tr.appendChild(td);
         });
@@ -2134,7 +2173,7 @@
     }
 
     let sleepEditing=null;
-    const sleepFieldLabels={bedTime:"침대 입실",asleepTime:"실제 잠듦",napStart:"낮잠 시작",napEnd:"낮잠 종료",wakeTime:"기상 · 당일 아침"};
+    const sleepFieldLabels={bedTime:"침대 입실",asleepTime:"실제 잠듦",napStart:"1차 낮잠 시작",napEnd:"1차 낮잠 종료",nap2Start:"2차 낮잠 시작",nap2End:"2차 낮잠 종료",wakeTime:"기상 · 당일 아침"};
     function openSleepTimeModal(dateKey,field) {
       sleepEditing={dateKey,field};
       const row=getSleepRecord(dateKey);
