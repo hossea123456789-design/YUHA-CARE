@@ -647,3 +647,49 @@ body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bot
   .sleep-nap-group.compact>.sleep-nap-toggle{width:18px;font-size:15px!important}
 }
 @media(prefers-reduced-motion:reduce){.sleep-nap-popover{animation:none!important}}
+
+
+/* Second-nap picker uses the same time-selection modal as every other sleep field. */
+.nap-popover-times{gap:8px}
+.nap-popover-time{min-width:0;display:flex;flex-direction:column;gap:5px}
+.nap-popover-time>span{font-size:10px;font-weight:760;color:#74877c}
+.nap-popover-time>.sleep-time-btn{
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  min-width:0;width:100%;height:40px;min-height:40px;margin:0;
+  padding:7px 5px;border-radius:10px;border:1px solid #dfebe3;
+  color:#2a5847;background:#f6faf7;font-size:13px!important;font-weight:810;
+  font-variant-numeric:tabular-nums;letter-spacing:-.2px;white-space:nowrap;
+}
+.nap-popover-time>.sleep-time-btn::before{
+  content:"";width:14px;height:14px;flex:0 0 14px;
+  background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23537c6e' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
+}
+.nap-popover-time>.sleep-time-btn:not(.filled){font-size:11px!important;color:#78978a}
+.nap-popover-time>.sleep-time-btn:hover,
+.nap-popover-time>.sleep-time-btn:focus-visible{background:#e9f5ed;border-color:#a8d6c0}
+.nap-popover-hint{margin:9px 1px 0;color:#899a91;font-size:10px;line-height:1.4}
+.nap-popover-close-action{min-height:33px;padding:7px 16px;font-size:11px;font-weight:740;
+  border:1px solid #d7e7dc;color:#316c58;background:#edf5ef;border-radius:9px}
+/* Network-only status pill: a precise estimated % until the server confirms completion. */
+.app-progress-top{display:flex!important;align-items:center!important;gap:9px!important;width:100%;min-width:0}
+.app-progress-message{display:block;flex:1 1 auto;min-width:0;
+  max-width:none!important;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;font-size:11px!important}
+.app-progress-percent{margin-left:auto;flex:0 0 auto;min-width:34px;
+  font-size:12px;font-weight:860;line-height:1;letter-spacing:-.45px;
+  color:#168d74;text-align:right;font-variant-numeric:tabular-nums;
+  text-shadow:0 0 8px rgba(34,212,159,.24)}
+.app-progress[data-state="done"] .app-progress-percent{color:#18876b;text-shadow:none}
+.app-progress[data-state="error"] .app-progress-percent{color:#ba6666;text-shadow:none}
+.app-progress-track{position:relative!important;height:3px!important;border-radius:9px;
+  overflow:hidden;background:#e6f1ea!important}
+.app-progress .app-progress-fill{width:0;max-width:100%;height:100%;
+  background:linear-gradient(90deg,#218c7a,#38e1bd,#abffe4)!important;
+  box-shadow:0 0 5px #25c9a3,0 0 10px #35ecbd;
+  animation:none!important;transition:width .17s ease-out!important;
+  border-radius:9px}
+.app-progress[data-state="done"] .app-progress-fill{width:100%!important;background:#359f7c!important;box-shadow:none}
+.app-progress[data-state="error"] .app-progress-fill{background:#bf7478!important;box-shadow:none}
+.app-progress{width:min(239px,calc(100vw - 64px));max-width:239px}
+@media(prefers-reduced-motion:reduce){
+ .app-progress .app-progress-fill{transition:none!important}
+}
