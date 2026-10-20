@@ -336,7 +336,22 @@
             <h1>유하 육아 도구 모음</h1>
           </div>
         </div>
-        <div class="connection-state" id="connectionState" role="status" data-state="connecting" title="서버 연결을 확인하고 있습니다">연결 중</div>
+        <div class="header-status-group">
+          <div class="app-progress header-sync" id="appProgress" data-state="busy" role="status" aria-live="polite">
+              <div class="app-progress-top">
+                <span class="app-progress-icon" aria-hidden="true">
+                  <svg class="progress-success-svg" viewBox="0 0 24 24" fill="none" focusable="false">
+                    <circle class="progress-success-circle" cx="12" cy="12" r="10"></circle>
+                    <path class="progress-success-check" d="m7.45 12.15 3.05 3.05 6.05-6.25"></path>
+                  </svg>
+                </span>
+                <span class="app-progress-message" id="appProgressMessage">저장 중</span>
+                <span class="app-progress-percent" id="appProgressPercent" title="서버 처리 중에는 추정 진행률, 성공 시 100%">0%</span>
+              </div>
+              <div class="app-progress-track" id="appProgressTrack" role="progressbar" aria-label="서버 요청 진행 상태" aria-valuemin="0" aria-valuemax="100"><div class="app-progress-fill" id="appProgressFill"></div></div>
+            </div>
+          <div class="connection-state" id="connectionState" role="status" data-state="connecting" title="서버 연결을 확인하고 있습니다">연결 중</div>
+        </div>
       </div>
       <div class="progress-meta">
         <div class="summary" id="summary">체크리스트를 준비하고 있습니다</div>
@@ -397,19 +412,6 @@
   </div>
 
   <div class="drag-toast" id="dragToast">이동 중 · 원하는 위치에서 손을 떼세요</div>
-  <div class="app-progress" id="appProgress" data-state="busy" role="status" aria-live="polite">
-    <div class="app-progress-top">
-      <span class="app-progress-icon" aria-hidden="true">
-        <svg class="progress-success-svg" viewBox="0 0 24 24" fill="none" focusable="false">
-          <circle class="progress-success-circle" cx="12" cy="12" r="10"></circle>
-          <path class="progress-success-check" d="m7.45 12.15 3.05 3.05 6.05-6.25"></path>
-        </svg>
-      </span>
-      <span class="app-progress-message" id="appProgressMessage">저장 중</span>
-      <span class="app-progress-percent" id="appProgressPercent" title="서버 처리 중에는 추정 진행률, 성공 시 100%">~0%</span>
-    </div>
-    <div class="app-progress-track" id="appProgressTrack" role="progressbar" aria-label="서버 요청 진행 상태" aria-valuemin="0" aria-valuemax="100"><div class="app-progress-fill" id="appProgressFill"></div></div>
-  </div>
 
   <!-- 서버 스크립트 다운로드 전에 기기 캐시를 먼저 표시합니다. -->
   <script>
