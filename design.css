@@ -756,3 +756,120 @@ header .tab-btn{height:39px;min-height:39px;max-height:39px;align-self:center}
 @media(max-width:355px){
   header .brand-bar{height:36px;min-height:36px;max-height:36px}
 }
+
+
+/* Compact network indicator integrated with the fixed-height connection header.
+   Reserved width prevents the tab/header shifting when sync starts or completes. */
+header .brand-bar{display:flex;align-items:center;justify-content:space-between;gap:6px!important}
+header .brand-lockup{flex:1 1 auto;min-width:0;overflow:hidden}
+header .brand-heading{min-width:0;overflow:hidden}
+header .brand-heading h1{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .header-status-group{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;gap:5px;
+  width:135px;height:36px;min-width:135px;
+}
+header .header-status-group .connection-state{
+  flex:0 0 69px;min-width:69px;justify-content:center;box-sizing:border-box;
+  height:33px;padding:6px 6px;white-space:nowrap;
+}
+header .header-status-group .app-progress,
+header .header-status-group .app-progress.show{
+  display:flex!important;flex-direction:column;align-items:stretch;
+  flex:0 0 61px!important;width:61px!important;min-width:61px!important;max-width:61px!important;
+  height:33px!important;min-height:33px!important;max-height:33px!important;
+  box-sizing:border-box!important;padding:6px 5px 5px!important;margin:0!important;
+  position:relative!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;
+  transform:none!important;
+  border-radius:10px!important;border:1px solid #378f75!important;
+  background:linear-gradient(125deg,#164e40,#1b735c)!important;
+  color:#fff!important;overflow:hidden!important;
+  box-shadow:0 2px 8px #1c705235!important;
+  pointer-events:none!important;transition:opacity .17s ease,visibility .17s!important;
+}
+header .header-status-group .app-progress:not(.show){
+  opacity:0!important;visibility:hidden!important;
+}
+header .header-status-group .app-progress.show{
+  opacity:1!important;visibility:visible!important;
+}
+header .header-status-group .app-progress::before,
+header .header-status-group .app-progress::after{display:none!important;content:none!important}
+header .header-status-group .app-progress-top{
+  display:flex!important;align-items:center!important;gap:4px!important;min-height:14px!important;
+  height:14px!important;width:100%!important;position:relative;z-index:1;
+}
+header .header-status-group .app-progress-icon{
+  display:grid!important;place-items:center!important;flex:0 0 12px!important;
+  width:12px!important;height:12px!important;min-width:12px!important;
+  padding:0!important;border:0!important;border-radius:50%!important;
+  background:transparent!important;box-shadow:none!important;
+}
+header .header-status-group .app-progress-icon::after{
+  content:""!important;display:block!important;width:9px!important;height:9px!important;
+  border:1.6px solid #ffffff5a!important;border-top-color:#ffffff!important;border-radius:50%!important;
+  animation:yuha-spin .85s linear infinite!important;filter:none!important;
+}
+header .header-status-group .app-progress-message{
+  display:none!important;visibility:hidden!important;
+}
+header .header-status-group .app-progress-percent{
+  flex:1 1 auto!important;display:block!important;width:auto!important;min-width:0!important;
+  height:auto!important;padding:0!important;margin:0!important;
+  border:0!important;border-radius:0!important;background:none!important;
+  box-shadow:none!important;color:#fff!important;text-shadow:none!important;
+  text-align:right!important;font-size:11px!important;font-weight:850!important;
+  line-height:14px!important;letter-spacing:-.35px!important;
+  white-space:nowrap!important;font-variant-numeric:tabular-nums!important;
+}
+header .header-status-group .app-progress-track{
+  display:block!important;position:relative!important;z-index:1;
+  width:100%!important;height:2px!important;min-height:2px!important;
+  padding:0!important;margin:4px 0 0!important;
+  border-radius:99px!important;background:#ffffff38!important;
+  box-shadow:none!important;overflow:hidden!important;
+}
+header .header-status-group .app-progress-fill{
+  height:100%!important;min-height:0!important;max-width:100%!important;
+  background:linear-gradient(90deg,#74f5c2,#e2fff0)!important;
+  box-shadow:0 0 4px #beffe4!important;border-radius:99px!important;
+}
+header .header-status-group .app-progress[data-state="done"]{
+  background:linear-gradient(125deg,#145d45,#218766)!important;
+}
+header .header-status-group .app-progress[data-state="done"] .app-progress-icon::after{
+  content:none!important;display:none!important;animation:none!important;
+}
+header .header-status-group .app-progress[data-state="done"] .progress-success-svg{
+  display:block!important;width:13px!important;height:13px!important;filter:none!important;
+}
+header .header-status-group .app-progress[data-state="done"] .progress-success-circle{
+  fill:#268a66!important;stroke:#b5ffe0!important;
+}
+header .header-status-group .app-progress[data-state="error"]{
+  background:linear-gradient(125deg,#723d4c,#a35765)!important;border-color:#bb6871!important;
+}
+header .header-status-group .app-progress[data-state="error"] .app-progress-icon::after{
+  content:"!"!important;display:block!important;width:auto!important;height:auto!important;
+  border:0!important;animation:none!important;font-size:12px!important;
+  font-weight:900!important;color:#fff!important;
+}
+@media(max-width:420px){
+  header .header-status-group{width:124px;min-width:124px;gap:4px}
+  header .header-status-group .connection-state{flex-basis:64px;min-width:64px}
+  header .header-status-group .app-progress,
+  header .header-status-group .app-progress.show{
+    flex-basis:56px!important;width:56px!important;min-width:56px!important;max-width:56px!important;
+  }
+  header .brand-lockup{gap:7px}
+}
+@media(max-width:355px){
+  header .header-status-group{width:118px;min-width:118px}
+  header .header-status-group .connection-state{flex-basis:60px;min-width:60px}
+  header .header-status-group .app-progress,
+  header .header-status-group .app-progress.show{
+    flex-basis:54px!important;width:54px!important;min-width:54px!important;max-width:54px!important;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  header .header-status-group .app-progress-icon::after{animation:none!important}
+}
