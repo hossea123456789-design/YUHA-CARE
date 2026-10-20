@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8" />
+  <title>유하 육아 도구 모음</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --blue:#2f6fed; --blue-light:#eef4ff; --bg:#f6f7fb; --card:#fff;
+      --line:#e8eaf0; --text:#222; --sub:#666; --danger:#e53935; --soft:#f2f4f8;
+      --yellow-bg:#fff8e8; --yellow-line:#ffe1a8;
+    }
+    body {
+      margin:0; font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+      background:var(--bg); color:var(--text); overscroll-behavior:none;
+    }
+    button,input,select { font-family:inherit; }
+    .app { max-width:560px; margin:0 auto; min-height:100vh; background:var(--card); padding-bottom:96px; }
+    header {
+      position:sticky; top:0; z-index:20; background:rgba(255,255,255,.96); backdrop-filter:blur(10px);
+      padding:18px 18px 12px; border-bottom:1px solid var(--line);
+    }
+    h1 { margin:0 0 8px; font-size:22px; font-weight:850; letter-spacing:-.4px; }
+    .summary { font-size:14px; color:var(--sub); margin-bottom:10px; }
+    .save-status { font-size:12px; color:#666; margin-bottom:12px; }
+    .save-status.saving { color:#9a5b00; }
+    .save-status.saved { color:#116329; }
+    .save-status.error { color:#d62828; }
+    .tabs { display:flex; overflow-x:auto; scrollbar-width:none; gap:6px; padding-bottom:1px; }
+    .tabs::-webkit-scrollbar{display:none}
+    .tab-btn { flex:0 0 auto; min-width:72px; border:0; border-radius:14px; padding:10px 4px; background:#f0f1f5; color:#555; font-size:12px; font-weight:800; cursor:pointer; }
+    .tab-btn.active { background:var(--blue); color:#fff; }
+    main { padding:18px; }
+    .panel-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; }
+    .panel-title { margin:0; font-size:19px; font-weight:850; letter-spacing:-.3px; }
+    .count { margin-top:5px; display:inline-block; font-size:13px; color:var(--sub); background:var(--soft); padding:5px 10px; border-radius:999px; }
+    .help-note { margin:0 0 14px; padding:10px 12px; background:var(--yellow-bg); border:1px solid var(--yellow-line); color:#755000; border-radius:14px; font-size:13px; line-height:1.45; }
+    .section { margin-bottom:20px; }
+    .section-title-row { display:flex; align-items:center; gap:10px; margin:18px 0 10px; }
+    .section-title-row::after { content:""; height:1px; background:var(--line); flex:1; }
+    .section-title { font-size:16px; font-weight:850; color:#333; white-space:nowrap; }
+    .section-count { font-size:12px; color:#777; background:#f2f4f8; padding:4px 8px; border-radius:999px; }
+    .add-box { display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:10px; padding:10px; border:1px solid var(--line); border-radius:17px; background:#fbfcff; }
+    .add-input { width:100%; border:1px solid var(--line); border-radius:14px; padding:11px 12px; font-size:15px; outline:none; background:#fff; }
+    .add-input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(47,111,237,.12); }
+    .add-btn { border:0; border-radius:14px; padding:0 14px; background:var(--blue); color:#fff; font-size:14px; font-weight:850; cursor:pointer; white-space:nowrap; }
+    .check-list { display:flex; flex-direction:column; gap:10px; min-height:12px; border-radius:16px; }
+    .check-list.drop-zone { outline:2px dashed #bdd2ff; background:#f7faff; min-height:52px; padding:6px; }
+    .item {
+      display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:11px; padding:13px 12px;
+      border-radius:17px; background:#f8f9fc; border:1px solid #eceef4; transition:.15s ease; touch-action:pan-y; user-select:none;
+    }
+    .item.checked { background:var(--blue-light); border-color:#cfe0ff; }
+    .item.drag-source { opacity:.35; }
+    .item-check { width:23px; height:23px; accent-color:var(--blue); cursor:pointer; }
+    .item-text { font-size:16px; line-height:1.35; word-break:keep-all; overflow-wrap:anywhere; cursor:pointer; }
+    .item.checked .item-text { color:#777; text-decoration:line-through; }
+    .item-actions { display:flex; gap:5px; }
+    .mini-btn { border:0; border-radius:12px; padding:8px 9px; font-size:13px; font-weight:800; cursor:pointer; background:#eef1f6; color:#333; white-space:nowrap; }
+    .mini-btn.delete { background:#ffeeee; color:var(--danger); }
+    .empty { margin:24px 0; text-align:center; color:#777; font-size:14px; line-height:1.6; }
+    .placeholder { height:52px; border-radius:16px; border:2px dashed #9ebcff; background:#f1f6ff; }
+    .floating-item { position:fixed; z-index:999; pointer-events:none; width:min(500px,calc(100vw - 36px)); opacity:.96; box-shadow:0 18px 40px rgba(0,0,0,.18); transform:scale(1.02); }
+    .drag-toast { position:fixed; left:50%; bottom:88px; transform:translateX(-50%); z-index:1000; background:#111; color:#fff; padding:10px 14px; border-radius:999px; font-size:13px; font-weight:800; opacity:0; transition:opacity .15s ease; pointer-events:none; }
+    .drag-toast.show { opacity:.92; }
+    .settings-card { border:1px solid var(--line); border-radius:18px; padding:14px; background:#fbfcff; margin-bottom:14px; }
+    .settings-card h3 { margin:0 0 10px; font-size:16px; font-weight:850; }
+    .settings-row { display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:10px; }
+    .settings-row input,.settings-row select { min-width:0; border:1px solid var(--line); border-radius:14px; padding:11px 12px; font-size:14px; background:#fff; outline:none; }
+    .settings-row button { border:0; border-radius:14px; padding:0 13px; background:var(--blue); color:#fff; font-size:14px; font-weight:850; cursor:pointer; white-space:nowrap; }
+    .section-manage-list { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .section-manage-item { display:grid; grid-template-columns:1fr auto auto auto auto; gap:7px; align-items:center; padding:10px; background:#fff; border:1px solid var(--line); border-radius:15px; }
+.mini-btn:disabled { opacity:.35; cursor:not-allowed; }
+    .section-name { font-size:14px; font-weight:800; color:#333; overflow-wrap:anywhere; }
+    .danger-text { color:var(--danger); font-size:12px; line-height:1.4; margin-top:8px; }
+    .bottom-actions {
+      position:fixed; left:50%; bottom:0; transform:translateX(-50%); width:100%; max-width:560px;
+      display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 18px 18px;
+      background:linear-gradient(to top,#fff 78%,rgba(255,255,255,0)); border-top:1px solid #eee; z-index:30;
+    }
+    .action-btn { border:0; border-radius:16px; padding:14px 10px; font-size:15px; font-weight:850; cursor:pointer; }
+    .reset-current { background:#eef1f6; color:#333; }
+    .reset-all { background:#ffebeb; color:#d62828; }
+    .modal-backdrop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:18px; background:rgba(0,0,0,.38); z-index:100; }
+    .modal-backdrop.show { display:flex; }
+    .modal { width:100%; max-width:430px; background:#fff; border-radius:22px; padding:18px; box-shadow:0 20px 50px rgba(0,0,0,.18); }
+    .modal h3 { margin:0 0 12px; font-size:19px; font-weight:850; }
+    .modal input { width:100%; border:1px solid var(--line); border-radius:15px; padding:13px; font-size:16px; outline:none; }
+    .modal input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(47,111,237,.12); }
+    .modal-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:14px; }
+    .modal-actions button { border:0; border-radius:15px; padding:13px 10px; font-size:15px; font-weight:850; cursor:pointer; }
+    .cancel-btn { background:#eef1f6; color:#333; }
+    .save-btn { background:var(--blue); color:#fff; }
+    .loading { padding:40px 18px; color:#666; text-align:center; line-height:1.6; }
+    @media(max-width:390px){
+      .tabs{gap:4px}.tab-btn{font-size:11px;padding:9px 2px}.item{grid-template-columns:auto 1fr}.item-actions{grid-column:2/3;justify-content:flex-start}.mini-btn{padding:7px 10px}
+      .settings-section-select{grid-template-columns:1fr}.section-manage-item{grid-template-columns:1fr auto auto}.section-manage-item .mini-btn:nth-of-type(3),.section-manage-item .mini-btn:nth-of-type(4){grid-row:2}
+    }
+
+    /* 수면 기록 v2: 가로 스크롤 없는 주간 입력표 + 소형 월간 히트맵 */
+    .sleep-toolbar {display:flex;align-items:center;justify-content:space-between;gap:9px;margin:3px 0 10px}
+    .sleep-toolbar-title {font-size:17px;font-weight:850;letter-spacing:-.45px;text-align:center}
+    .sleep-nav {border:1px solid var(--line);background:#f5f7fb;border-radius:12px;min-width:39px;min-height:37px;font-size:15px;font-weight:850;cursor:pointer}
+    .sleep-go-today {font-size:12px;font-weight:800;color:#2e62c5;border:1px solid #cad9f7;border-radius:9px;background:#f3f7ff;padding:5px 9px}
+    .sleep-status {font-size:12px;line-height:1.5;color:#747b88;margin:10px 1px 0;min-height:17px}
+    .sleep-status.error {color:#c62828}.sleep-status.saved {color:#167347}
+    .sleep-summary {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:12px}
+    .sleep-kpi {min-width:0;padding:10px 7px;border-radius:12px;background:#f6f8fc;border:1px solid #e8ebf1}
+    .sleep-kpi-label {font-size:10px;color:#667085;margin-bottom:5px;white-space:nowrap}
+    .sleep-kpi-value {font-size:16px;font-weight:850;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.4px}
+    .sleep-kpi-detail {font-size:10px;color:#87909b;margin-top:3px}
+    .sleep-card {border:1px solid var(--line);border-radius:16px;padding:11px;background:#fff;margin-bottom:12px;min-width:0}
+    .sleep-card-title {display:flex;justify-content:space-between;align-items:center;gap:7px;font-size:14px;font-weight:850;margin-bottom:9px}
+    .sleep-reload {font-size:11px;padding:6px 9px;border:1px solid #dce6f8;background:#f5f8ff;color:#2255ac;border-radius:9px;font-weight:800;cursor:pointer}
+    .sleep-week-head,.sleep-calendar {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+    .sleep-weekday {text-align:center;font-size:10px;color:#7b8795;padding:0 0 3px}
+    .sleep-weekday.sun {color:#d34b58}.sleep-weekday.sat {color:#4674b4}
+    .sleep-day {border:1px solid #eaedf0;background:#f5f6f8;border-radius:7px;height:37px;padding:3px 1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;min-width:0}
+    .sleep-day.blank {background:transparent;border-color:transparent;cursor:default}
+    .sleep-day-num {font-size:11px;font-weight:850;line-height:1;color:#354052}
+    .sleep-day-info {font-size:8px;line-height:1;color:#485363;white-space:nowrap}
+    .sleep-day.today {border:2px solid #316de1;box-shadow:0 0 0 1px #fff inset}
+    .sleep-day.selected {outline:2px solid #344b7d;outline-offset:1px}
+    .sleep-day.quality-good,.sleep-quality-label.quality-good {background:#cdf1db;border-color:#8bd0a6}
+    .sleep-day.quality-watch,.sleep-quality-label.quality-watch {background:#ffebb6;border-color:#e8ce87}
+    .sleep-day.quality-concern,.sleep-quality-label.quality-concern {background:#f8cfd0;border-color:#eda9ad}
+    .sleep-day.quality-empty,.sleep-quality-label.quality-empty {background:#f1f2f5;border-color:#e4e5ea}
+    .sleep-legend {display:flex;flex-wrap:wrap;gap:6px 10px;font-size:10px;color:#5d6677;margin-top:8px}
+    .sleep-legend-item {display:inline-flex;gap:4px;align-items:center}
+    .sleep-legend-mark {width:11px;height:11px;border-radius:3px;border:1px solid rgba(0,0,0,.08)}
+    .sleep-note {font-size:11px;line-height:1.48;color:#667085;margin:8px 0 0}
+    .sleep-toggle {display:flex;gap:5px;align-items:center}
+    .sleep-toggle button {border:1px solid #e1e6ee;background:#f7f8fb;border-radius:9px;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer}
+    .sleep-toggle button.active {background:var(--blue);border-color:var(--blue);color:#fff}
+    .sleep-table-wrap {width:100%;min-width:0;overflow:visible;border:1px solid #e4e9f1;border-radius:11px}
+    .sleep-table {width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:11px;font-variant-numeric:tabular-nums}
+    .sleep-table col.datecol {width:20%} .sleep-table col.timecol {width:18%} .sleep-table col.napcol {width:26%}
+    .sleep-table th,.sleep-table td {padding:5px 2px;border-right:1px solid #edf0f5;border-bottom:1px solid #edf0f5;text-align:center;vertical-align:middle;min-width:0}
+    .sleep-table tr:last-child td {border-bottom:0}.sleep-table th:last-child,.sleep-table td:last-child{border-right:0}
+    .sleep-table th {background:#f3f6fb;color:#475467;line-height:1.35;font-weight:850;white-space:normal;font-size:10px}
+    .sleep-table th:first-child {border-top-left-radius:10px}
+    .sleep-table th:last-child {border-top-right-radius:10px}
+    .sleep-table tr.today td {background:#eef5ff}.sleep-table tr.today td:first-child{box-shadow:inset 3px 0 #2f6fed}
+    .sleep-table tr.selected:not(.today) td {background:#f8faff}
+    .sleep-date-label {display:block;font-size:12px;letter-spacing:-.3px;font-weight:850;line-height:1.3;white-space:nowrap}
+    .sleep-date-label .dow {font-size:10px;color:#7c8693;font-weight:700}
+    .sleep-date-label .now {display:block;color:#245bd0;font-size:9px}
+    .sleep-total {display:block;margin-top:4px;font-size:10px;font-weight:850;white-space:nowrap;letter-spacing:-.4px}
+    .sleep-total.empty {color:#9aa2b0}.sleep-total.quality-good{color:#14824b}.sleep-total.quality-watch{color:#986700}.sleep-total.quality-concern{color:#bf3740}
+    .sleep-quality-label {display:block;margin:3px auto 0;max-width:100%;font-size:9px;font-weight:800;line-height:1.2;padding:2px 0;border-radius:5px}
+    .sleep-time-btn {display:block;width:100%;min-width:0;overflow:hidden;border:1px solid #e1e6ed;background:#fff;border-radius:7px;min-height:32px;padding:5px 0;font-size:11px;color:#26364b;font-weight:750;white-space:nowrap;cursor:pointer;font-variant-numeric:tabular-nums}
+    .sleep-time-btn:not(.filled){color:#9ba5b4;font-size:14px}
+    .sleep-nap-stack {display:flex;flex-direction:column;gap:3px}
+    .sleep-nap-stack .sleep-time-btn {min-height:28px}
+    .sleep-modal-backdrop {position:fixed;inset:0;background:rgba(24,33,49,.42);z-index:130;display:none;align-items:flex-end;justify-content:center;padding:15px}
+    .sleep-modal-backdrop.show{display:flex}
+    .sleep-modal {background:white;width:100%;max-width:440px;border-radius:19px;padding:20px 17px 16px;box-shadow:0 14px 36px rgba(0,0,0,.2)}
+    .sleep-modal h3 {font-size:17px;margin:0 0 7px}.sleep-modal p {font-size:13px;color:#6a7584;margin:0 0 16px}
+    .sleep-modal input[type=time] {display:block;width:100%;font-size:23px;font-weight:800;border:1px solid #cad6eb;border-radius:13px;padding:12px;background:white;color:#20334f}
+    .sleep-modal-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:16px}
+    .sleep-modal-actions button{border:0;border-radius:11px;padding:12px 4px;font-size:13px;font-weight:800;background:#eaf0f8;color:#233750}
+    .sleep-modal-actions .primary{background:#2f6fed;color:white}.sleep-modal-actions .clear{background:#ffefee;color:#be3543}
+    .sleep-explainer {margin-top:10px;padding:9px 10px;border-radius:10px;background:#f6f7fa;font-size:11px;color:#616d7b;line-height:1.55}
+    @media(min-width:510px){.sleep-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.sleep-time-btn{font-size:12px}.sleep-day{height:41px}}
+
+    /* 수면 기록 v3 - 생년월일, 오프라인 동기화, 필드별 충돌 선택 */
+    .sleep-profile {display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:7px 0 12px;padding:10px;border-radius:13px;background:#f3f7ff}
+    .sleep-profile label {font-size:12px;font-weight:800;color:#344778}
+    .sleep-profile input {min-width:128px;max-width:146px;border:1px solid #d4def0;border-radius:9px;padding:8px 5px;font-size:13px;background:#fff;color:#20334f}
+    .sleep-profile button,.sleep-sync-actions button {border:1px solid #c5d4ee;background:#fff;color:#2855ac;border-radius:10px;padding:9px 8px;font-size:12px;font-weight:800;cursor:pointer}
+    .sleep-profile .age {font-size:12px;color:#3e526d;font-weight:700;width:100%}
+    .sleep-sync-actions {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:9px 0 4px}
+    .sleep-sync-actions button {padding:9px 3px;font-size:11px;line-height:1.2}
+    .sleep-sync-actions button.active {background:#285dca;color:#fff}
+    .sleep-sync-note {font-size:11px;color:#667085;line-height:1.5}
+    .sleep-conflict-list {max-height:50vh;overflow:auto;display:flex;flex-direction:column;gap:9px;margin:12px 0}
+    .sleep-conflict-row {padding:11px;border:1px solid #e6b2b2;background:#fff7f7;border-radius:11px;font-size:12px;line-height:1.55}
+    .sleep-conflict-row strong {font-size:13px}
+    .sleep-conflict-row select {width:100%;margin-top:8px;padding:9px;font-size:12px;border:1px solid #d5d9e2;border-radius:8px;background:#fff}
+    .sleep-conflict-actions {display:flex;gap:7px}
+    .sleep-conflict-actions button {flex:1;border:0;border-radius:10px;background:#eef1f6;padding:11px 5px;font-size:12px;font-weight:800}
+    .sleep-conflict-actions .primary{background:var(--blue);color:#fff}
+    /* Compact contribution-style heatmap: 7 weekday rows x 4~6 weekly columns. */
+    .sleep-heatmap-layout {display:grid;grid-template-columns:max-content minmax(0,1fr);gap:12px;align-items:center}
+    .sleep-heat-grid {display:grid;gap:3px;align-items:center;justify-items:center;max-width:100%}
+    .sleep-heat-dow {font-size:9px;color:#737f90;display:flex;align-items:center;justify-content:center;width:20px;height:20px}
+    .sleep-heat-square {box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin:0;border:0;background:transparent;cursor:pointer;border-radius:5px;position:relative;touch-action:manipulation}
+    .sleep-heat-square::before {content:'';display:block;width:16px;height:16px;background:#eff1f5;border:1px solid #e4e5ea;border-radius:4px}
+    .sleep-heat-square.quality-good::before {background:#bce9d0;border-color:#83cba4}
+    .sleep-heat-square.quality-watch::before {background:#ffe4a1;border-color:#dfc27e}
+    .sleep-heat-square.quality-concern::before {background:#f4bbbd;border-color:#dd9a9f}
+    .sleep-heat-square.quality-empty::before {background:#eff1f5;border-color:#e2e5ea}
+    .sleep-heat-square.today::after {content:'';position:absolute;inset:-2px;border:2px solid #2467e0;border-radius:6px;pointer-events:none}
+    .sleep-heat-square.selected:not(.today)::after {content:'';position:absolute;inset:-2px;border:2px dashed #596c88;border-radius:6px;pointer-events:none}
+    .sleep-heat-square:focus-visible {outline:2px solid #1542aa;outline-offset:2px}
+    .sleep-heat-blank {width:20px;height:20px}
+    .sleep-heat-detail {min-width:0;background:#f8faff;border:1px solid #e7ebf3;border-radius:12px;padding:10px 9px;line-height:1.5;align-self:stretch;display:flex;flex-direction:column;justify-content:center;gap:3px}
+    .sleep-heat-date {font-size:12px;font-weight:850;color:#344560}
+    .sleep-heat-total {font-size:19px;font-weight:850;letter-spacing:-.35px;font-variant-numeric:tabular-nums;color:#1e355e}
+    .sleep-heat-label {font-size:11px;font-weight:850}
+    .sleep-heat-label.quality-good {color:#16734b}.sleep-heat-label.quality-watch {color:#936800}.sleep-heat-label.quality-concern {color:#b53138}.sleep-heat-label.quality-empty {color:#8a93a1}
+    .sleep-heat-hint {font-size:10px;color:#727d8d;line-height:1.45;overflow-wrap:anywhere}
+    .sleep-heat-caption {font-size:10px;color:#718093;margin-top:8px}
+    .sleep-heat-legend {display:flex;gap:4px 8px;flex-wrap:wrap;margin-top:8px;font-size:10px;color:#5d6677}
+    .sleep-heat-legend .sleep-legend-mark {width:10px;height:10px;min-height:0;border-radius:2px;border:1px solid rgba(0,0,0,.07)}
+    @media(max-width:355px){.sleep-heatmap-layout {gap:7px}.sleep-heat-grid{gap:2px}.sleep-heat-square,.sleep-heat-dow,.sleep-heat-blank{width:17px;height:18px}.sleep-heat-square::before {width:14px;height:14px}.sleep-heat-detail{padding:8px 6px}.sleep-heat-total{font-size:17px}}
+    /* v5: 월~일 7열 달력, 위쪽 히트맵, 간결한 자동 저장 상태 */
+    .tabs {grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+    .tab-btn {font-size:10px;padding:9px 1px;border-radius:11px;white-space:nowrap;letter-spacing:-.5px}
+    @media(max-width:370px){.tab-btn{font-size:9px}}
+    .sleep-heading {margin-bottom:9px}
+    .sleep-map-card {padding:10px 12px;margin-bottom:9px}
+    .sleep-map-nav {display:flex;align-items:center;gap:6px}
+    .sleep-map-nav button {min-width:29px;min-height:29px;border-radius:8px;border:1px solid #e2e7ef;background:#f6f8fc;color:#34506f;font-size:13px;cursor:pointer}
+    .sleep-map-nav .sleep-go-today {width:auto;padding:5px 8px;color:#225bd1}
+    .sleep-heat-grid {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;width:min(100%,316px);margin:0 auto;justify-items:stretch;align-items:center;max-width:316px}
+    .sleep-heat-dow {width:auto;height:21px;font-size:10px;font-weight:800}
+    .sleep-heat-blank {width:auto;height:31px}
+    .sleep-heat-square {width:100%;height:31px;min-width:0;border:0;border-radius:6px;color:#2e3a4a;font-size:10px;font-weight:800;z-index:0}
+    .sleep-heat-square::before {position:absolute;inset:1px;display:block;width:auto;height:auto;border-radius:6px;z-index:-1}
+    .sleep-heat-square.today::after {inset:-1px;border-width:2px}
+    .sleep-heat-square.selected:not(.today)::after {inset:-1px}
+    .sleep-heat-detail {margin-top:9px;padding:8px 10px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:7px;line-height:1.2}
+    .sleep-heat-detail strong {font-size:11px;white-space:nowrap}
+    .sleep-heat-detail .sleep-heat-total {font-size:13px;font-weight:850;white-space:normal}
+    .sleep-heat-detail .sleep-heat-label {font-size:10px;white-space:nowrap}
+    .sleep-heat-legend {justify-content:center;margin-top:8px;gap:3px 8px;font-size:9px}
+    .sleep-summary {gap:5px;margin-bottom:10px}
+    .sleep-kpi {padding:8px 5px}
+    .sleep-kpi-value {font-size:13px}
+    .sleep-kpi-detail {font-size:9px}
+    .sleep-day-warning {display:block;flex-basis:100%;font-size:10px;color:#a45a23;line-height:1.4}
+    .sleep-sync-mini {display:flex;align-items:center;justify-content:space-between;color:#8a95a4;font-size:10px;margin-top:3px}
+    .sleep-sync-mini button {font-size:10px;border:1px solid #d8e0ec;background:#f3f6fc;border-radius:8px;padding:5px 8px;color:#2355ab}
+    .sleep-card {margin-bottom:10px}
+    @media(max-width:355px){.sleep-heat-grid{gap:3px}.sleep-heat-square,.sleep-heat-blank{height:27px}.sleep-heat-detail .sleep-heat-total{font-size:11px}}
+  
+    .sleep-heat-square.quality-partial::before {background:#c9e0fb;border-color:#8bb8ec}
+    .sleep-day.quality-partial,.sleep-quality-label.quality-partial {background:#e3f0ff;border-color:#9cc5f2}
+    .sleep-total.quality-partial {color:#3776b8}
+    .sleep-heat-label.quality-partial {color:#366ba3}
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <header>
+      <h1>유하 육아 도구 모음</h1>
+      <div class="summary" id="summary">서버 데이터를 불러오는 중입니다.</div>
+      <div class="save-status" id="saveStatus">연결 준비 중</div>
+      <div class="tabs" id="tabs"></div>
+    </header>
+
+    <main id="main">
+      <div class="loading">스프레드시트에서 체크리스트를 불러오는 중입니다.</div>
+    </main>
+
+    <div class="bottom-actions" id="bottomActions">
+      <button class="action-btn reset-current" id="resetCurrentBtn">현재 탭 초기화</button>
+      <button class="action-btn reset-all" id="resetAllBtn">전체 초기화</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="editModal">
+    <div class="modal">
+      <h3 id="editModalTitle">수정</h3>
+      <input id="editInput" type="text" autocomplete="off" />
+      <div class="modal-actions">
+        <button class="cancel-btn" id="cancelEditBtn">취소</button>
+        <button class="save-btn" id="saveEditBtn">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sleep-modal-backdrop" id="sleepTimeModal">
+    <div class="sleep-modal" role="dialog" aria-modal="true" aria-labelledby="sleepModalTitle">
+      <h3 id="sleepModalTitle">수면 시간 입력</h3>
+      <p id="sleepModalDate"></p>
+      <input id="sleepModalInput" type="time" step="60" aria-label="시각 선택" />
+      <div class="sleep-modal-actions">
+        <button type="button" id="sleepModalCancel">취소</button>
+        <button type="button" class="clear" id="sleepModalClear">지우기</button>
+        <button type="button" class="primary" id="sleepModalSave">저장</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="sleep-modal-backdrop" id="sleepConflictModal">
+    <div class="sleep-modal" role="dialog" aria-modal="true" aria-labelledby="sleepConflictTitle">
+      <h3 id="sleepConflictTitle">서버 기록과 기기 저장본이 다릅니다</h3>
+      <p>충돌한 날짜와 항목을 확인하고 각각 처리 방법을 선택해 주세요. 아무것도 자동으로 덮어쓰지 않습니다.</p>
+      <div class="sleep-conflict-list" id="sleepConflictList"></div>
+      <div class="sleep-conflict-actions">
+        <button type="button" id="sleepConflictCancel">나중에</button>
+        <button type="button" class="primary" id="sleepConflictApply">선택 후 동기화</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="drag-toast" id="dragToast">이동 중 · 원하는 위치에서 손을 떼세요</div>
+
+  <script src="config.js"></script>
+  <script src="bridge-client.js"></script>
+  <script>
+    const CLIENT_CACHE_KEY = "yuha_shared_checklist_client_cache_v1";
+    const tabOrder = ["daycare", "sleep", "outing", "daily", "weekly", "settings"];
+
+    let data = null;
+    let currentTab = "daycare";
+    let editing = { type: null, sectionId: null, itemId: null };
+    let longPressTimer = null;
+    let dragState = null;
+    let saveTimer = null;
+    let serverUpdatedAt = "";
+
+    function makeId() {
+      return "id_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    }
+
+    function setSaveStatus(text, type = "") {
+      const el = document.getElementById("saveStatus");
+      el.textContent = text;
+      el.className = "save-status" + (type ? " " + type : "");
+    }
+
+    function loadClientCache() {
+      try {
+        const cached = localStorage.getItem(CLIENT_CACHE_KEY);
+        if (!cached) return false;
+
+        const parsed = JSON.parse(cached);
+        if (!parsed || !parsed.data) return false;
+
+        data = normalizeData(parsed.data);
+        serverUpdatedAt = parsed.updatedAt || "";
+        setSaveStatus("휴대폰 저장본 먼저 표시 · 서버 확인 중", "saving");
+        render();
+        return true;
+      } catch (error) {
+        localStorage.removeItem(CLIENT_CACHE_KEY);
+        return false;
+      }
+    }
+
+    function saveClientCache() {
+      try {
+        localStorage.setItem(
+          CLIENT_CACHE_KEY,
+          JSON.stringify({
+            data,
+            updatedAt: serverUpdatedAt || "",
+            cachedAt: new Date().toISOString()
+          })
+        );
+      } catch (error) {}
+    }
+
+    function loadFromServer() {
+      const hadCache = loadClientCache();
+
+      if (!hadCache) {
+        setSaveStatus("스프레드시트에서 불러오는 중", "saving");
+      }
+
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (!result || !result.ok) {
+            setSaveStatus(hadCache ? "휴대폰 저장본 표시 중 · 서버 불러오기 실패" : "불러오기 실패", "error");
+            return;
+          }
+
+          data = normalizeData(result.data);
+          serverUpdatedAt = result.updatedAt || "";
+          saveClientCache();
+
+          setSaveStatus(result.fromCache ? "서버 캐시 동기화 완료" : "스프레드시트 동기화 완료", "saved");
+          render();
+        })
+        .withFailureHandler((error) => {
+          setSaveStatus(hadCache ? "휴대폰 저장본 표시 중 · 서버 연결 실패" : "불러오기 실패: " + error.message, "error");
+        })
+        .getAppData();
+    }
+
+    function scheduleSave() {
+      saveClientCache();
+      clearTimeout(saveTimer);
+      setSaveStatus("휴대폰 저장 완료 · 서버 저장 대기 중", "saving");
+
+      saveTimer = setTimeout(() => {
+        saveNow();
+      }, 450);
+    }
+
+    function saveNow() {
+      if (!data) return;
+
+      setSaveStatus("스프레드시트에 저장 중", "saving");
+
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (result && result.ok) {
+            serverUpdatedAt = result.updatedAt || "";
+            saveClientCache();
+            const timeText = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+            setSaveStatus("서버 저장 완료 · " + timeText, "saved");
+          } else {
+            setSaveStatus("저장 실패", "error");
+          }
+        })
+        .withFailureHandler((error) => {
+          setSaveStatus("저장 실패: " + error.message, "error");
+        })
+        .saveAppData({
+          data,
+          updatedAt: serverUpdatedAt
+        });
+    }
+
+    function normalizeData(raw) {
+      ["daycare", "outing", "daily", "weekly"].forEach((tabKey) => {
+        if (!raw[tabKey]) {
+          raw[tabKey] = { label: tabKey, title: tabKey, sections: [] };
+        }
+
+        if (!raw[tabKey].sections) {
+          raw[tabKey].sections = [
+            {
+              id: makeId(),
+              title: "기본",
+              items: raw[tabKey].items || []
+            }
+          ];
+          delete raw[tabKey].items;
+        }
+
+        raw[tabKey].sections.forEach((section) => {
+          if (!section.id) section.id = makeId();
+          if (!section.title) section.title = "제목 없음";
+          if (!Array.isArray(section.items)) section.items = [];
+
+          section.items.forEach((item) => {
+            if (!item.id) item.id = makeId();
+            if (typeof item.checked !== "boolean") item.checked = false;
+          });
+        });
+      });
+
+      return raw;
+    }
+
+    function renderTabs() {
+      const tabs = document.getElementById("tabs");
+      tabs.innerHTML = "";
+
+      tabOrder.forEach((tabKey) => {
+        const button = document.createElement("button");
+        button.className = "tab-btn" + (tabKey === currentTab ? " active" : "");
+        button.textContent = tabKey === "settings" ? "설정" : (tabKey === "sleep" ? "수면 기록" : data[tabKey].label);
+
+        button.addEventListener("click", () => {
+          currentTab = tabKey;
+          render();
+        });
+
+        tabs.appendChild(button);
+      });
+    }
+
+    function getAllItems(tabKey) {
+      if (!data[tabKey]) return [];
+      return data[tabKey].sections.flatMap((section) => section.items);
+    }
+
+    function renderChecklistTab() {
+      const main = document.getElementById("main");
+      const tabData = data[currentTab];
+
+      const allItems = getAllItems(currentTab);
+      const checked = allItems.filter((item) => item.checked).length;
+      const total = allItems.length;
+
+      main.innerHTML = `
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">${escapeHtml(tabData.title)}</h2>
+            <span class="count">${checked} / ${total}</span>
+          </div>
+        </div>
+        <p class="help-note">
+          항목은 각 작은 제목 아래에서 추가됩니다. 작은 제목별 초기화가 가능하고, 항목은 0.5초 정도 길게 누른 뒤 끌면 제목 간 이동과 순서 변경이 가능합니다.
+        </p>
+        <div id="sectionsWrap"></div>
+      `;
+
+      const sectionsWrap = document.getElementById("sectionsWrap");
+
+      if (tabData.sections.length === 0) {
+        sectionsWrap.innerHTML = `
+          <div class="empty">
+            아직 작은 제목이 없습니다.<br />
+            설정 탭에서 작은 제목을 먼저 추가해 주세요.
+          </div>
+        `;
+        return;
+      }
+
+      tabData.sections.forEach((section) => {
+        const sectionEl = document.createElement("section");
+        sectionEl.className = "section";
+        sectionEl.dataset.sectionId = section.id;
+
+        const checkedCount = section.items.filter((item) => item.checked).length;
+        const totalCount = section.items.length;
+
+        sectionEl.innerHTML = `
+          <div class="section-title-row">
+            <span class="section-title">• ${escapeHtml(section.title)}</span>
+            <span class="section-count">${checkedCount} / ${totalCount}</span>
+            <button class="section-reset-btn" data-section-id="${section.id}">초기화</button>
+          </div>
+          <div class="add-box">
+            <input class="add-input" type="text" placeholder="${escapeAttr(section.title)}에 항목 추가" data-section-id="${section.id}" />
+            <button class="add-btn" data-section-id="${section.id}">추가</button>
+          </div>
+          <div class="check-list" data-section-id="${section.id}"></div>
+        `;
+
+        const list = sectionEl.querySelector(".check-list");
+
+        if (section.items.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.textContent = "이 제목에는 아직 항목이 없습니다.";
+          list.appendChild(empty);
+        } else {
+          section.items.forEach((item) => {
+            list.appendChild(createItemElement(item, section.id));
+          });
+        }
+
+        sectionsWrap.appendChild(sectionEl);
+      });
+
+      bindAddItemEvents();
+      bindSectionResetEvents();
+      bindItemLongPressEvents();
+    }
+
+    function createItemElement(item, sectionId) {
+      const row = document.createElement("div");
+      row.className = "item" + (item.checked ? " checked" : "");
+      row.dataset.itemId = item.id;
+      row.dataset.sectionId = sectionId;
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "item-check";
+      checkbox.checked = item.checked;
+      checkbox.addEventListener("pointerdown", (event) => event.stopPropagation());
+      checkbox.addEventListener("change", () => {
+        const found = findItem(item.id);
+        if (!found) return;
+        found.item.checked = checkbox.checked;
+        scheduleSave();
+        render();
+      });
+
+      const text = document.createElement("div");
+      text.className = "item-text";
+      text.textContent = item.text;
+      text.addEventListener("click", () => {
+        if (dragState) return;
+        const found = findItem(item.id);
+        if (!found) return;
+        found.item.checked = !found.item.checked;
+        scheduleSave();
+        render();
+      });
+
+      const actions = document.createElement("div");
+      actions.className = "item-actions";
+
+      const editButton = document.createElement("button");
+      editButton.className = "mini-btn";
+      editButton.textContent = "수정";
+      editButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+      editButton.addEventListener("click", () => openItemEdit(item.id));
+
+      const deleteButton = document.createElement("button");
+      deleteButton.className = "mini-btn delete";
+      deleteButton.textContent = "삭제";
+      deleteButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+      deleteButton.addEventListener("click", () => deleteItem(item.id));
+
+      actions.appendChild(editButton);
+      actions.appendChild(deleteButton);
+      row.appendChild(checkbox);
+      row.appendChild(text);
+      row.appendChild(actions);
+
+      return row;
+    }
+
+    function bindAddItemEvents() {      document.querySelectorAll(".add-btn").forEach((button) => {
+        button.addEventListener("click", () => {
+          const sectionId = button.dataset.sectionId;
+          const input = document.querySelector(`.add-input[data-section-id="${sectionId}"]`);
+          addItemToSection(sectionId, input);
+        });
+      });
+
+      document.querySelectorAll(".add-input").forEach((input) => {
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") addItemToSection(input.dataset.sectionId, input);
+        });
+      });
+    }
+
+    function addItemToSection(sectionId, input) {
+      const text = input.value.trim();
+      if (!text) {
+        input.focus();
+        return;
+      }
+
+      const section = findSection(sectionId);
+      if (!section) return;
+
+      section.items.push({ id: makeId(), text, checked: false });
+      scheduleSave();
+      render();
+    }
+
+    function bindSectionResetEvents() {
+      document.querySelectorAll(".section-reset-btn").forEach((button) => {
+        button.addEventListener("click", () => {
+          resetSection(button.dataset.sectionId);
+        });
+      });
+    }
+
+    function resetSection(sectionId) {
+      const section = findSection(sectionId);
+      if (!section) return;
+
+      const checkedCount = section.items.filter((item) => item.checked).length;
+
+      if (checkedCount === 0) {
+        alert("이미 체크된 항목이 없습니다.");
+        return;
+      }
+
+      const confirmed = confirm(`"${section.title}" 안의 체크 ${checkedCount}개만 해제할까요?`);
+      if (!confirmed) return;
+
+      section.items.forEach((item) => {
+        item.checked = false;
+      });
+
+      scheduleSave();
+      render();
+    }
+
+    function findSection(sectionId) {
+      for (const tabKey of ["daycare", "outing", "daily", "weekly"]) {
+        const section = data[tabKey].sections.find((section) => section.id === sectionId);
+        if (section) return section;
+      }
+      return null;
+    }
+
+    function findItem(itemId) {
+      for (const tabKey of ["daycare", "outing", "daily", "weekly"]) {
+        for (const section of data[tabKey].sections) {
+          const itemIndex = section.items.findIndex((item) => item.id === itemId);
+          if (itemIndex !== -1) return { tabKey, section, item: section.items[itemIndex], itemIndex };
+        }
+      }
+      return null;
+    }
+
+    function deleteItem(itemId) {
+      const found = findItem(itemId);
+      if (!found) return;
+
+      const confirmed = confirm(`"${found.item.text}" 항목을 삭제할까요?`);
+      if (!confirmed) return;
+
+      found.section.items.splice(found.itemIndex, 1);
+      scheduleSave();
+      render();
+    }
+
+    function openItemEdit(itemId) {
+      const found = findItem(itemId);
+      if (!found) return;
+
+      editing = { type: "item", itemId };
+      document.getElementById("editModalTitle").textContent = "항목 수정";
+      document.getElementById("editInput").value = found.item.text;
+      openModal();
+    }
+
+    function openSectionEdit(sectionId) {
+      const section = findSection(sectionId);
+      if (!section) return;
+
+      editing = { type: "section", sectionId };
+      document.getElementById("editModalTitle").textContent = "작은 제목 수정";
+      document.getElementById("editInput").value = section.title;
+      openModal();
+    }
+
+    function openModal() {
+      const modal = document.getElementById("editModal");
+      const input = document.getElementById("editInput");
+      modal.classList.add("show");
+      setTimeout(() => { input.focus(); input.select(); }, 50);
+    }
+
+    function closeEditModal() {
+      document.getElementById("editModal").classList.remove("show");
+      editing = { type: null, sectionId: null, itemId: null };
+    }
+
+    function saveEdit() {
+      const value = document.getElementById("editInput").value.trim();
+      if (!value) return;
+
+      if (editing.type === "item") {
+        const found = findItem(editing.itemId);
+        if (found) found.item.text = value;
+      }
+
+      if (editing.type === "section") {
+        const section = findSection(editing.sectionId);
+        if (section) section.title = value;
+      }
+
+      scheduleSave();
+      closeEditModal();
+      render();
+    }
+
+    function renderSettingsTab() {
+      const main = document.getElementById("main");
+
+      main.innerHTML = `
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">설정</h2>
+            <span class="count">작은 제목 관리</span>
+          </div>
+        </div>
+
+        <p class="help-note">
+          작은 제목을 추가하면 해당 탭 안에 새 구역이 생깁니다. 작은 제목을 삭제하면 그 안의 항목들도 전부 같이 삭제됩니다. 위/아래 버튼으로 탭 안 제목 순서를 바꿀 수 있습니다.
+        </p>
+
+        <div class="settings-card">
+          <h3>유하 생년월일</h3>
+          <div class="settings-row">
+            <input type="date" id="sleepBirthDateSettings" value="${escapeAttr(birthDate)}" min="2020-01-01" max="${localDateKey(new Date())}" aria-label="유하 생년월일" />
+            <button id="sleepBirthSaveSettings">저장</button>
+          </div>
+          <div class="sleep-sync-note">현재 ${ageLabel(ageAtSleepDate(localDateKey(new Date())))} · 수면 평가 월령 기준</div>
+        </div>
+        <div class="settings-card">
+          <h3>작은 제목 추가</h3>
+          <div class="settings-row settings-section-select">
+            <select id="sectionTabSelect">
+              <option value="daycare">얼집</option>
+              <option value="outing">외출</option>
+              <option value="daily">매일 청소</option>
+              <option value="weekly">주말 청소</option>
+            </select>
+            <button id="focusSelectedTabBtn">탭 보기</button>
+          </div>
+          <div class="settings-row">
+            <input id="newSectionInput" type="text" placeholder="예: 금요일만 준비, 외출 간식, 세탁" />
+            <button id="addSectionBtn">추가</button>
+          </div>
+        </div>
+
+        <div id="sectionManageWrap"></div>
+      `;
+
+      document.getElementById("addSectionBtn").addEventListener("click", addSectionFromSettings);
+      document.getElementById("newSectionInput").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") addSectionFromSettings();
+      });
+
+      document.getElementById("focusSelectedTabBtn").addEventListener("click", () => {
+        currentTab = document.getElementById("sectionTabSelect").value;
+        render();
+      });
+
+      document.getElementById("sleepBirthSaveSettings").addEventListener("click",()=>{
+        const value=document.getElementById("sleepBirthDateSettings").value;
+        if(!/^20\d{2}-\d{2}-\d{2}$/.test(value)||value>localDateKey(new Date())){alert("올바른 생년월일을 입력해 주세요.");return;}
+        queueSleepEdit("@profile","birthDate",value);
+        renderSettingsTab();
+      });
+      renderSectionManage();
+      fetchSleepMonthFor(sleepViewYear,sleepViewMonth);
+    }
+
+    function renderSectionManage() {
+      const wrap = document.getElementById("sectionManageWrap");
+      wrap.innerHTML = "";
+
+      ["daycare", "outing", "daily", "weekly"].forEach((tabKey) => {
+        const card = document.createElement("div");
+        card.className = "settings-card";
+
+        const title = document.createElement("h3");
+        title.textContent = data[tabKey].label;
+        card.appendChild(title);
+
+        const list = document.createElement("div");
+        list.className = "section-manage-list";
+
+        data[tabKey].sections.forEach((section, index) => {
+          const row = document.createElement("div");
+          row.className = "section-manage-item";
+
+          const name = document.createElement("div");
+          name.className = "section-name";
+          name.textContent = `${index + 1}. ${section.title} (${section.items.length}개)`;
+
+          const up = document.createElement("button");
+          up.className = "mini-btn";
+          up.textContent = "↑";
+          up.disabled = index === 0;
+          up.addEventListener("click", () => moveSection(tabKey, index, -1));
+
+          const down = document.createElement("button");
+          down.className = "mini-btn";
+          down.textContent = "↓";
+          down.disabled = index === data[tabKey].sections.length - 1;
+          down.addEventListener("click", () => moveSection(tabKey, index, 1));
+
+          const edit = document.createElement("button");
+          edit.className = "mini-btn";
+          edit.textContent = "수정";
+          edit.addEventListener("click", () => openSectionEdit(section.id));
+
+          const del = document.createElement("button");
+          del.className = "mini-btn delete";
+          del.textContent = "삭제";
+          del.addEventListener("click", () => deleteSection(tabKey, section.id));
+
+          row.appendChild(name);
+          row.appendChild(up);
+          row.appendChild(down);
+          row.appendChild(edit);
+          row.appendChild(del);
+          list.appendChild(row);
+        });
+
+        card.appendChild(list);
+
+        const danger = document.createElement("div");
+        danger.className = "danger-text";
+        danger.textContent = "작은 제목 삭제 시, 해당 제목 안의 항목도 함께 삭제됩니다.";
+        card.appendChild(danger);
+
+        wrap.appendChild(card);
+      });
+    }
+
+    function addSectionFromSettings() {
+      const tabKey = document.getElementById("sectionTabSelect").value;
+      const input = document.getElementById("newSectionInput");
+      const title = input.value.trim();
+
+      if (!title) {
+        input.focus();
+        return;
+      }
+
+      data[tabKey].sections.push({ id: makeId(), title, items: [] });
+      scheduleSave();
+      renderSettingsTab();
+    }
+
+    function moveSection(tabKey, index, direction) {
+      const sections = data[tabKey].sections;
+      const nextIndex = index + direction;
+
+      if (nextIndex < 0 || nextIndex >= sections.length) return;
+
+      const temp = sections[index];
+      sections[index] = sections[nextIndex];
+      sections[nextIndex] = temp;
+
+      scheduleSave();
+      renderSettingsTab();
+    }
+
+    function deleteSection(tabKey, sectionId) {
+      const section = data[tabKey].sections.find((section) => section.id === sectionId);
+      if (!section) return;
+
+      const confirmed = confirm(`"${section.title}" 작은 제목을 삭제할까요?\n안에 있는 항목 ${section.items.length}개도 함께 삭제됩니다.`);
+      if (!confirmed) return;
+
+      data[tabKey].sections = data[tabKey].sections.filter((section) => section.id !== sectionId);
+      scheduleSave();
+      renderSettingsTab();
+    }
+
+    function bindItemLongPressEvents() {
+      document.querySelectorAll(".item").forEach((itemEl) => {
+        itemEl.addEventListener("pointerdown", onItemPointerDown);
+      });
+    }
+
+    function onItemPointerDown(event) {
+      if (event.button !== undefined && event.button !== 0) return;
+
+      const itemEl = event.currentTarget;
+      const startX = event.clientX;
+      const startY = event.clientY;
+
+      clearTimeout(longPressTimer);
+
+      longPressTimer = setTimeout(() => {
+        startDrag(itemEl, event.pointerId, startX, startY);
+      }, 520);
+
+      const cancelLongPress = (moveEvent) => {
+        const dx = Math.abs(moveEvent.clientX - startX);
+        const dy = Math.abs(moveEvent.clientY - startY);
+        if (dx > 8 || dy > 8) {
+          clearTimeout(longPressTimer);
+          window.removeEventListener("pointermove", cancelLongPress);
+        }
+      };
+
+      const clear = () => {
+        clearTimeout(longPressTimer);
+        window.removeEventListener("pointermove", cancelLongPress);
+        window.removeEventListener("pointerup", clear);
+        window.removeEventListener("pointercancel", clear);
+      };
+
+      window.addEventListener("pointermove", cancelLongPress);
+      window.addEventListener("pointerup", clear, { once: true });
+      window.addEventListener("pointercancel", clear, { once: true });
+    }
+
+    function startDrag(itemEl, pointerId, x, y) {
+      if (dragState) return;
+
+      const rect = itemEl.getBoundingClientRect();
+      const floating = itemEl.cloneNode(true);
+      floating.classList.add("floating-item");
+      floating.style.left = rect.left + "px";
+      floating.style.top = rect.top + "px";
+
+      const placeholder = document.createElement("div");
+      placeholder.className = "placeholder";
+
+      itemEl.parentNode.insertBefore(placeholder, itemEl);
+      itemEl.classList.add("drag-source");
+      document.body.appendChild(floating);
+
+      document.querySelectorAll(".check-list").forEach((list) => list.classList.add("drop-zone"));
+      showDragToast(true);
+
+      dragState = {
+        itemId: itemEl.dataset.itemId,
+        sourceEl: itemEl,
+        floating,
+        placeholder,
+        offsetX: x - rect.left,
+        offsetY: y - rect.top
+      };
+
+      try { itemEl.setPointerCapture(pointerId); } catch (e) {}
+
+      window.addEventListener("pointermove", onDragMove, { passive: false });
+      window.addEventListener("pointerup", endDrag, { once: true });
+      window.addEventListener("pointercancel", cancelDrag, { once: true });
+    }
+
+    function onDragMove(event) {
+      if (!dragState) return;
+      event.preventDefault();
+
+      const floating = dragState.floating;
+      floating.style.left = (event.clientX - dragState.offsetX) + "px";
+      floating.style.top = (event.clientY - dragState.offsetY) + "px";
+
+      floating.style.display = "none";
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      floating.style.display = "";
+
+      if (!target) return;
+
+      const targetItem = target.closest(".item:not(.drag-source)");
+      const targetList = target.closest(".check-list");
+
+      if (targetItem) {
+        const rect = targetItem.getBoundingClientRect();
+        const before = event.clientY < rect.top + rect.height / 2;
+        targetItem.parentNode.insertBefore(dragState.placeholder, before ? targetItem : targetItem.nextSibling);
+        return;
+      }
+
+      if (targetList) targetList.appendChild(dragState.placeholder);
+    }
+
+    function endDrag() {
+      if (!dragState) return;
+
+      const placeholder = dragState.placeholder;
+      const targetList = placeholder.closest(".check-list");
+
+      if (targetList) {
+        placeholder.parentNode.insertBefore(dragState.sourceEl, placeholder);
+        commitDomOrderToData();
+      }
+
+      cleanupDrag();
+      scheduleSave();
+      render();
+    }
+
+    function cancelDrag() {
+      cleanupDrag();
+      render();
+    }
+
+    function cleanupDrag() {
+      if (!dragState) return;
+
+      dragState.floating.remove();
+      dragState.placeholder.remove();
+      dragState.sourceEl.classList.remove("drag-source");
+
+      document.querySelectorAll(".check-list").forEach((list) => list.classList.remove("drop-zone"));
+      showDragToast(false);
+      window.removeEventListener("pointermove", onDragMove);
+      dragState = null;
+    }
+
+    function commitDomOrderToData() {
+      const tabData = data[currentTab];
+      const existingItems = new Map();
+
+      tabData.sections.forEach((section) => {
+        section.items.forEach((item) => existingItems.set(item.id, item));
+        section.items = [];
+      });
+
+      document.querySelectorAll(".check-list").forEach((list) => {
+        const sectionId = list.dataset.sectionId;
+        const section = tabData.sections.find((section) => section.id === sectionId);
+        if (!section) return;
+
+        list.querySelectorAll(".item").forEach((itemEl) => {
+          const item = existingItems.get(itemEl.dataset.itemId);
+          if (item) section.items.push(item);
+        });
+      });
+    }
+
+    function showDragToast(show) {
+      document.getElementById("dragToast").classList.toggle("show", show);
+    }
+
+    function resetCurrentTab() {
+      if (currentTab === "settings") {
+        alert("설정 탭에서는 초기화할 체크 항목이 없습니다.");
+        return;
+      }
+
+      const confirmed = confirm("현재 탭의 체크만 모두 해제할까요?");
+      if (!confirmed) return;
+
+      data[currentTab].sections.forEach((section) => {
+        section.items.forEach((item) => item.checked = false);
+      });
+
+      scheduleSave();
+      render();
+    }
+
+    function resetAllTabs() {
+      const confirmed = confirm("전체 탭의 체크를 모두 해제할까요? 항목과 작은 제목은 삭제되지 않습니다.");
+      if (!confirmed) return;
+
+      ["daycare", "outing", "daily", "weekly"].forEach((tabKey) => {
+        data[tabKey].sections.forEach((section) => {
+          section.items.forEach((item) => item.checked = false);
+        });
+      });
+
+      scheduleSave();
+      render();
+    }
+
+    function updateSummary() {
+      const allItems = ["daycare", "outing", "daily", "weekly"].flatMap((tabKey) => getAllItems(tabKey));
+      const checked = allItems.filter((item) => item.checked).length;
+      const total = allItems.length;
+      document.getElementById("summary").textContent = `전체 ${checked} / ${total}개 완료`;
+    }
+
+    function render() {
+      if (!data) return;
+
+      renderTabs();
+      updateSummary();
+
+      if (currentTab === "settings") {
+        document.getElementById("bottomActions").style.display = "none";
+        renderSettingsTab();
+      } else if (currentTab === "sleep") {
+        document.getElementById("bottomActions").style.display = "none";
+        renderSleepTab();
+      } else {
+        document.getElementById("bottomActions").style.display = "grid";
+        renderChecklistTab();
+      }
+    }
+
+
+    // ============================================================
+    // 수면 기록: 기상은 당일 아침, 밤잠은 전날 취침 → 오늘 기상, 낮잠은 당일.
+    // ============================================================
+    const SLEEP_KEYS = ["bedTime", "asleepTime", "napStart", "napEnd", "wakeTime"];
+    const SLEEP_MONTH_CACHE = "yuha_sleep_month_v5_"; // 기상일 기준 스키마
+    const SLEEP_SERVER_CACHE = "yuha_sleep_server_v5_";
+    const SLEEP_PENDING_KEY = "yuha_sleep_pending_v5";
+    const SLEEP_CACHE_MODE_KEY = "yuha_sleep_cache_mode_v3";
+    const SLEEP_BIRTH_KEY = "yuha_sleep_birth_v3";
+    const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+    let sleepViewYear = new Date().getFullYear();
+    let sleepViewMonth = new Date().getMonth()+1;
+    let sleepSelectedDate = localDateKey(new Date());
+    let sleepViewMode = "week";
+    const sleepMonths = Object.create(null);
+    const sleepServerMonths = Object.create(null);
+    const sleepLoadTokens = Object.create(null);
+    let sleepSaving = false;
+    let sleepCacheOnly = false; // 자동 동기화 기본. 연결 해제 중에는 기기에만 보관
+    let birthDate = localStorage.getItem(SLEEP_BIRTH_KEY) || "2025-03-23";
+    let birthServerBase = null;
+    let sleepStatusText = "날짜를 선택해 기록해 주세요.";
+    let sleepStatusKind = "";
+    let sleepPending = readSleepPending();
+    let sleepConflicts = [];
+    let sleepAutoSyncScheduled = false;
+    let sleepSyncTimer = null;
+    let sleepSessionOnline = false;
+    let sleepIsEditing = false;
+
+    function localDateKey(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    function shiftSleepDate(dateKey,delta) {
+      const [y,m,d]=dateKey.split("-").map(Number);
+      const dt=new Date(y,m-1,d,12);dt.setDate(dt.getDate()+delta);
+      return localDateKey(dt);
+    }
+    function sleepMonthKey(year, month) {return `${year}-${String(month).padStart(2,"0")}`;}
+    function sleepMonthOfDate(dateKey) {return dateKey.slice(0,7);}
+    function sleepOpId(op) {return op.date+"|"+op.field;}
+    function readSleepPending() {
+      try {
+        let migrated=false;
+        let arr=JSON.parse(localStorage.getItem(SLEEP_PENDING_KEY)||"null");
+        if(!Array.isArray(arr)) {
+          arr=JSON.parse(localStorage.getItem("yuha_sleep_pending_v1")||"[]");
+          migrated=true;
+        }
+        if(!Array.isArray(arr))return [];
+        const map=new Map();
+        arr.forEach(op=>{
+          if(!op||typeof op.value!=="string")return;
+          const profile=op.date==="@profile"&&op.field==="birthDate";
+          if(!profile&&(!/^20\d{2}-\d{2}-\d{2}$/.test(op.date)||!SLEEP_KEYS.includes(op.field)))return;
+          // 구 버전 G열: 전날 행에 '다음날 기상'이 저장됨.
+          const date=(migrated&&!profile&&op.field==="wakeTime")?shiftSleepDate(op.date,1):op.date;
+          const expectedValue=(migrated&&!profile&&op.field==="wakeTime")?null:
+            (typeof op.expectedValue==="string"?op.expectedValue:null);
+          map.set(date+"|"+op.field,{date,field:op.field,value:op.value,expectedValue});
+        });
+        const pending=[...map.values()];
+        if(migrated){localStorage.setItem(SLEEP_PENDING_KEY,JSON.stringify(pending));localStorage.removeItem("yuha_sleep_pending_v1");}
+        return pending;
+      }catch(_){return [];}
+    }
+
+    function storeSleepPending() {
+      try{localStorage.setItem(SLEEP_PENDING_KEY,JSON.stringify(sleepPending));}catch(e){setSleepStatus("기기 저장공간에 기록을 저장하지 못했습니다: "+e.message,"error");}
+      const n=document.getElementById("sleepPendingCount");if(n)n.textContent=sleepPending.length?`기기 임시 저장 ${sleepPending.length}건`:"자동 저장";      const retry=document.getElementById("sleepRetry");if(retry)retry.style.display=sleepPending.length?"":"none";
+    }
+    function defaultSleepRecord() {return {bedTime:"",asleepTime:"",napStart:"",napEnd:"",wakeTime:""};}
+    function ensureSleepMonth(year,month) {
+      const key=sleepMonthKey(year,month);
+      if(!sleepMonths[key]){
+        try{sleepMonths[key]=JSON.parse(localStorage.getItem(SLEEP_MONTH_CACHE+key)||"{}");}catch(_){sleepMonths[key]={};}
+      }
+      if(!sleepServerMonths[key]){
+        try{sleepServerMonths[key]=JSON.parse(localStorage.getItem(SLEEP_SERVER_CACHE+key)||"null");}catch(_){sleepServerMonths[key]=null;}
+      }
+      sleepPending.forEach(op=>{
+        if(sleepMonthOfDate(op.date)!==key || !SLEEP_KEYS.includes(op.field))return;
+        sleepMonths[key][op.date]=sleepMonths[key][op.date]||defaultSleepRecord();
+        sleepMonths[key][op.date][op.field]=op.value;
+      });
+      return sleepMonths[key];
+    }
+    function persistSleepMonth(key) {
+      try{localStorage.setItem(SLEEP_MONTH_CACHE+key,JSON.stringify(sleepMonths[key]||{}));}catch(_){}
+    }
+    function getBaseValue(dateKey,field) {
+      if(dateKey==="@profile")return birthServerBase;
+      const key=sleepMonthOfDate(dateKey);
+      ensureSleepMonth(Number(key.slice(0,4)),Number(key.slice(5,7)));
+      const server=sleepServerMonths[key];
+      return server===null||server===undefined?null:String(server[dateKey]?.[field]||"");
+    }
+    function setSleepStatus(message,kind="") {
+      sleepStatusText=message;sleepStatusKind=kind;
+      const el=document.getElementById("sleepStatus");
+      if(el){el.textContent=message;el.className="sleep-status"+(kind?" "+kind:"");}
+    }
+    function fetchSleepMonthFor(year,month,force=false) {
+      const key=sleepMonthKey(year,month);
+      ensureSleepMonth(year,month);
+      if(!force&&sleepLoadTokens[key])return;
+      const token=(sleepLoadTokens[key]||0)+1;sleepLoadTokens[key]=token;
+      if(!navigator.onLine){setSleepStatus("오프라인 · 기기에 저장한 기록 표시 중");return;}
+      google.script.run
+        .withSuccessHandler(result=>{
+          if(sleepLoadTokens[key]!==token||!result||!result.ok)return;
+          sleepSessionOnline=true;
+          sleepServerMonths[key]=result.records||{};
+          try{localStorage.setItem(SLEEP_SERVER_CACHE+key,JSON.stringify(sleepServerMonths[key]));}catch(_){}
+          sleepMonths[key]=JSON.parse(JSON.stringify(sleepServerMonths[key]));
+          sleepPending.forEach(op=>{
+            if(sleepMonthOfDate(op.date)!==key || !SLEEP_KEYS.includes(op.field))return;
+            const row=sleepMonths[key][op.date]||defaultSleepRecord();
+            row[op.field]=op.value;sleepMonths[key][op.date]=row;
+          });
+          persistSleepMonth(key);
+          const pendingBirth=sleepPending.find(op=>op.date==="@profile");
+          if(result.birthDate){
+            birthServerBase=String(result.birthDate);
+            if(!pendingBirth) birthDate=birthServerBase;
+            localStorage.setItem(SLEEP_BIRTH_KEY,birthDate);
+          }
+          setSleepStatus(sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:"자동 저장 연결됨",sleepPending.length?"":"saved");
+          if(currentTab==="sleep") renderSleepTab();
+          if(currentTab==="settings") {
+            const bd=document.getElementById("sleepBirthDateSettings");
+            if(bd && document.activeElement!==bd)bd.value=birthDate;
+            const lbl=bd?.closest(".settings-card")?.querySelector(".sleep-sync-note");
+            if(lbl)lbl.textContent=`현재 ${ageLabel(ageAtSleepDate(localDateKey(new Date())))} · 수면 평가 월령 기준`;
+          }
+          if(sleepPending.length&&!sleepCacheOnly) requestSleepSync(false);
+        })
+        .withFailureHandler(err=>setSleepStatus("서버 조회 실패 · 기기 저장본 표시 중: "+(err.message||err),"error"))
+        .getSleepMonth(year,month);
+    }
+    function fetchSleepMonth(force=false) {
+      const visible=new Set([sleepMonthKey(sleepViewYear,sleepViewMonth)]);
+      const prev=shiftSleepDate(`${sleepViewYear}-${String(sleepViewMonth).padStart(2,"0")}-01`,-1);
+      visible.add(sleepMonthOfDate(prev));
+      if(sleepViewMode==="week")getSleepWeekDates(sleepSelectedDate).forEach(k=>visible.add(sleepMonthOfDate(k)));
+      visible.forEach(key=>fetchSleepMonthFor(Number(key.slice(0,4)),Number(key.slice(5,7)),force));
+    }
+    function queueSleepEdit(dateKey,field,value) {
+      const existing=sleepPending.find(op=>op.date===dateKey&&op.field===field);
+      const baseline=existing?existing.expectedValue:getBaseValue(dateKey,field);
+      if(existing){existing.value=value;}
+      else{sleepPending.push({date:dateKey,field,value,expectedValue:baseline});}
+      if(dateKey==="@profile"){
+        birthDate=value;localStorage.setItem(SLEEP_BIRTH_KEY,birthDate);
+      } else {
+        const key=sleepMonthOfDate(dateKey);
+        const records=ensureSleepMonth(Number(key.slice(0,4)),Number(key.slice(5,7)));
+        const row=records[dateKey]||defaultSleepRecord();row[field]=value;records[dateKey]=row;
+        persistSleepMonth(key);
+      }
+      storeSleepPending();
+      setSleepStatus(navigator.onLine?"기기 저장됨 · 서버 자동 저장 중":"오프라인 · 기기에 저장됨", navigator.onLine?"":"error");
+      if(navigator.onLine){clearTimeout(sleepSyncTimer);sleepSyncTimer=setTimeout(()=>requestSleepSync(false),420);}
+      if(currentTab==="sleep")renderSleepTab();
+    }
+    function updateSleepField(dateKey,field,value) {
+      if(!SLEEP_KEYS.includes(field))return;
+      queueSleepEdit(dateKey,field,value);
+    }
+    // 구 버전의 저장 루틴 호출에 대비한 별칭. 실제 저장은 변경 비교 API만 사용합니다.
+    function drainSleepQueue(){requestSleepSync(false);}
+    let sleepRetryCount=0;
+    function scheduleSleepRetry() {
+      if(!navigator.onLine||!sleepPending.length||sleepRetryCount>=5)return;
+      const wait=Math.min(900*Math.pow(2,sleepRetryCount++),15000);
+      clearTimeout(sleepSyncTimer);
+      sleepSyncTimer=setTimeout(()=>requestSleepSync(false),wait);
+    }
+    // 서버에서 검증과 저장을 같은 잠금 구간에서 수행하므로 사전 조회 없이 1회 호출합니다.
+    function requestSleepSync(manual=false) {
+      if(sleepSaving||!sleepPending.length)return;
+      if(!navigator.onLine){setSleepStatus("오프라인 · 기기에 저장됨");return;}
+      if(sleepConflicts.length&&!manual)return;
+      sleepSaving=true;
+      const snapshot=sleepPending.map(op=>({...op}));
+      setSleepStatus("서버에 자동 저장 중");
+      google.script.run
+        .withSuccessHandler(result=>{
+          sleepSaving=false;
+          if(!result||!result.ok){
+            setSleepStatus(result?.message||"서버 연결 지연 · 기기 저장본 유지","error");
+            scheduleSleepRetry();return;
+          }
+          sleepSessionOnline=true;
+          if(result.conflicts?.length){
+            sleepConflicts=result.conflicts;
+            showSleepConflicts(sleepConflicts);
+            setSleepStatus(`서버/기기 기록 충돌 ${sleepConflicts.length}건 · 확인 필요`,"error");
+            return;
+          }
+          sleepRetryCount=0;
+          settleSleepEdits(snapshot);
+          setSleepStatus(sleepPending.length?`자동 저장 중 · 남은 ${sleepPending.length}건`:"자동 저장 완료","saved");
+          if(sleepPending.length)requestSleepSync(false);
+          if(currentTab==="sleep")renderSleepTab();
+        })
+        .withFailureHandler(err=>{
+          sleepSaving=false;
+          setSleepStatus("서버 연결 지연 · 기기에 보관 중: "+(err.message||err),"error");
+          scheduleSleepRetry();
+        })
+        .syncSleepChanges({edits:snapshot});
+    }
+
+    function settleSleepEdits(snapshot) {
+      snapshot.forEach(done=>{
+        const i=sleepPending.findIndex(op=>op.date===done.date&&op.field===done.field);
+        if(i<0)return;
+        // 서버 요청 중에 사용자가 같은 칸을 다시 수정했다면 새로운 값을 삭제하지 않습니다.
+        if(sleepPending[i].value===done.value){sleepPending.splice(i,1);} else{sleepPending[i].expectedValue=done.value;}
+        if(done.date==="@profile")birthServerBase=done.value;
+        else{
+          const key=sleepMonthOfDate(done.date);
+          const srv=sleepServerMonths[key]||{};
+          srv[done.date]=srv[done.date]||defaultSleepRecord();srv[done.date][done.field]=done.value;
+          sleepServerMonths[key]=srv;
+          try{localStorage.setItem(SLEEP_SERVER_CACHE+key,JSON.stringify(srv));}catch(_){}
+        }
+      });
+      storeSleepPending();
+    }
+    function showSleepConflicts(conflicts) {
+      const list=document.getElementById("sleepConflictList");if(!list)return;
+      list.textContent="";
+      const labels={bedTime:"입실",asleepTime:"실제 취침",napStart:"낮잠 시작",napEnd:"낮잠 종료",wakeTime:"해당 날짜 아침 기상",birthDate:"생년월일"};
+      conflicts.forEach(c=>{
+        const row=document.createElement("div");row.className="sleep-conflict-row";
+        const title=document.createElement("strong");title.textContent=`${c.date==="@profile"?"설정":c.date} · ${labels[c.field]||c.field}`;
+        const diff=document.createElement("div");diff.textContent=`서버: ${c.serverValue||"(비어 있음)"} / 기기: ${c.localValue||"(비어 있음)"}`;
+        const select=document.createElement("select");select.dataset.opId=sleepOpId(c);
+        [["","선택해 주세요"],["overwrite","기기값으로 서버 덮어쓰기"],["discard","기기 변경 버리기 · 서버값 유지"]].forEach(([value,label])=>{
+          const option=document.createElement("option");option.value=value;option.textContent=label;select.appendChild(option);
+        });
+        row.append(title,diff,select);list.appendChild(row);
+      });
+      document.getElementById("sleepConflictModal").classList.add("show");
+    }
+    function closeSleepConflicts(){document.getElementById("sleepConflictModal").classList.remove("show");}
+    function applySleepConflictChoices() {
+      const selections=[...document.querySelectorAll("#sleepConflictList select")];
+      if(selections.some(s=>!s.value)){alert("충돌한 모든 항목의 처리 방법을 선택해 주세요.");return;}
+      const chosen=new Map(selections.map(s=>[s.dataset.opId,s.value]));
+      const pendingNow=sleepPending.map(op=>({...op}));
+      const toUpload=pendingNow.filter(op=>chosen.get(sleepOpId(op))!=="discard").map(op=>({...op,force:chosen.get(sleepOpId(op))==="overwrite"}));
+      // 버릴 항목은 서버값으로 되돌립니다. 다른 항목은 유지합니다.
+      sleepConflicts.forEach(c=>{
+        if(chosen.get(sleepOpId(c))!=="discard")return;
+        const idx=sleepPending.findIndex(op=>sleepOpId(op)===sleepOpId(c));
+        if(idx>=0)sleepPending.splice(idx,1);
+        if(c.date==="@profile"){birthDate=c.serverValue||birthDate;birthServerBase=c.serverValue;localStorage.setItem(SLEEP_BIRTH_KEY,birthDate);}
+        else{
+          const key=sleepMonthOfDate(c.date),year=Number(key.slice(0,4)),month=Number(key.slice(5,7));
+          ensureSleepMonth(year,month);
+          const row=sleepMonths[key][c.date]||defaultSleepRecord();row[c.field]=c.serverValue;
+          sleepMonths[key][c.date]=row;persistSleepMonth(key);
+          sleepServerMonths[key]=sleepServerMonths[key]||{};
+          sleepServerMonths[key][c.date]=sleepServerMonths[key][c.date]||defaultSleepRecord();
+          sleepServerMonths[key][c.date][c.field]=c.serverValue;
+          localStorage.setItem(SLEEP_SERVER_CACHE+key,JSON.stringify(sleepServerMonths[key]));
+        }
+      });
+      storeSleepPending();closeSleepConflicts();sleepConflicts=[];
+      if(!toUpload.length){setSleepStatus("기기 충돌 기록을 지우고 서버값을 유지했습니다.","saved");if(currentTab==="sleep")renderSleepTab();return;}
+      sleepSaving=true;setSleepStatus("선택한 항목을 서버에 동기화 중…");
+      google.script.run
+        .withSuccessHandler(result=>{
+          sleepSaving=false;
+          if(!result||!result.ok){setSleepStatus(result?.message||"서버 저장 실패 · 기기 저장본 유지","error");return;}
+          if(result.conflicts?.length){sleepConflicts=result.conflicts;showSleepConflicts(result.conflicts);return;}
+          settleSleepEdits(toUpload);
+          setSleepStatus(sleepPending.length?`동기화 일부 완료 · ${sleepPending.length}건 대기`:"충돌 해결 · 자동 저장 완료","saved");
+          if(currentTab==="sleep")renderSleepTab();
+        })
+        .withFailureHandler(err=>{sleepSaving=false;setSleepStatus("저장 실패 · 기기값 유지: "+(err.message||err),"error");})
+        .syncSleepChanges({edits:toUpload});
+    }
+    function clearSleepPending() {
+      if(sleepSaving){alert("서버 저장 중입니다. 완료 후 다시 시도해 주세요.");return;}
+      if(!sleepPending.length){alert("삭제할 기기 임시 기록이 없습니다.");return;}
+      if(!confirm(`서버에 올리지 않은 임시 변경 ${sleepPending.length}건을 버릴까요? 서버 데이터는 삭제되지 않습니다.`))return;
+      const affected=new Set(sleepPending.map(op=>op.date==="@profile"?"@profile":sleepMonthOfDate(op.date)));
+      sleepPending=[];storeSleepPending();
+      affected.forEach(key=>{
+        if(key==="@profile"){if(birthServerBase)birthDate=birthServerBase;localStorage.setItem(SLEEP_BIRTH_KEY,birthDate);return;}
+        sleepMonths[key]=JSON.parse(JSON.stringify(sleepServerMonths[key]||{}));
+        persistSleepMonth(key);
+      });
+      setSleepStatus("기기 임시 변경 삭제 완료 · 서버 기록은 유지됩니다.","saved");
+      if(currentTab==="sleep")renderSleepTab();
+    }
+    window.addEventListener("online",()=>{
+      setSleepStatus("연결 복구 감지 · 서버 기록 확인 중");
+      // 기기에서 수정한 날짜의 월을 먼저 최신화하며 서버값을 보존합니다.
+      const keys=new Set(sleepPending.filter(op=>op.date!=="@profile").map(op=>sleepMonthOfDate(op.date)));
+      if(!keys.size&&sleepPending.length)requestSleepSync(false);
+      keys.forEach(key=>fetchSleepMonthFor(Number(key.slice(0,4)),Number(key.slice(5,7)),true));
+      if(!keys.size&&currentTab==="sleep")fetchSleepMonth(true);
+    });
+    function sleepMinutes(time) {
+      if (!time || !/^\d{2}:\d{2}$/.test(time)) return null;
+      const [h,m] = time.split(":").map(Number);
+      return h * 60 + m;
+    }
+
+    function napDuration(row) {
+      const start = sleepMinutes(row.napStart), end = sleepMinutes(row.napEnd);
+      if (start === null || end === null) return null;
+      let d = end - start;
+      if (d < 0) d += 1440;
+      return d <= 720 ? d : null;
+    }
+
+    function nightDuration(dateKey) {
+      const today=getSleepRecord(dateKey);
+      const yesterday=getSleepRecord(shiftSleepDate(dateKey,-1));
+      const asleep=sleepMinutes(yesterday.asleepTime), wake=sleepMinutes(today.wakeTime);
+      if(asleep===null||wake===null)return null;
+      // 전날 저녁 취침 -> 해당 날짜 아침 기상. 00시 이후 취침도 처리.
+      let mins=(wake-asleep+1440)%1440;
+      return mins>=240&&mins<=960?mins:null; // 비현실적인 20시간 잠은 평가에서 제외
+    }
+
+    function formatDuration(minutes) {
+      if (minutes === null || !Number.isFinite(minutes)) return "—";
+      return `${Math.floor(minutes / 60)}시간 ${Math.round(minutes % 60)}분`;
+    }
+
+    function averageClock(times) {
+      if (!times.length) return "—";
+      // 오후/저녁 취침은 자정으로 넘겨서 평균, 00시대는 24시대로 계산.
+      const adjusted = times.map(time => {
+        let n = sleepMinutes(time);
+        if (n < 720) n += 1440;
+        return n;
+      });
+      const avg = Math.round(adjusted.reduce((a,b) => a+b,0) / adjusted.length) % 1440;
+      return `${String(Math.floor(avg/60)).padStart(2,"0")}:${String(avg%60).padStart(2,"0")}`;
+    }
+
+    function sleepDateKeys(year, month) {
+      const last = new Date(year, month, 0).getDate();
+      return Array.from({length:last}, (_,i) => `${year}-${String(month).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`);
+    }
+
+    function sleepWeekStart(dateKey) {
+      const [y,m,d] = dateKey.split("-").map(Number);
+      const date = new Date(y, m-1, d);
+      date.setDate(date.getDate() - ((date.getDay()+6)%7));
+      return date;
+    }
+
+    function isThisSelectedWeek(dateKey) {
+      const beginning = sleepWeekStart(sleepSelectedDate).getTime();
+      const [y,m,d] = dateKey.split("-").map(Number);
+      const date = new Date(y, m-1, d).getTime();
+      return date >= beginning && date < beginning + 7*86400000;
+    }
+
+    function getSleepWeekDates(dateKey) {
+      const start = sleepWeekStart(dateKey);
+      return Array.from({length:7}, (_,i) => {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        return localDateKey(d);
+      });
+    }
+
+    function getSleepRecord(dateKey) {
+      const year = Number(dateKey.slice(0,4)), month = Number(dateKey.slice(5,7));
+      return ensureSleepMonth(year,month)[dateKey] || defaultSleepRecord();
+    }
+
+    function ageAtSleepDate(dateKey) {
+      const birth=new Date(birthDate+"T12:00:00Z"),target=new Date(dateKey+"T12:00:00Z");
+      if(isNaN(birth.getTime())||isNaN(target.getTime())||target<birth)return null;
+      const y=target.getUTCFullYear()-birth.getUTCFullYear();
+      const m=target.getUTCMonth()-birth.getUTCMonth();
+      let months=y*12+m;
+      if(target.getUTCDate()<birth.getUTCDate())months--;
+      return months;
+    }
+    function ageLabel(months){if(months===null)return "생년월일을 확인하세요";return `만 ${Math.floor(months/12)}세 ${months%12}개월`;}
+    function sleepRecommendation(dateKey) {
+      const months=ageAtSleepDate(dateKey);
+      if(months===null)return {months,min:null,max:null,label:"나이 확인 필요"};
+      if(months>=4&&months<12)return {months,min:720,max:960,label:"4~11개월 권고 12~16시간"};
+      if(months>=12&&months<36)return {months,min:660,max:840,label:"1~2세 권고 11~14시간"};
+      if(months>=36&&months<72)return {months,min:600,max:780,label:"3~5세 권고 10~13시간"};
+      return {months,min:null,max:null,label:"해당 월령 자동평가 제외"};
+    }
+    function getSleepQuality(dateKey) {
+      const row=getSleepRecord(dateKey),night=nightDuration(dateKey),nap=napDuration(row);
+      const total=night!==null&&nap!==null?night+nap:null;
+      const partial=(night||0)+(nap||0);
+      const rec=sleepRecommendation(dateKey);
+      if(total===null){
+        const prev=getSleepRecord(shiftSleepDate(dateKey,-1));
+        const hasAny=[row.napStart,row.napEnd,row.wakeTime,prev.asleepTime,prev.bedTime].some(Boolean);
+        const absent=[];
+        if(night===null) absent.push("전날 취침·오늘 기상");
+        if(nap===null) absent.push("오늘 낮잠");
+        return {level:hasAny?"partial":"empty",label:hasAny?"부분 기록":"미기록",total:null,partial:partial||null,
+          notes:[absent.join(" / ")+"을 입력하면 평가됩니다."]};
+      }
+      if(rec.min===null)return {level:"empty",label:"기준 외",total,partial:total,notes:[rec.label]};
+      const notes=[];let level="good";
+      if(total<rec.min){level=(rec.min-total>=60)?"concern":"watch";notes.push("권고 수면량보다 짧습니다.");}
+      else if(total>rec.max){level=(total-rec.max>=60)?"concern":"watch";notes.push("권고 수면량보다 깁니다.");}
+      else notes.push("권고 수면량에 해당합니다.");
+      const yesterday=getSleepRecord(shiftSleepDate(dateKey,-1));
+      const bed=sleepMinutes(yesterday.bedTime),asleep=sleepMinutes(yesterday.asleepTime);
+      if(bed!==null&&asleep!==null){const latency=(asleep-bed+1440)%1440;
+        if(latency>45&&latency<=180){notes.push(`잠들기까지 ${latency}분 (참고)`);if(level==="good")level="watch";}}
+      if(rec.months>=12&&rec.months<36&&(nap<60||nap>180)){
+        notes.push("낮잠 1~3시간 범위 외 (참고)");if(level==="good")level="watch";}
+      return {level,label:{good:"권고 범위",watch:"살펴보기",concern:"수면량 차이"}[level],total,partial:total,notes};
+    }
+
+    function conciseDuration(minutes) {
+      if(minutes===null) return "—";
+      const h=Math.floor(minutes/60),m=minutes%60;
+      return `${h}h${m?String(m).padStart(2,"0"):""}`;
+    }
+
+    function renderSleepTab() {
+      const y=sleepViewYear,m=sleepViewMonth;
+      const weekDates=getSleepWeekDates(sleepSelectedDate);
+      const [wy,wm,wd]=weekDates[0].split("-").map(Number);
+      const [ey,em,ed]=weekDates[6].split("-").map(Number);
+      const weekTitle=`${wm}/${wd} ~ ${em}/${ed}`;
+      const main=document.getElementById("main");
+      main.innerHTML=`
+        <div class="panel-head sleep-heading"><div><h2 class="panel-title">수면 기록</h2>
+          <span class="count">유하 · ${ageLabel(ageAtSleepDate(localDateKey(new Date())))}</span></div></div>
+        <div class="sleep-card sleep-map-card">
+          <div class="sleep-card-title"><span>${y}년 ${m}월</span>
+            <div class="sleep-map-nav"><button type="button" id="sleepPrev" aria-label="이전 달">〈</button>
+            <button type="button" class="sleep-go-today" id="sleepToday">오늘</button>
+            <button type="button" id="sleepNext" aria-label="다음 달">〉</button></div></div>
+          <div class="sleep-heat-grid" id="sleepCalendar" role="group" aria-label="월간 수면 달력 히트맵"></div>
+          <div class="sleep-heat-detail" id="sleepHeatDetail" aria-live="polite"></div>
+          <div class="sleep-heat-legend">
+            ${[["good","권고 범위"],["watch","살펴보기"],["concern","수면량 차이"],["partial","부분 기록"],["empty","미기록"]].map(([key,label])=>`<span class="sleep-legend-item"><span class="sleep-legend-mark quality-${key}" style="background:${{good:'#bce9d0',watch:'#ffe4a1',concern:'#f4bbbd',partial:'#c9e0fb',empty:'#eff1f5'}[key]}"></span>${label}</span>`).join("")}
+          </div>
+        </div>
+        <div class="sleep-summary" id="sleepSummary"></div>
+        <div class="sleep-card">
+          <div class="sleep-card-title"><span>${weekTitle} 수면 입력</span>
+            <div class="sleep-map-nav"><button type="button" id="sleepPrevWeek" aria-label="이전 주">〈</button>
+            <button type="button" id="sleepNextWeek" aria-label="다음 주">〉</button></div></div>
+          <div class="sleep-toggle" style="margin-bottom:8px">
+            <button id="sleepWeekBtn" class="${sleepViewMode==="week"?"active":""}">주간</button>
+            <button id="sleepMonthBtn" class="${sleepViewMode==="month"?"active":""}">월 전체</button>
+          </div>
+          <div class="sleep-table-wrap" id="sleepTableWrap">
+            <table class="sleep-table" aria-label="날짜별 수면 입력표">
+              <colgroup><col class="datecol"><col class="timecol"><col class="timecol"><col class="napcol"><col class="timecol"></colgroup>
+              <thead><tr><th>날짜<br>총수면</th><th>입실</th><th>잠듦</th><th>낮잠<br>시작·끝</th><th>기상<br>오늘 아침</th></tr></thead>
+              <tbody id="sleepTableBody"></tbody>
+            </table>
+          </div>
+          <div class="sleep-status ${sleepStatusKind}" id="sleepStatus" role="status" aria-live="polite">${escapeHtml(sleepStatusText)}</div>
+          <div class="sleep-sync-mini"><span id="sleepPendingCount">${sleepPending.length?`임시 보관 ${sleepPending.length}건`:"자동 저장"}</span><button type="button" id="sleepRetry" style="${sleepPending.length?"":"display:none"}">동기화 재시도</button></div>
+        </div>`;
+      document.getElementById("sleepPrevWeek").addEventListener("click",()=>changeSleepWeek(-1));
+      document.getElementById("sleepNextWeek").addEventListener("click",()=>changeSleepWeek(1));
+      document.getElementById("sleepToday").addEventListener("click",()=>{
+        sleepSelectedDate=localDateKey(new Date());
+        sleepViewYear=new Date().getFullYear();sleepViewMonth=new Date().getMonth()+1;
+        sleepViewMode="week";renderSleepTab();
+      });
+      document.getElementById("sleepPrev").addEventListener("click",()=>changeSleepMonth(-1));
+      document.getElementById("sleepNext").addEventListener("click",()=>changeSleepMonth(1));
+      document.getElementById("sleepRetry").addEventListener("click",()=>{
+        fetchSleepMonth(true);
+        if(sleepPending.length)requestSleepSync(true);
+      });
+      document.getElementById("sleepWeekBtn").addEventListener("click",()=>{sleepViewMode="week";renderSleepTab();});
+      document.getElementById("sleepMonthBtn").addEventListener("click",()=>{sleepViewMode="month";renderSleepTab();});
+      drawSleepCalendar();drawSleepTable();updateSleepSummaries();fetchSleepMonth();
+    }
+
+    function changeSleepWeek(delta) {
+      const [y,m,d]=sleepSelectedDate.split("-").map(Number);
+      const date=new Date(y,m-1,d);date.setDate(date.getDate()+delta*7);
+      sleepSelectedDate=localDateKey(date);
+      sleepViewYear=date.getFullYear();sleepViewMonth=date.getMonth()+1;
+      sleepViewMode="week";
+      renderSleepTab();
+    }
+
+    function changeSleepMonth(delta) {
+      const date=new Date(sleepViewYear,sleepViewMonth-1+delta,1);
+      sleepViewYear=date.getFullYear();sleepViewMonth=date.getMonth()+1;
+      const today=new Date();
+      const anchor=today.getFullYear()===sleepViewYear && today.getMonth()+1===sleepViewMonth ? today : date;
+      sleepSelectedDate=localDateKey(anchor);
+      sleepViewMode="week";
+      renderSleepTab();
+    }
+
+    function drawSleepCalendar() {
+      const el=document.getElementById("sleepCalendar");if(!el)return;
+      const y=sleepViewYear,m=sleepViewMonth,days=sleepDateKeys(y,m);
+      const first=(new Date(y,m-1,1).getDay()+6)%7;
+      el.innerHTML="";
+      ["월","화","수","목","금","토","일"].forEach((name,i)=>{
+        const d=document.createElement("div");d.className="sleep-heat-dow";
+        d.textContent=name;d.style.gridColumn=String(i+1);el.appendChild(d);
+      });
+      for(let i=0;i<first;i++){
+        const blank=document.createElement("span");blank.className="sleep-heat-blank";el.appendChild(blank);
+      }
+      days.forEach((dateKey,index)=>{
+        const q=getSleepQuality(dateKey),day=index+1;
+        const b=document.createElement("button");b.type="button";b.textContent=String(day);
+        b.className=`sleep-heat-square quality-${q.level}${dateKey===localDateKey(new Date())?" today":""}${dateKey===sleepSelectedDate?" selected":""}`;
+        b.setAttribute("aria-label",`${m}월 ${day}일 · ${q.label} · ${formatDuration(q.total)}`);
+        b.title=`${dateKey} · ${q.label} · ${formatDuration(q.total)}`;
+        b.addEventListener("click",()=>{
+          sleepSelectedDate=dateKey;sleepViewMode="week";renderSleepTab();
+        });el.appendChild(b);
+      });
+      const detail=document.getElementById("sleepHeatDetail");if(!detail)return;
+      const displayed=sleepMonthOfDate(sleepSelectedDate)===sleepMonthKey(y,m)?sleepSelectedDate:days[0];
+      const q=getSleepQuality(displayed);
+      const day=Number(displayed.slice(-2));
+      const dayName=DAY_NAMES[new Date(y,m-1,day).getDay()];
+      const displayedTotal=q.total!==null?formatDuration(q.total):(q.partial!==null?formatDuration(q.partial)+" · 부분 기록":"—");
+      const yesterday=getSleepRecord(shiftSleepDate(displayed,-1));
+      const today=getSleepRecord(displayed);
+      const recordedAsleep=sleepMinutes(yesterday.asleepTime);
+      const maybeAm=recordedAsleep!==null&&recordedAsleep>=240&&recordedAsleep<720&&today.wakeTime&&nightDuration(displayed)===null;
+      const hint=maybeAm?`<small class="sleep-day-warning">전날 취침 ${escapeHtml(yesterday.asleepTime)}는 오전입니다. 저녁이었다면 시각을 다시 입력하세요.</small>`:"";
+      detail.innerHTML=`<strong>${m}/${day} (${dayName})</strong><strong class="sleep-heat-total">${displayedTotal}</strong>
+        <span class="sleep-heat-label quality-${q.level}">${q.label}</span>${hint}`;
+    }
+
+    function drawSleepTable() {
+      const tbody=document.getElementById("sleepTableBody");if(!tbody)return;
+      const dates=sleepViewMode==="week"?getSleepWeekDates(sleepSelectedDate):sleepDateKeys(sleepViewYear,sleepViewMonth);
+      tbody.innerHTML="";
+      dates.forEach(dateKey=>{
+        const [yy,mm,dd]=dateKey.split("-").map(Number);
+        const dow=DAY_NAMES[new Date(yy,mm-1,dd).getDay()];
+        const record=getSleepRecord(dateKey),q=getSleepQuality(dateKey);
+        const tr=document.createElement("tr");tr.dataset.date=dateKey;
+        if(dateKey===sleepSelectedDate)tr.classList.add("selected");
+        if(dateKey===localDateKey(new Date()))tr.classList.add("today");
+        const dateTd=document.createElement("td");
+        const dateTitle=sleepViewMode==="month"?`${dd}`:((mm!==sleepViewMonth)?`${mm}/${dd}`:`${dd}`);
+        dateTd.innerHTML=`<span class="sleep-date-label">${dateTitle} <span class="dow">${dow}</span>${dateKey===localDateKey(new Date())?'<span class="now">오늘</span>':""}</span><span class="sleep-total ${q.level==="empty"?"empty":`quality-${q.level}`}">${q.total!==null?conciseDuration(q.total):(q.partial!==null?conciseDuration(q.partial)+"*":"—")}</span><span class="sleep-quality-label quality-${q.level}" title="${escapeAttr(q.notes.join(" / "))}">${q.level==="empty"?"—":q.level==="partial"?"일부":q.label}</span>`;
+        tr.appendChild(dateTd);
+        [["bedTime","입실"],["asleepTime","잠듦"],["napStart","낮잠 시작"],["napEnd","낮잠 끝"],["wakeTime","오늘 아침 기상"]].forEach(([field,label])=>{
+          if(field==="napEnd")return;
+          const td=document.createElement("td");
+          if(field==="napStart"){
+            const stack=document.createElement("div");stack.className="sleep-nap-stack";
+            [["napStart","낮잠 시작"],["napEnd","낮잠 종료"]].forEach(([key,desc])=>stack.appendChild(makeSleepTimeButton(dateKey,key,record[key],desc)));
+            td.appendChild(stack);
+          } else td.appendChild(makeSleepTimeButton(dateKey,field,record[field],label));
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function makeSleepTimeButton(dateKey,field,value,label) {
+      const b=document.createElement("button");b.type="button";
+      b.className="sleep-time-btn"+(value?" filled":"");
+      b.textContent=value || "+";b.setAttribute("aria-label",`${dateKey} ${label} ${value||"미입력"}`);
+      b.addEventListener("click",()=>openSleepTimeModal(dateKey,field));
+      return b;
+    }
+
+    let sleepEditing=null;
+    const sleepFieldLabels={bedTime:"침대 입실",asleepTime:"실제 잠듦",napStart:"낮잠 시작",napEnd:"낮잠 종료",wakeTime:"기상 · 당일 아침"};
+    function openSleepTimeModal(dateKey,field) {
+      sleepEditing={dateKey,field};
+      const row=getSleepRecord(dateKey);
+      document.getElementById("sleepModalTitle").textContent=sleepFieldLabels[field];
+      document.getElementById("sleepModalDate").textContent=`${dateKey} (${DAY_NAMES[new Date(dateKey+"T12:00:00").getDay()]}) · ${field==="wakeTime"?"이날 아침":"해당 날짜"}`;
+      document.getElementById("sleepModalInput").value=row[field]||({bedTime:"19:30",asleepTime:"20:00",napStart:"12:30",napEnd:"14:00",wakeTime:"06:30"}[field]);
+      document.getElementById("sleepTimeModal").classList.add("show");
+    }
+    function closeSleepTimeModal(){sleepEditing=null;document.getElementById("sleepTimeModal").classList.remove("show");}
+    function applySleepTimeModal(clear) {
+      if(!sleepEditing)return;
+      const {dateKey,field}=sleepEditing;
+      const value=clear?"":document.getElementById("sleepModalInput").value;
+      if(!clear && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {alert("시간을 선택해 주세요.");return;}
+      closeSleepTimeModal();
+      updateSleepField(dateKey,field,value);
+      drawSleepTable();drawSleepCalendar();updateSleepSummaries();
+    }
+
+    function updateSleepSummaries() {
+      if(currentTab!=="sleep")return;
+      const dates=sleepViewMode==="week"?getSleepWeekDates(sleepSelectedDate):sleepDateKeys(sleepViewYear,sleepViewMonth);
+      const rows=dates.map(getSleepRecord);
+      const totals=dates.map(k=>getSleepQuality(k).total).filter(v=>v!==null);
+      const nights=dates.map(nightDuration).filter(v=>v!==null);
+      const naps=rows.map(napDuration).filter(v=>v!==null);
+      const avg=values=>values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length):null;
+      const complete=totals.length;
+      document.getElementById("sleepSummary").innerHTML=[
+        ["평균 총수면",formatDuration(avg(totals)),`${complete}일 기준`],
+        ["평균 밤잠",formatDuration(avg(nights)),`${nights.length}일 기준`],
+        ["평균 낮잠",formatDuration(avg(naps)),`${naps.length}일 기준`]
+      ].map(([label,val,desc])=>`<div class="sleep-kpi"><div class="sleep-kpi-label">${label}</div><div class="sleep-kpi-value">${val}</div><div class="sleep-kpi-detail">${desc}</div></div>`).join("");
+      const totalBrief=avg(totals);
+      document.getElementById("summary").textContent=totalBrief!==null?`수면 기록 · 평균 총수면 ${formatDuration(totalBrief)}`:"수면 기록 · 자동 저장";
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value);
+    }
+
+    document.getElementById("resetCurrentBtn").addEventListener("click", resetCurrentTab);
+    document.getElementById("resetAllBtn").addEventListener("click", resetAllTabs);
+    document.getElementById("cancelEditBtn").addEventListener("click", closeEditModal);
+    document.getElementById("saveEditBtn").addEventListener("click", saveEdit);
+
+    document.getElementById("editInput").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") saveEdit();
+      if (event.key === "Escape") closeEditModal();
+    });
+
+    document.getElementById("editModal").addEventListener("click", (event) => {
+      if (event.target.id === "editModal") closeEditModal();
+    });
+
+    document.getElementById("sleepModalCancel").addEventListener("click",closeSleepTimeModal);
+    document.getElementById("sleepModalSave").addEventListener("click",()=>applySleepTimeModal(false));
+    document.getElementById("sleepModalClear").addEventListener("click",()=>applySleepTimeModal(true));
+    document.getElementById("sleepModalInput").addEventListener("keydown",event=>{if(event.key==="Enter")applySleepTimeModal(false);if(event.key==="Escape")closeSleepTimeModal();});
+    document.getElementById("sleepTimeModal").addEventListener("click",event=>{if(event.target.id==="sleepTimeModal")closeSleepTimeModal();});
+
+    document.getElementById("sleepConflictCancel").addEventListener("click",closeSleepConflicts);
+    document.getElementById("sleepConflictApply").addEventListener("click",applySleepConflictChoices);
+    loadFromServer();
+    // 기기 저장분은 서버 정보를 먼저 확인한 뒤 안전하게 병합합니다.
+  </script>
+</body>
+</html>
