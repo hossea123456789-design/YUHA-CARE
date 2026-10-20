@@ -257,21 +257,68 @@
     @keyframes connection-pulse{50%{opacity:.35}}
     .save-status{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
       overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-    .app-progress{position:fixed;z-index:90;left:50%;transform:translate(-50%,18px);
-      bottom:calc(89px + env(safe-area-inset-bottom,0px));width:min(340px,calc(100vw - 36px));max-width:95vw;
-      border-radius:14px;padding:11px 13px 10px;background:#213047;color:white;
-      box-shadow:0 9px 26px #10223a55;opacity:0;pointer-events:none;
-      transition:opacity .2s ease,transform .2s ease}
-    .app-progress.show{opacity:1;transform:translate(-50%,0)}
-    .app-progress[data-state="error"]{background:#9a3841}
-    .app-progress[data-state="done"]{background:#1b6f4a}
-    .app-progress-message{font-size:12px;font-weight:800;line-height:1.45}
-    .app-progress-track{height:4px;margin-top:8px;border-radius:99px;overflow:hidden;background:#ffffff38}
-    .app-progress-fill{height:100%;width:34%;background:#94c5ff;border-radius:99px;animation:yuha-progress 1.35s ease-in-out infinite}
-    .app-progress[data-state="done"] .app-progress-fill{animation:none;width:100%;background:#b2f1d0}
-    .app-progress[data-state="error"] .app-progress-fill{animation:none;width:100%;background:#ffc5c5}
+
+    /* 짧고 생동감 있는 미니 저장 알림: 네트워크 요청에만 표시 */
+    .app-progress {
+      --progress-accent:#78d3ff;
+      position:fixed; z-index:90; left:50%;
+      bottom:calc(84px + env(safe-area-inset-bottom,0px));
+      width:min(226px,calc(100vw - 56px)); max-width:226px;
+      transform:translate(-50%,14px) scale(.92);
+      padding:9px 12px 10px; border-radius:15px;
+      background:linear-gradient(115deg,#152740 0%,#243a61 58%,#142c48 100%);
+      border:1px solid #9ccbff42; color:#fff;
+      box-shadow:0 8px 23px #112b4b38,0 0 15px #4aa8ff1d,inset 0 1px 0 #ffffff1a;
+      opacity:0; visibility:hidden; pointer-events:none; overflow:visible;
+      transition:opacity .18s ease,transform .3s cubic-bezier(.2,1.5,.35,1),visibility .18s ease;
+    }
+    .app-progress.show{opacity:1;visibility:visible;transform:translate(-50%,0) scale(1)}
+    .app-progress::before{
+      content:""; position:absolute;inset:0; border-radius:inherit;pointer-events:none;
+      background:linear-gradient(110deg,transparent 15%,#ffffff21 45%,transparent 70%);
+      background-size:220% 100%;animation:yuha-glint 2.2s linear infinite;opacity:.72;
+    }
+    .app-progress-top{position:relative;z-index:1;display:flex;align-items:center;gap:9px;min-width:0}
+    .app-progress-icon{position:relative;flex:0 0 22px;width:22px;height:22px;border-radius:50%;
+      display:grid;place-items:center;background:#83cdff27;color:#a8dfff;
+      box-shadow:inset 0 0 0 1px #ffffff19}
+    .app-progress-icon::after{content:"";width:11px;height:11px;border:2px solid #ffffff45;
+      border-top-color:#9beaff;border-radius:50%;animation:yuha-spin .8s linear infinite}
+    .app-progress-message{display:block;position:relative;z-index:1;min-width:0;overflow:hidden;
+      text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:850;letter-spacing:-.12px}
+    .app-progress-track{position:relative;z-index:1;height:3px;margin-top:7px;
+      border-radius:99px;overflow:hidden;background:#ffffff36}
+    .app-progress-fill{height:100%;width:34%;border-radius:99px;background:linear-gradient(90deg,#60a9ff,#b7f8ff,#6fbcff);
+      box-shadow:0 0 10px #8fe9ff;animation:yuha-progress 1.05s ease-in-out infinite}
+    .app-progress[data-state="done"]{
+      background:linear-gradient(115deg,#12604b,#259673 58%,#12614e);
+      border-color:#a0f8c26b;--progress-accent:#abffce;
+    }
+    .app-progress[data-state="done"] .app-progress-icon{background:#ffffff27;color:#d3ffe3}
+    .app-progress[data-state="done"] .app-progress-icon::after{
+      content:"✓";font-size:15px;font-weight:900;line-height:1;
+      width:auto;height:auto;border:0;border-radius:0;animation:yuha-check-pop .4s cubic-bezier(.18,1.6,.2,1) both;
+    }
+    .app-progress[data-state="done"] .app-progress-icon::before{
+      content:"✦";position:absolute;top:-12px;right:-9px;color:#c9ffe4;font-size:13px;
+      animation:yuha-spark .65s ease-out both;
+    }
+    .app-progress[data-state="done"] .app-progress-fill{animation:none;width:100%;background:#b7ffe2}
+    .app-progress[data-state="error"]{background:linear-gradient(110deg,#772e47,#ad4b63 65%,#7b344c);border-color:#f7abb675}
+    .app-progress[data-state="error"] .app-progress-icon{background:#ffffff24;color:white}
+    .app-progress[data-state="error"] .app-progress-icon::after{
+      content:"!";font-size:15px;font-weight:900;width:auto;height:auto;border:0;animation:none
+    }
+    .app-progress[data-state="error"] .app-progress-fill{animation:none;width:100%;background:#ffbac8}
     @keyframes yuha-progress{0%{transform:translateX(-120%)}100%{transform:translateX(400%)}}
-    @media(prefers-reduced-motion:reduce){.app-progress-fill,.connection-state::before{animation:none!important}}
+    @keyframes yuha-spin{to{transform:rotate(360deg)}}
+    @keyframes yuha-glint{0%{background-position:200% 0}100%{background-position:-100% 0}}
+    @keyframes yuha-check-pop{0%{transform:scale(.1) rotate(-35deg);opacity:.1}75%{transform:scale(1.22)}100%{transform:scale(1);opacity:1}}
+    @keyframes yuha-spark{0%{opacity:0;transform:translate(-7px,9px) scale(.1) rotate(-35deg)}45%{opacity:1}100%{opacity:0;transform:translate(6px,-12px) scale(1.35) rotate(30deg)}}
+    @media(prefers-reduced-motion:reduce){
+      .app-progress,.app-progress::before,.app-progress-icon::before,.app-progress-icon::after,
+      .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
+    }
   </style>
 </head>
 
@@ -336,7 +383,10 @@
 
   <div class="drag-toast" id="dragToast">이동 중 · 원하는 위치에서 손을 떼세요</div>
   <div class="app-progress" id="appProgress" data-state="busy" role="status" aria-live="polite">
-    <div class="app-progress-message" id="appProgressMessage">준비 중</div>
+    <div class="app-progress-top">
+      <span class="app-progress-icon" aria-hidden="true"></span>
+      <span class="app-progress-message" id="appProgressMessage">저장 중</span>
+    </div>
     <div class="app-progress-track"><div class="app-progress-fill"></div></div>
   </div>
 
@@ -393,8 +443,13 @@
     let checklistSaving = false;
     let checklistSaveQueued = false;
     let checklistServerChecked = false;
+
     const progressTasks = new Map();
     let progressHideTimer = null;
+    let progressShowTimer = null;
+    const PROGRESS_SHOW_DELAY = 170; // 짧은 요청은 불필요하게 깜빡이지 않게
+    const PROGRESS_SUCCESS_MS = 820;
+    const PROGRESS_ERROR_MS = 1650;
 
     function setConnectionState(state, detail = "") {
       const el = document.getElementById("connectionState");
@@ -407,44 +462,55 @@
         "인터넷 연결 없음 · 기기 저장 가능" : next === "error" ? "서버 연결 확인 필요" : "서버 연결 확인 중");
     }
 
-    function showAppProgress(task, message, state = "busy") {
+    function setProgressVisual(message, state) {
       const el = document.getElementById("appProgress");
       const label = document.getElementById("appProgressMessage");
       if (!el || !label) return;
-      clearTimeout(progressHideTimer);
-      if (state === "busy") progressTasks.set(task, message);
-      else progressTasks.delete(task);
-      const other = [...progressTasks.values()].pop();
-      label.textContent = other || message;
-      el.dataset.state = other ? "busy" : state;
+      label.textContent = String(message || "").slice(0,55);
+      el.dataset.state = state;
       el.classList.add("show");
-      if (!other) {
-        progressHideTimer = setTimeout(() => { if (!progressTasks.size) el.classList.remove("show"); },
-          state === "error" ? 6500 : 2000);
+    }
+
+    function showAppProgress(task, message, state = "busy") {
+      const el = document.getElementById("appProgress");
+      if (!el) return;
+      clearTimeout(progressHideTimer);
+      if (state === "busy") {
+        progressTasks.set(task,message);
+        if (el.classList.contains("show") && el.dataset.state === "busy") {
+          setProgressVisual(message, "busy");
+        } else {
+          clearTimeout(progressShowTimer);
+          progressShowTimer = setTimeout(() => {
+            if (progressTasks.size) setProgressVisual([...progressTasks.values()].pop(), "busy");
+          },PROGRESS_SHOW_DELAY);
+        }
+        return;
       }
+      progressTasks.delete(task);
+      if (progressTasks.size) {
+        clearTimeout(progressShowTimer);
+        setProgressVisual([...progressTasks.values()].pop(), "busy");
+        return;
+      }
+      clearTimeout(progressShowTimer);
+      // 완료는 짧은 마이크로 애니메이션만 표시, 오류는 조금 더 남겨 원인을 볼 수 있도록.
+      setProgressVisual(message,state);
+      progressHideTimer = setTimeout(() => {
+        if (!progressTasks.size) el.classList.remove("show");
+      }, state === "error" ? PROGRESS_ERROR_MS : PROGRESS_SUCCESS_MS);
     }
 
     window.addEventListener("yuha-db-status", event => {
-      const state = event.detail?.state || "connecting";
-      setConnectionState(state, event.detail?.message || "");
-      if (state === "error") {
-        for (const key of [...progressTasks.keys()]) {
-          if (key === "checklist" || key.startsWith("sleep-fetch-"))
-            showAppProgress(key, "서버 응답 지연 · 기기에 저장된 기록 유지", "error");
-        }
-        showAppProgress("connection",
-          event.detail?.message || "서버 연결 지연 · 기기 데이터 유지", "error");
-      }
-      if (state === "connected" && progressTasks.has("connection"))
-        showAppProgress("connection", "서버 연결 완료", "done");
+      setConnectionState(event.detail?.state || "connecting", event.detail?.message || "");
+      // 연결 상태 자체는 우측 상단으로만 알립니다. 진행바는 실제 데이터 요청에만 표시합니다.
     });
     window.addEventListener("offline", () => {
       setConnectionState("offline");
-      showAppProgress("connection", "오프라인 · 기록은 기기에 보관됩니다", "error");
+      // 진행 중인 네트워크 요청이 없다면 하단 알림은 표시하지 않습니다.
     });
     window.addEventListener("online", () => {
       setConnectionState("connecting");
-      showAppProgress("connection", "연결 복구 · 서버 확인 중", "busy");
     });
 
     function makeId() {
@@ -455,9 +521,7 @@
       const el = document.getElementById("saveStatus");
       el.textContent = text;
       el.className = "save-status" + (type ? " " + type : "");
-      const state = type === "error" ? "error" : type === "saved" ? "done" :
-        /불러오는 중|확인 중|대기 중|저장 중|동기화 중/.test(text) ? "busy" : "done";
-      showAppProgress("checklist", text, state);
+      // 안내 문구 자체는 진행바를 발생시키지 않습니다.
     }
 
     function loadClientCache() {
@@ -649,10 +713,8 @@
 
         button.addEventListener("click", () => {
           if (currentTab === tabKey) return;
-          showAppProgress("view", "화면 전환 중", "busy");
           currentTab = tabKey;
           render();
-          requestAnimationFrame(() => showAppProgress("view", "화면 전환 완료", "done"));
         });
 
         tabs.appendChild(button);
@@ -1425,11 +1487,7 @@
       sleepStatusText=message;sleepStatusKind=kind;
       const el=document.getElementById("sleepStatus");
       if(el){el.textContent=message;el.className="sleep-status"+(kind?" "+kind:"");}
-      if(/저장|조회|연결|동기화|오프라인|충돌|실패|복구/.test(message)) {
-        const phase = kind==="error" || /실패|충돌|오프라인/.test(message) ? "error" :
-          /중|확인|대기/.test(message) && !/완료/.test(message) ? "busy" : "done";
-        showAppProgress("sleep",message,phase);
-      }
+      // 수면 탭의 상태 문구가 네트워크 작업 없이 진행바를 띄우지 않도록 분리.
     }
     function fetchSleepMonthFor(year,month,force=false) {
       const key=sleepMonthKey(year,month);
