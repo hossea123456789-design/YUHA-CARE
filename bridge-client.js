@@ -86,7 +86,7 @@
     frame.src = endpoint + '?bridge=1&origin=' + encodeURIComponent(APP_ORIGIN) + '&nonce=' + nonce;
     document.body.appendChild(frame);
     warningTimer = setTimeout(() => {
-      if (!ready) status('DB 연결 대기 중: Apps Script에 Bridge 파일 추가 및 새 버전 배포를 확인하세요.', true);
+      if (!ready) status('DB 연결 대기 중: Apps Script Code.gs 교체와 새 버전 배포를 확인하세요.', true);
     }, 18000);
   }
   function send(job) {
