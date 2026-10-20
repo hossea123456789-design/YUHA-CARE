@@ -351,8 +351,8 @@
     </main>
 
     <div class="bottom-actions" id="bottomActions">
-      <button class="action-btn reset-current" id="resetCurrentBtn">현재 탭 초기화</button>
-      <button class="action-btn reset-all" id="resetAllBtn">전체 초기화</button>
+      <button class="action-btn reset-current" id="resetCurrentBtn">현재 탭 체크 해제</button>
+      <button class="action-btn reset-all" id="resetAllBtn">전체 체크 해제</button>
     </div>
   </div>
 
@@ -414,7 +414,7 @@
         const all = ['daycare','outing','daily','weekly'].flatMap(k => (d[k]?.sections || []).flatMap(s => s.items || []));
         const done = all.filter(i => i.checked).length;
         document.getElementById('summary').textContent =
-          '오늘의 준비 · ' + done + '/' + all.length + '개 완료';
+          '전체 항목 · ' + done + '/' + all.length + '개 완료';
         const pct = all.length ? Math.round(done / all.length * 100) : 0;
         document.getElementById('overallMeterBar').style.width = pct + '%';
         document.getElementById('overallMeter').setAttribute('aria-valuenow', String(pct));
@@ -593,7 +593,7 @@
             setSaveStatus(hadCache ? "기기 기록 유지 · 서버 조회 실패" : "서버 조회 실패", "error");
             return;
           }
-          showAppProgress("checklist-read","목록 최신 확인 ✓","done");
+          showAppProgress("checklist-read","목록 업데이트 완료","done");
           const incomingAt = result.updatedAt || "";
           if (checklistDirty) {
             // 동시에 업데이트된 외부 기록은 사용자 결정 없이 덮어쓰지 않습니다.
@@ -1052,9 +1052,7 @@
           </div>
         </div>
 
-        <p class="help-note">
-          작은 제목을 추가하면 해당 탭 안에 새 구역이 생깁니다. 작은 제목을 삭제하면 그 안의 항목들도 전부 같이 삭제됩니다. 위/아래 버튼으로 탭 안 제목 순서를 바꿀 수 있습니다.
-        </p>
+        <p class="help-note">구역 이름을 추가·정렬할 수 있습니다. 구역을 삭제하면 안에 있는 항목도 함께 삭제됩니다.</p>
 
         <div class="settings-card">
           <h3>유하 생년월일</h3>
@@ -1405,7 +1403,7 @@
       const allItems = ["daycare", "outing", "daily", "weekly"].flatMap((tabKey) => getAllItems(tabKey));
       const checked = allItems.filter((item) => item.checked).length;
       const total = allItems.length;
-      document.getElementById("summary").textContent = `오늘의 준비 · ${checked}/${total}개 완료`;
+      document.getElementById("summary").textContent = `전체 항목 · ${checked}/${total}개 완료`;
       const pct = total ? Math.min(100, Math.round(checked * 100 / total)) : 0;
       const bar = document.getElementById("overallMeterBar");
       if (bar) bar.style.width = pct + "%";
@@ -1415,7 +1413,7 @@
 
     function render() {
       if (!data) return;
-
+      document.body.classList.toggle("has-bottom-actions", currentTab !== "settings" && currentTab !== "sleep");
       renderTabs();
       updateSummary();
 
