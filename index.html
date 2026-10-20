@@ -1444,6 +1444,7 @@
     let sleepViewMonth = new Date().getMonth()+1;
     let sleepSelectedDate = localDateKey(new Date());
     let sleepViewMode = "week";
+    let sleepDetailExpanded = false;
     const sleepMonths = Object.create(null);
     const sleepServerMonths = Object.create(null);
     const sleepLoadTokens = Object.create(null);
@@ -2012,7 +2013,7 @@
         b.setAttribute("aria-pressed",dateKey===sleepSelectedDate?"true":"false");
         b.title=dateKey+" · "+(q.score===null?q.label:q.score+"점 · "+q.label);
         b.addEventListener("click",()=>{
-          sleepSelectedDate=dateKey;sleepViewMode="week";renderSleepTab();
+          sleepSelectedDate=dateKey;sleepViewMode="week";sleepDetailExpanded=true;renderSleepTab();
         });el.appendChild(b);
       });
       const detail=document.getElementById("sleepHeatDetail");if(!detail)return;
@@ -2056,7 +2057,9 @@
         '<div class="sleep-detail-subtitle">'+escapeHtml(q.score===null?q.label:q.label+' · 수면 패턴 참고 점수')+'</div></div>'+
         '<div class="sleep-detail-grade quality-'+q.level+'"><strong>'+(q.score===null?'—':q.score)+
         '</strong><small>/100</small></div></div>'+
-        metrics+calculation+
+        metrics+
+        '<details class="sleep-score-details" '+(sleepDetailExpanded?"open":"")+'>'+
+          '<summary>점수 계산 근거 <span>자세히 보기</span></summary>'+calculation+'</details>'+
         (maybeAm?'<p class="sleep-day-warning">전날 취침 시각이 오전으로 입력되어 있습니다. 저녁 취침이었다면 다시 확인해 주세요.</p>':'')+
         '<p class="sleep-score-disclaimer">수면량 권고: '+
         '<a href="https://www.cdc.gov/sleep/about/" target="_blank" rel="noopener noreferrer">CDC</a> · '+
