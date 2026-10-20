@@ -320,7 +320,7 @@
       .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
     }
   </style>
-  <link rel="stylesheet" href="design.css?v=20261020-ds2" />
+  <link rel="stylesheet" href="design.css?v=20261020-ds3" />
 </head>
 
 <body>
@@ -2059,12 +2059,12 @@
         '</strong><small>/100</small></div></div>'+
         metrics+
         '<details class="sleep-score-details" '+(sleepDetailExpanded?"open":"")+'>'+
-          '<summary>점수 계산 근거 <span>자세히 보기</span></summary>'+calculation+'</details>'+
+          '<summary>점수 계산 근거 <span>자세히 보기</span></summary>'+calculation+
         (maybeAm?'<p class="sleep-day-warning">전날 취침 시각이 오전으로 입력되어 있습니다. 저녁 취침이었다면 다시 확인해 주세요.</p>':'')+
         '<p class="sleep-score-disclaimer">수면량 권고: '+
         '<a href="https://www.cdc.gov/sleep/about/" target="_blank" rel="noopener noreferrer">CDC</a> · '+
         '<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4877308/" target="_blank" rel="noopener noreferrer">AASM</a>. '+
-        '감점 폭과 입실·낮잠 기준은 앱 자체 참고 규칙입니다. 수면의 질을 진단하는 점수는 아닙니다.</p>';
+        '감점 폭과 입실·낮잠 기준은 앱 자체 참고 규칙입니다. 수면의 질을 진단하는 점수는 아닙니다.</p></details>';
     }
 
     function drawSleepTable() {
