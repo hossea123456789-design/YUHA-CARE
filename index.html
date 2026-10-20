@@ -376,7 +376,7 @@
     })();
   </script>
   <script src="config.js?v=20261020-shared1"></script>
-  <script src="bridge-client.js?v=20261020-shared1"></script>
+  <script src="bridge-client.js?v=20261020-status2"></script>
   <script>
     const CLIENT_CACHE_KEY = "yuha_shared_checklist_client_cache_v1";
     const tabOrder = ["daycare", "sleep", "outing", "daily", "weekly", "settings"];
@@ -388,6 +388,51 @@
     let dragState = null;
     let saveTimer = null;
     let serverUpdatedAt = "";
+    const progressTasks = new Map();
+    let progressHideTimer = null;
+
+    function setConnectionState(state, detail = "") {
+      const el = document.getElementById("connectionState");
+      if (!el) return;
+      const names = {connected:"연결됨", connecting:"연결 중", offline:"오프라인", error:"연결 오류"};
+      const next = !navigator.onLine ? "offline" : (names[state] ? state : "connecting");
+      el.dataset.state = next;
+      el.textContent = names[next];
+      el.title = detail || (next === "connected" ? "서버 통신 정상" : next === "offline" ?
+        "인터넷 연결 없음 · 기기 저장 가능" : next === "error" ? "서버 연결 확인 필요" : "서버 연결 확인 중");
+    }
+
+    function showAppProgress(task, message, state = "busy") {
+      const el = document.getElementById("appProgress");
+      const label = document.getElementById("appProgressMessage");
+      if (!el || !label) return;
+      clearTimeout(progressHideTimer);
+      if (state === "busy") progressTasks.set(task, message);
+      else progressTasks.delete(task);
+      const other = [...progressTasks.values()].pop();
+      label.textContent = other || message;
+      el.dataset.state = other ? "busy" : state;
+      el.classList.add("show");
+      if (!other) {
+        progressHideTimer = setTimeout(() => { if (!progressTasks.size) el.classList.remove("show"); },
+          state === "error" ? 6500 : 2000);
+      }
+    }
+
+    window.addEventListener("yuha-db-status", event => {
+      const state = event.detail?.state || "connecting";
+      setConnectionState(state, event.detail?.message || "");
+      if (state === "error") showAppProgress("connection",
+        event.detail?.message || "서버 연결 지연 · 기기 데이터 유지", "error");
+    });
+    window.addEventListener("offline", () => {
+      setConnectionState("offline");
+      showAppProgress("connection", "오프라인 · 기록은 기기에 보관됩니다", "error");
+    });
+    window.addEventListener("online", () => {
+      setConnectionState("connecting");
+      showAppProgress("connection", "연결 복구 · 서버 확인 중", "busy");
+    });
 
     function makeId() {
       return "id_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -397,6 +442,9 @@
       const el = document.getElementById("saveStatus");
       el.textContent = text;
       el.className = "save-status" + (type ? " " + type : "");
+      const state = type === "error" ? "error" : type === "saved" ? "done" :
+        /불러오는 중|확인 중|대기 중|저장 중|동기화 중/.test(text) ? "busy" : "done";
+      showAppProgress("checklist", text, state);
     }
 
     function loadClientCache() {
@@ -535,8 +583,11 @@
         button.textContent = tabKey === "settings" ? "설정" : (tabKey === "sleep" ? "수면 기록" : data[tabKey].label);
 
         button.addEventListener("click", () => {
+          if (currentTab === tabKey) return;
+          showAppProgress("view", "화면 전환 중", "busy");
           currentTab = tabKey;
           render();
+          requestAnimationFrame(() => showAppProgress("view", "화면 전환 완료", "done"));
         });
 
         tabs.appendChild(button);
@@ -1309,6 +1360,11 @@
       sleepStatusText=message;sleepStatusKind=kind;
       const el=document.getElementById("sleepStatus");
       if(el){el.textContent=message;el.className="sleep-status"+(kind?" "+kind:"");}
+      if(/저장|조회|연결|동기화|오프라인|충돌|실패|복구/.test(message)) {
+        const phase = kind==="error" || /실패|충돌|오프라인/.test(message) ? "error" :
+          /중|확인|대기/.test(message) && !/완료/.test(message) ? "busy" : "done";
+        showAppProgress("sleep",message,phase);
+      }
     }
     function fetchSleepMonthFor(year,month,force=false) {
       const key=sleepMonthKey(year,month);
