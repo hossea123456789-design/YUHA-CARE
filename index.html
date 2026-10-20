@@ -1462,8 +1462,7 @@
     // 수면 기록: 기상은 당일 아침, 밤잠은 전날 취침 → 오늘 기상, 낮잠은 당일.
     // ============================================================
     const SLEEP_KEYS = ["bedTime", "asleepTime", "napStart", "napEnd", "wakeTime", "nap2Start", "nap2End"];
-    const sleepNap2Expanded=new Set();
-    const sleepNap2Collapsed=new Set();
+    let nap2Popup=null; // 임시 미니 편집창: 입력표 높이는 항상 동일
     const SLEEP_MONTH_CACHE = "yuha_sleep_month_v5_"; // 기상일 기준 스키마
     const SLEEP_SERVER_CACHE = "yuha_sleep_server_v5_";
     const SLEEP_PENDING_KEY = "yuha_sleep_pending_v5";
@@ -2230,29 +2229,19 @@
           const td=document.createElement("td");
           if(field==="napStart"){
             const group=document.createElement("div");
-            group.className="sleep-nap-group";
-            const first=document.createElement("div");first.className="sleep-nap-stack";
+            group.className="sleep-nap-group compact";
             [["napStart","1차 시작"],["napEnd","1차 종료"]].forEach(([key,desc])=>
-              first.appendChild(makeSleepTimeButton(dateKey,key,record[key],desc)));
-            group.appendChild(first);
+              group.appendChild(makeSleepTimeButton(dateKey,key,record[key],desc)));
             const hasSecond=!!(record.nap2Start||record.nap2End);
-            const expanded=sleepNap2Expanded.has(dateKey)||(hasSecond&&!sleepNap2Collapsed.has(dateKey));
-            if(expanded){
-              const second=document.createElement("div");second.className="sleep-nap-stack second";
-              [["nap2Start","2차 시작"],["nap2End","2차 종료"]].forEach(([key,desc])=>
-                second.appendChild(makeSleepTimeButton(dateKey,key,record[key],desc)));
-              group.appendChild(second);
-            }
             const toggle=document.createElement("button");
-            toggle.type="button";toggle.className="sleep-nap-toggle";
-            toggle.textContent=expanded?"− 2차 접기":"+ 2차 낮잠";
-            toggle.setAttribute("aria-expanded",String(expanded));
-            toggle.setAttribute("aria-label",dateKey+" "+(expanded?"2차 낮잠 접기":"2차 낮잠 입력 보이기"));
-            toggle.addEventListener("click",()=>{
-              if(expanded){sleepNap2Expanded.delete(dateKey);sleepNap2Collapsed.add(dateKey);}
-              else{sleepNap2Collapsed.delete(dateKey);sleepNap2Expanded.add(dateKey);}
-              drawSleepTable();
-            });
+            toggle.type="button";
+            toggle.className="sleep-nap-toggle"+(hasSecond?" has-record":"");
+            toggle.textContent="+";
+            toggle.title=hasSecond?"2차 낮잠 확인·수정":"2차 낮잠 추가";
+            toggle.setAttribute("aria-label",dateKey+" "+(hasSecond?"2차 낮잠 기록 확인·수정":"2차 낮잠 추가"));
+            toggle.setAttribute("aria-haspopup","dialog");
+            toggle.setAttribute("aria-expanded",nap2Popup?.dataset.date===dateKey?"true":"false");
+            toggle.addEventListener("click",()=>openNap2Popover(toggle,dateKey));
             group.appendChild(toggle);
             td.appendChild(group);
           } else td.appendChild(makeSleepTimeButton(dateKey,field,record[field],label));
@@ -2262,6 +2251,75 @@
       });
     }
 
+    function closeNap2Popover() {
+      if(!nap2Popup)return;
+      nap2Popup.remove();
+      nap2Popup=null;
+      document.querySelectorAll(".sleep-nap-toggle[aria-expanded=true]").forEach(btn=>
+        btn.setAttribute("aria-expanded","false"));
+    }
+    function openNap2Popover(anchor,dateKey) {
+      if(nap2Popup?.dataset.date===dateKey) {closeNap2Popover();return;}
+      closeNap2Popover();
+      const rec=getSleepRecord(dateKey);
+      const panel=document.createElement("section");
+      panel.className="sleep-nap-popover";
+      panel.setAttribute("role","dialog");
+      panel.setAttribute("aria-label",dateKey+" 2차 낮잠");
+      panel.dataset.date=dateKey;
+      panel.innerHTML=
+        '<div class="nap-popover-heading"><strong>2차 낮잠</strong><button type="button" class="nap-popover-close" aria-label="닫기">×</button></div>'+
+        '<div class="nap-popover-times">'+
+          '<label>시작<input type="time" class="nap2-start" step="60" aria-label="2차 낮잠 시작 시각"></label>'+
+          '<label>종료<input type="time" class="nap2-end" step="60" aria-label="2차 낮잠 종료 시각"></label>'+
+        '</div>'+
+        '<p class="nap-popover-error" role="alert" aria-live="polite"></p>'+
+        '<div class="nap-popover-actions">'+
+          (rec.nap2Start||rec.nap2End?'<button type="button" class="nap-popover-delete">기록 삭제</button>':'<span></span>')+
+          '<button type="button" class="nap-popover-save">저장</button>'+
+        '</div>';
+      panel.querySelector(".nap2-start").value=rec.nap2Start||"";
+      panel.querySelector(".nap2-end").value=rec.nap2End||"";
+      document.body.appendChild(panel);
+      nap2Popup=panel;
+      anchor.setAttribute("aria-expanded","true");
+      const box=anchor.getBoundingClientRect();
+      const w=panel.offsetWidth,h=panel.offsetHeight;
+      const left=Math.min(Math.max(9,box.left+box.width/2-w/2),Math.max(9,window.innerWidth-w-9));
+      const below=window.innerHeight-box.bottom>=h+15;
+      const top=below?box.bottom+7:Math.max(8,box.top-h-7);
+      panel.style.left=Math.round(left)+"px";
+      panel.style.top=Math.round(top)+"px";
+      panel.querySelector(".nap-popover-close").addEventListener("click",closeNap2Popover);
+      const err=panel.querySelector(".nap-popover-error");
+      function submitNap2(erase=false){
+        const start=erase?"":panel.querySelector(".nap2-start").value;
+        const end=erase?"":panel.querySelector(".nap2-end").value;
+        if(!erase) {
+          if(!start||!end){err.textContent="시작과 종료 시각을 모두 입력해 주세요.";return;}
+          const a=sleepMinutes(start),b=sleepMinutes(end);
+          if(a===null||b===null||b<=a||b-a>360){
+            err.textContent="종료는 시작보다 늦어야 하며, 낮잠은 6시간 이내여야 합니다.";return;
+          }
+          const firstEnd=sleepMinutes(getSleepRecord(dateKey).napEnd);
+          if(firstEnd!==null&&a<firstEnd){
+            err.textContent="2차 낮잠은 1차 낮잠이 끝난 뒤 시작해야 합니다.";return;
+          }
+        }
+        closeNap2Popover();
+        if(rec.nap2Start!==start)queueSleepEdit(dateKey,"nap2Start",start);
+        if(rec.nap2End!==end)queueSleepEdit(dateKey,"nap2End",end);
+      }
+      panel.querySelector(".nap-popover-save").addEventListener("click",()=>submitNap2(false));
+      panel.querySelector(".nap-popover-delete")?.addEventListener("click",()=>submitNap2(true));
+      panel.addEventListener("keydown",ev=>{if(ev.key==="Escape"){ev.preventDefault();closeNap2Popover();anchor.focus();}});
+    }
+    document.addEventListener("pointerdown",ev=>{
+      if(nap2Popup&&!nap2Popup.contains(ev.target)&&!ev.target.closest(".sleep-nap-toggle"))closeNap2Popover();
+    },true);
+    window.addEventListener("scroll",()=>{if(nap2Popup)closeNap2Popover();},true);
+    window.addEventListener("resize",()=>{if(nap2Popup)closeNap2Popover();});
+    
     function makeSleepTimeButton(dateKey,field,value,label) {
       const b=document.createElement("button");b.type="button";
       b.className="sleep-time-btn"+(value?" filled":"");
