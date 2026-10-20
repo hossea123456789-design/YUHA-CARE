@@ -988,3 +988,88 @@ header .header-status-group .app-progress[data-state="error"] .app-progress-fill
 @media(prefers-reduced-motion:reduce){
   header .header-status-group .app-progress-result .progress-success-svg{animation:none!important}
 }
+
+
+/* 2026-10-21: clear frameless header sync state; 2-line micro-indicator.
+   Top line names the operation, bottom line joins the bar and number closely.
+   The connected badge is kept visually separate. */
+header .header-status-group{gap:10px!important;width:159px!important;min-width:159px!important}
+header .header-status-group .connection-state{
+  flex:0 0 65px!important;min-width:65px!important;
+}
+header .header-status-group .app-progress,
+header .header-status-group .app-progress.show{
+  flex:0 0 84px!important;width:84px!important;min-width:84px!important;max-width:84px!important;
+  flex-direction:column!important;align-items:stretch!important;justify-content:center!important;
+  height:33px!important;min-height:33px!important;max-height:33px!important;
+  padding:0!important;margin:0!important;
+  background:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;
+}
+header .header-status-group .app-progress-activity{
+  display:flex!important;align-items:center;gap:4px;
+  height:13px!important;min-height:13px!important;max-height:13px!important;
+  padding:0;margin:0 0 2px!important;
+  font-size:9px!important;font-weight:810!important;line-height:13px!important;
+  letter-spacing:-.12px;color:#287d68!important;white-space:nowrap;
+}
+header .header-status-group .app-progress-activity::before{
+  content:"";display:block;flex:0 0 5px;width:5px;height:5px;border-radius:50%;
+  background:#25aa81;box-shadow:0 0 5px #37c49a77;
+  animation:yuha-activity-pulse 1.05s ease-in-out infinite;
+}
+header .header-status-group .app-progress[data-state="done"] .app-progress-activity{
+  color:#297f60!important;
+}
+header .header-status-group .app-progress[data-state="done"] .app-progress-activity::before{
+  background:#2e9573;box-shadow:none;animation:none;
+}
+header .header-status-group .app-progress[data-state="error"] .app-progress-activity{color:#ac5962!important}
+header .header-status-group .app-progress[data-state="error"] .app-progress-activity::before{background:#c7737b;animation:none}
+header .header-status-group .app-progress-top{
+  display:flex!important;align-items:center!important;gap:3px!important;
+  height:15px!important;min-height:15px!important;max-height:15px!important;
+  width:100%!important;min-width:0!important;margin:0!important;padding:0!important;
+}
+header .header-status-group .app-progress-track{
+  flex:1 1 0!important;min-width:10px!important;width:auto!important;height:4px!important;
+  min-height:4px!important;max-height:4px!important;margin:0!important;
+  background:#cce3da!important;box-shadow:none!important;
+}
+header .header-status-group .app-progress-fill{
+  height:100%!important;background:linear-gradient(90deg,#258c78,#44ceaa)!important;
+}
+header .header-status-group .app-progress-result{
+  flex:0 0 31px!important;width:31px!important;min-width:31px!important;max-width:31px!important;
+  height:15px!important;min-height:15px!important;
+}
+header .header-status-group .app-progress-percent{
+  font-size:11.5px!important;font-weight:850!important;color:#205f52!important;
+  line-height:15px!important;letter-spacing:-.3px!important;text-align:right!important;
+}
+header .header-status-group .app-progress[data-state="done"] .progress-success-svg{
+  width:16px!important;height:16px!important;
+}
+@keyframes yuha-activity-pulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.38;transform:scale(.75)}
+}
+@media(max-width:420px){
+ header .header-status-group{width:147px!important;min-width:147px!important;gap:9px!important}
+ header .header-status-group .connection-state{flex:0 0 61px!important;min-width:61px!important}
+ header .header-status-group .app-progress,
+ header .header-status-group .app-progress.show{
+   flex:0 0 77px!important;width:77px!important;min-width:77px!important;max-width:77px!important;
+ }
+ header .header-status-group .app-progress-result{flex-basis:29px!important;width:29px!important;min-width:29px!important;max-width:29px!important}
+}
+@media(max-width:355px){
+ header .header-status-group{width:139px!important;min-width:139px!important;gap:7px!important}
+ header .header-status-group .connection-state{flex:0 0 58px!important;min-width:58px!important}
+ header .header-status-group .app-progress,
+ header .header-status-group .app-progress.show{
+   flex:0 0 74px!important;width:74px!important;min-width:74px!important;max-width:74px!important;
+ }
+}
+@media(prefers-reduced-motion:reduce){
+ header .header-status-group .app-progress-activity::before{animation:none!important}
+}
