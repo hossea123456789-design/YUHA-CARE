@@ -320,7 +320,7 @@
       .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
     }
   </style>
-  <link rel="stylesheet" href="design.css?v=20261020-tabneon1" />
+  <link rel="stylesheet" href="design.css?v=20261020-vectorcheck2" />
 </head>
 
 <body>
@@ -399,7 +399,12 @@
   <div class="drag-toast" id="dragToast">이동 중 · 원하는 위치에서 손을 떼세요</div>
   <div class="app-progress" id="appProgress" data-state="busy" role="status" aria-live="polite">
     <div class="app-progress-top">
-      <span class="app-progress-icon" aria-hidden="true"></span>
+      <span class="app-progress-icon" aria-hidden="true">
+        <svg class="progress-success-svg" viewBox="0 0 24 24" fill="none" focusable="false">
+          <circle class="progress-success-circle" cx="12" cy="12" r="10"></circle>
+          <path class="progress-success-check" d="m7.45 12.15 3.05 3.05 6.05-6.25"></path>
+        </svg>
+      </span>
       <span class="app-progress-message" id="appProgressMessage">저장 중</span>
     </div>
     <div class="app-progress-track"><div class="app-progress-fill"></div></div>
