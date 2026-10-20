@@ -245,3 +245,15 @@ main{padding:22px 20px 16px;min-height:45vh}
   font-size:16px;font-weight:800;animation:none;color:#b45e58}
 .app-progress[data-state="error"] .app-progress-message{color:#a5524e}
 .app-progress[data-state="error"] .app-progress-fill{width:100%;background:#cc8179;animation:none}
+
+
+/* Review refinements: show compact actions side-by-side, context-aware toast height. */
+.settings-section-select{grid-template-columns:minmax(0,1fr) auto!important}
+.settings-section-select select{min-width:0}
+#focusSelectedTabBtn{min-width:78px;white-space:nowrap}
+.app-progress{bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bottom,0px))}
+@media(max-width:420px){
+  .settings-section-select{grid-template-columns:minmax(0,1fr) 84px!important}
+  #focusSelectedTabBtn{padding:0 8px}
+}
