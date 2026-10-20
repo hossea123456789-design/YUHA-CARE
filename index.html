@@ -793,6 +793,8 @@
     };
     function renderTabs() {
       const tabs = document.getElementById("tabs");
+      // 탭을 다시 그려도 가로 스크롤 위치를 유지합니다.
+      const previousScrollLeft=tabs.scrollLeft;
       tabs.innerHTML = "";
       tabOrder.forEach((tabKey) => {
         const button = document.createElement("button");
@@ -807,12 +809,20 @@
           if (currentTab === tabKey) return;
           currentTab = tabKey;
           render();
-          const active = document.querySelector(".tab-btn.active");
-          if (active) active.scrollIntoView({block:"nearest",inline:"nearest",behavior:"smooth"});
-          window.scrollTo({top:0,behavior:"instant"});
+          const active = tabs.querySelector(".tab-btn.active");
+          if (active) {
+            // scrollIntoView는 상단 고정 헤더까지 세로로 이동시킬 수 있어 사용하지 않습니다.
+            // 메뉴 내부의 가로 스크롤만 조정합니다.
+            const item=active.getBoundingClientRect();
+            const menu=tabs.getBoundingClientRect();
+            const offset=item.left+item.width/2-menu.left-menu.width/2;
+            tabs.scrollTo({left:tabs.scrollLeft+offset,behavior:"smooth"});
+          }
+          window.scrollTo({top:0,behavior:"auto"});
         });
         tabs.appendChild(button);
       });
+      tabs.scrollLeft=previousScrollLeft;
     }
 
     function getAllItems(tabKey) {
