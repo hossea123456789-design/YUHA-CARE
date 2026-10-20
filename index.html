@@ -338,6 +338,7 @@
         </div>
         <div class="header-status-group">
           <div class="app-progress header-sync" id="appProgress" data-state="busy" role="status" aria-live="polite">
+            <span class="app-progress-activity" id="appProgressActivity">동기화 중</span>
             <div class="app-progress-top">
               <div class="app-progress-track" id="appProgressTrack" role="progressbar" aria-label="서버 요청 진행 상태" aria-valuemin="0" aria-valuemax="100"><div class="app-progress-fill" id="appProgressFill"></div></div>
               <span class="app-progress-result">
@@ -513,6 +514,10 @@
       const pct=Math.max(0,Math.min(100,Math.round(percentage)));
       label.textContent=String(message||"").slice(0,55);
       el.dataset.state=state;
+      const activity=document.getElementById("appProgressActivity");
+      if(activity) activity.textContent=state==="done"?"저장 완료":
+        state==="error"?"연결 확인": /저장/.test(message)?"저장 중":
+        /조회|불러|확인/.test(message)?"불러오는 중":"동기화 중";
       percentEl.textContent=pct+"%";
       percentEl.title=state==="done"?"서버 처리 완료":
         "서버 응답 대기 중 · 실제 전송량이 아닌 시각적 추정 진행률";
