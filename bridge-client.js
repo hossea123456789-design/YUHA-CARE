@@ -3,10 +3,11 @@
 (function () {
   'use strict';
 
-  const STORAGE = 'yuha_gas_bridge_url_v1';
   const APP_ORIGIN = 'https://hossea123456789-design.github.io';
   const METHODS = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges']);
-  let endpoint = '', frame = null, remote = null, remoteOrigin = '';
+  let endpoint = validUrl(window.YUHA_GAS_WEBAPP_URL)
+    ? window.YUHA_GAS_WEBAPP_URL : '';
+  let frame = null, remote = null, remoteOrigin = '';
   let nonce = '', ready = false, seq = 0, warningTimer = null;
   let waiting = [];
   const pending = new Map();
@@ -44,32 +45,6 @@
     el.textContent = message;
     el.style.background = bad ? '#a72c37' : '#243a5e';
     el.style.display = message ? 'block' : 'none';
-  }
-  function showSetup() {
-    if (!document.body || document.getElementById('yuhaGASSetup')) return;
-    const bg = document.createElement('div');
-    bg.id = 'yuhaGASSetup';
-    bg.style.cssText = 'position:fixed;inset:0;z-index:5000;background:#152e50b8;display:flex;align-items:center;justify-content:center;padding:18px';
-    bg.innerHTML = '<div style="width:100%;max-width:430px;background:white;padding:22px;border-radius:18px;box-shadow:0 12px 35px #0003;font-family:system-ui,sans-serif">' +
-      '<h2 style="margin:0 0 10px;font-size:20px">구글 DB 연결 (최초 1회)</h2>' +
-      '<p style="font-size:13px;line-height:1.6;color:#556273">기존 Google Apps Script 웹앱의 /exec 주소를 입력해 주세요. 해당 주소는 현재 기기에만 저장되고, 기존 구글 스프레드시트 DB를 그대로 사용합니다.</p>' +
-      '<input id="yuhaGASURL" type="url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;box-sizing:border-box;border:1px solid #bac8d8;border-radius:10px;padding:12px;font-size:13px">' +
-      '<p id="yuhaGASError" style="min-height:16px;color:#ae2634;font-size:12px"></p>' +
-      '<button id="yuhaGASConnect" style="width:100%;background:#2f6fed;color:#fff;border:0;border-radius:10px;padding:13px;font-weight:800">연결하기</button></div>';
-    document.body.appendChild(bg);
-    const input = bg.querySelector('#yuhaGASURL');
-    input.value = endpoint;
-    bg.querySelector('#yuhaGASConnect').addEventListener('click', () => {
-      const chosen = input.value.trim();
-      if (!validUrl(chosen)) {
-        bg.querySelector('#yuhaGASError').textContent = '/exec로 끝나는 Google Apps Script 배포 주소가 필요합니다.';
-        return;
-      }
-      endpoint = chosen;
-      localStorage.setItem(STORAGE, chosen);
-      bg.remove();
-      connect();
-    });
   }
   function connect() {
     if (!endpoint || !document.body) return;
@@ -109,8 +84,11 @@
   }
   function call(method,args,success,failure) {
     if (!METHODS.has(method)) return failure(new Error('지원하지 않는 메서드: ' + method));
+    if (!endpoint) {
+      failure(new Error('공통 DB 연결 주소가 설정되지 않았습니다. GitHub config.js를 확인하세요.'));
+      return;
+    }
     send({method,args,success,failure});
-    if (!endpoint) queueMicrotask(showSetup);
   }
   function runner(success,failure) {
     return new Proxy({}, {get(_target, prop) {
@@ -125,7 +103,7 @@
     }});
   }
   window.google = {script:{get run() {return runner(null,null);}}};
-  window.YuhaDBBridge = {configure:showSetup,connected:()=>ready};
+  window.YuhaDBBridge = {reconnect:connect,connected:()=>ready};
   window.addEventListener('message', ev => {
     const m = ev.data;
     if (!m || m.source !== 'yuha-db-bridge' || m.nonce !== nonce || !googleOrigin(ev.origin)) return;
@@ -148,10 +126,7 @@
   });
   window.addEventListener('online', () => {if(endpoint && !ready) connect();});
   window.addEventListener('DOMContentLoaded', () => {
-    const configured = window.YUHA_GAS_WEBAPP_URL;
-    const saved = localStorage.getItem(STORAGE);
-    endpoint = validUrl(configured) ? configured : (validUrl(saved) ? saved : '');
     if (endpoint) connect();
-    else showSetup();
+    else status('공통 DB 연결 주소 설정 오류입니다. GitHub config.js를 확인하세요.', true);
   });
 })();
