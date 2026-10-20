@@ -1927,7 +1927,7 @@
           <div class="sleep-heat-grid" id="sleepCalendar" role="group" aria-label="월간 수면 달력 히트맵"></div>
           <div class="sleep-heat-detail" id="sleepHeatDetail" aria-live="polite"></div>
           <div class="sleep-heat-legend">
-            ${[["good","권고 범위"],["watch","살펴보기"],["concern","수면량 차이"],["partial","부분 기록"],["empty","미기록"]].map(([key,label])=>`<span class="sleep-legend-item"><span class="sleep-legend-mark quality-${key}" style="background:${{good:'#bce9d0',watch:'#ffe4a1',concern:'#f4bbbd',partial:'#c9e0fb',empty:'#eff1f5'}[key]}"></span>${label}</span>`).join("")}
+            ${[["excellent","90~100"],["good","80~89"],["watch","65~79"],["concern","0~64"],["partial","기록 중"],["empty","미기록"]].map(([key,label])=>`<span class="sleep-legend-item"><span class="sleep-legend-mark quality-${key}"></span>${label}</span>`).join("")}
           </div>
         </div>
         <div class="sleep-summary" id="sleepSummary"></div>
@@ -1942,7 +1942,7 @@
           <div class="sleep-table-wrap" id="sleepTableWrap">
             <table class="sleep-table" aria-label="날짜별 수면 입력표">
               <colgroup><col class="datecol"><col class="timecol"><col class="timecol"><col class="napcol"><col class="timecol"></colgroup>
-              <thead><tr><th>날짜<br>총수면</th><th>입실</th><th>잠듦</th><th>낮잠<br>시작·끝</th><th>기상<br>오늘 아침</th></tr></thead>
+              <thead><tr><th>날짜<br>총수면</th><th>입실</th><th>잠듦</th><th>낮잠<br>시작 → 종료</th><th>기상<br>오늘 아침</th></tr></thead>
               <tbody id="sleepTableBody"></tbody>
             </table>
           </div>
@@ -2036,7 +2036,7 @@
         if(dateKey===localDateKey(new Date()))tr.classList.add("today");
         const dateTd=document.createElement("td");
         const dateTitle=sleepViewMode==="month"?`${dd}`:((mm!==sleepViewMonth)?`${mm}/${dd}`:`${dd}`);
-        dateTd.innerHTML=`<span class="sleep-date-label">${dateTitle} <span class="dow">${dow}</span>${dateKey===localDateKey(new Date())?'<span class="now">오늘</span>':""}</span><span class="sleep-total ${q.level==="empty"?"empty":`quality-${q.level}`}">${q.total!==null?conciseDuration(q.total):(q.partial!==null?conciseDuration(q.partial)+"*":"—")}</span><span class="sleep-quality-label quality-${q.level}" title="${escapeAttr(q.notes.join(" / "))}">${q.level==="empty"?"—":q.level==="partial"?"일부":q.label}</span>`;
+        dateTd.innerHTML=`<span class="sleep-date-label">${dateTitle} <span class="dow">${dow}</span>${dateKey===localDateKey(new Date())?'<span class="now">오늘</span>':""}</span><span class="sleep-total ${q.level==="empty"?"empty":`quality-${q.level}`}">${q.total!==null?conciseDuration(q.total):(q.partial!==null?conciseDuration(q.partial)+"*":"—")}</span><span class="sleep-quality-label quality-${q.level}" title="${escapeAttr(q.notes.join(" / "))}">${q.score!==null?q.score+"점":q.level==="partial"?"기록 중":"—"}</span>`;
         tr.appendChild(dateTd);
         [["bedTime","입실"],["asleepTime","잠듦"],["napStart","낮잠 시작"],["napEnd","낮잠 끝"],["wakeTime","오늘 아침 기상"]].forEach(([field,label])=>{
           if(field==="napEnd")return;
