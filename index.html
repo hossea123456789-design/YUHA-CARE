@@ -338,8 +338,11 @@
         </div>
         <div class="connection-state" id="connectionState" role="status" data-state="connecting" title="서버 연결을 확인하고 있습니다">연결 중</div>
       </div>
-      <div class="summary" id="summary">마지막 저장 기록 준비 중</div>
-      <div class="overall-meter" role="progressbar" aria-label="전체 준비 항목 달성률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="overallMeter">
+      <div class="progress-meta">
+        <div class="summary" id="summary">체크리스트를 준비하고 있습니다</div>
+        <strong class="progress-percent" id="progressPercent" aria-live="off" aria-label="현재 탭 진행률">0%</strong>
+      </div>
+      <div class="overall-meter" role="progressbar" aria-label="얼집 탭 체크 완료율" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="overallMeter">
         <div class="overall-meter-bar" id="overallMeterBar"></div>
       </div>
       <div class="save-status" id="saveStatus">연결 준비 중</div>
@@ -411,13 +414,17 @@
         const d = snapshot.data;
         const escape = v => String(v == null ? '' : v).replace(/[&<>"']/g,
           c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const all = ['daycare','outing','daily','weekly'].flatMap(k => (d[k]?.sections || []).flatMap(s => s.items || []));
-        const done = all.filter(i => i.checked).length;
+        const cachedTab=d.daycare;
+        const items=(cachedTab.sections || []).flatMap(section => section.items || []);
+        const done=items.filter(item => item.checked).length;
+        const pct=items.length ? Math.round(done/items.length*100) : 0;
         document.getElementById('summary').textContent =
-          '전체 항목 · ' + done + '/' + all.length + '개 완료';
-        const pct = all.length ? Math.round(done / all.length * 100) : 0;
-        document.getElementById('overallMeterBar').style.width = pct + '%';
-        document.getElementById('overallMeter').setAttribute('aria-valuenow', String(pct));
+          (cachedTab.label || '얼집')+' · '+done+'/'+items.length+'개 체크';
+        document.getElementById('progressPercent').textContent=pct+'%';
+        document.getElementById('overallMeterBar').style.width=pct+'%';
+        document.getElementById('overallMeter').setAttribute('aria-valuenow',String(pct));
+        document.getElementById('overallMeter').setAttribute('aria-valuetext',done+'개 / '+items.length+'개 완료');
+        document.getElementById('overallMeter').dataset.complete=pct===100&&items.length>0?'true':'false';
         const choices = ['daycare','sleep','outing','daily','weekly','settings'];
         const labels = {'sleep':'수면 기록','settings':'설정'};
         document.getElementById('tabs').innerHTML = choices.map((k,i) =>
@@ -1400,15 +1407,31 @@
     }
 
     function updateSummary() {
-      const allItems = ["daycare", "outing", "daily", "weekly"].flatMap((tabKey) => getAllItems(tabKey));
-      const checked = allItems.filter((item) => item.checked).length;
-      const total = allItems.length;
-      document.getElementById("summary").textContent = `전체 항목 · ${checked}/${total}개 완료`;
-      const pct = total ? Math.min(100, Math.round(checked * 100 / total)) : 0;
-      const bar = document.getElementById("overallMeterBar");
-      if (bar) bar.style.width = pct + "%";
-      const meter = document.getElementById("overallMeter");
-      if (meter) meter.setAttribute("aria-valuenow", String(pct));
+      const header=document.querySelector("header");
+      const meter=document.getElementById("overallMeter");
+      const bar=document.getElementById("overallMeterBar");
+      const percentage=document.getElementById("progressPercent");
+      const caption=document.getElementById("summary");
+      const isChecklist=["daycare","outing","daily","weekly"].includes(currentTab);
+      if(header) header.classList.toggle("no-checklist-progress", !isChecklist);
+      if(!isChecklist) {
+        caption.textContent=currentTab==="sleep"?"수면 기록 · 자동 저장":"설정 · 육아 도구 관리";
+        return;
+      }
+      const tabData=data[currentTab];
+      const items=getAllItems(currentTab);
+      const checked=items.filter(item=>item.checked).length;
+      const total=items.length;
+      const pct=total?Math.round(checked*100/total):0;
+      const label=tabData.label||tabData.title||currentTab;
+      caption.textContent=label+" · "+checked+"/"+total+"개 체크";
+      percentage.textContent=pct+"%";
+      percentage.setAttribute("aria-label",label+" 완료 "+pct+"퍼센트");
+      meter.setAttribute("aria-label",label+" 탭 체크 완료율");
+      meter.setAttribute("aria-valuenow",String(pct));
+      meter.setAttribute("aria-valuetext",checked+"개 / "+total+"개 체크");
+      meter.dataset.complete=pct===100&&total>0?"true":"false";
+      bar.style.width=pct+"%";
     }
 
     function render() {
