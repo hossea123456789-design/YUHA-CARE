@@ -1715,7 +1715,7 @@
     function showSleepConflicts(conflicts) {
       const list=document.getElementById("sleepConflictList");if(!list)return;
       list.textContent="";
-      const labels={bedTime:"입실",asleepTime:"실제 취침",napStart:"낮잠 시작",napEnd:"낮잠 종료",wakeTime:"해당 날짜 아침 기상",birthDate:"생년월일"};
+      const labels={bedTime:"입실",asleepTime:"실제 취침",napStart:"1차 낮잠 시작",napEnd:"1차 낮잠 종료",nap2Start:"2차 낮잠 시작",nap2End:"2차 낮잠 종료",wakeTime:"해당 날짜 아침 기상",birthDate:"생년월일"};
       conflicts.forEach(c=>{
         const row=document.createElement("div");row.className="sleep-conflict-row";
         const title=document.createElement("strong");title.textContent=`${c.date==="@profile"?"설정":c.date} · ${labels[c.field]||c.field}`;
@@ -2150,18 +2150,20 @@
       const formattedMinute=x=>x===null?"—":formatDuration(x);
       const metrics='<div class="sleep-detail-metrics">'+
         '<div><span>밤잠</span><strong>'+formattedMinute(q.night)+'</strong></div>'+
-        '<div><span>낮잠</span><strong>'+formattedMinute(q.nap)+'</strong></div>'+
+        '<div><span>낮잠</span><strong>'+formattedMinute(q.nap)+(q.napCount?' <small>('+q.napCount+'회)</small>':'')+'</strong></div>'+
         '<div><span>총수면</span><strong>'+formattedMinute(q.total)+'</strong></div>'+
       '</div>';
       let calculation='';
       if(q.score!==null){
-        calculation='<div class="sleep-score-formula"><span>점수 계산</span><strong>100 − '+
-          q.deductions+' = '+q.score+'점</strong></div>'+
+        calculation='<div class="sleep-score-formula"><span>관측된 항목의 가중평균</span><strong>'+q.earned+
+          ' / '+q.available+' × 100 = '+q.score+'점</strong></div>'+
+          '<div class="sleep-score-coverage"><strong>평가 반영률 '+q.coverage+'%</strong>'+
+          '<span>기록이 부족한 항목은 0점 처리하지 않고 평가에서 제외합니다. 임상 검증 점수가 아닙니다.</span></div>'+
           '<div class="sleep-detail-breakdown">'+q.breakdown.map(row=>
             '<div class="sleep-score-factor">'+
               '<div class="sleep-score-factor-top"><strong>'+escapeHtml(row.title)+'</strong>'+
               '<span class="'+(row.penalty?'deduct':'no-deduct')+'">'+
-                (row.penalty?'−'+row.penalty+'점':'감점 없음')+'</span></div>'+
+                (row.penalty?'−'+row.penalty+' / '+row.max+'점':'+'+row.max+' / '+row.max+'점')+'</span></div>'+
               '<div class="sleep-score-factor-actual">'+escapeHtml(row.value)+
                 ' <span>· '+escapeHtml(row.standard)+'</span></div>'+
               '<div class="sleep-score-factor-basis">'+escapeHtml(row.basis)+'</div>'+
@@ -2176,7 +2178,8 @@
       }
       detail.innerHTML=
         '<div class="sleep-detail-head"><div><div class="sleep-detail-date">'+m+'월 '+day+'일 ('+dayName+')</div>'+
-        '<div class="sleep-detail-subtitle">'+escapeHtml(q.score===null?q.label:q.label+' · 수면 패턴 참고 점수')+'</div></div>'+
+        '<div class="sleep-detail-subtitle">'+escapeHtml(q.score===null?q.label:q.label+
+          ' · 평가 반영률 '+q.coverage+'% · 수면 패턴 참고 점수')+'</div></div>'+
         '<div class="sleep-detail-grade quality-'+q.level+'"><strong>'+(q.score===null?'—':q.score)+
         '</strong><small>/100</small></div></div>'+
         metrics+
@@ -2186,7 +2189,10 @@
         '<p class="sleep-score-disclaimer">수면량 권고: '+
         '<a href="https://www.cdc.gov/sleep/about/" target="_blank" rel="noopener noreferrer">CDC</a> · '+
         '<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4877308/" target="_blank" rel="noopener noreferrer">AASM</a>. '+
-        '감점 폭과 입실·낮잠 기준은 앱 자체 참고 규칙입니다. 수면의 질을 진단하는 점수는 아닙니다.</p></details>';
+        '추가 연구: <a href="https://pubmed.ncbi.nlm.nih.gov/37684151/" target="_blank" rel="noopener noreferrer">NSF 규칙성 합의</a> · '+
+        '<a href="https://pubmed.ncbi.nlm.nih.gov/42874417/" target="_blank" rel="noopener noreferrer">낮잠 전환 연구</a>. '+
+        '세부 가중치와 깨시 관찰 구간은 앱 자체 참고 규칙이며 수면의 질을 진단하는 점수가 아닙니다. '+
+        '밤중 각성 횟수·수면 무호흡·낮 컨디션은 기록하지 않아 점수에 포함되지 않습니다.</p></details>';
     }
 
     function drawSleepTable() {
