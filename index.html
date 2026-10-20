@@ -475,7 +475,7 @@
     let checklistSaveQueued = false;
     let checklistServerChecked = false;
     // 연속 체크는 화면과 기기에 즉시 반영, 서버 전송만 마지막 조작 뒤에 묶어서 수행합니다.
-    const CHECKLIST_SAVE_IDLE_MS = 1800;
+    const CHECKLIST_SAVE_IDLE_MS = 2500;
     let checklistLastChangeAt = 0;
 
     const progressTasks = new Map();
@@ -556,7 +556,7 @@
           el.classList.remove("show");
           clearTimeout(progressShowTimer);
           // 체크리스트 저장은 짧은 네트워크 요청이면 표시하지 않습니다.
-          // 이미 1.8초 묶음 저장을 기다린 뒤라 사용자에게 또 대기 애니메이션을 강조하지 않습니다.
+          // 묶음 저장을 기다린 뒤라 사용자에게 또 대기 애니메이션을 강조하지 않습니다.
           const delay=task==="checklist-save"?850:PROGRESS_SHOW_DELAY;
           progressShowTimer=setTimeout(()=>{
             if(progressTasks.size){renderActiveProgress();startProgressTicker();}
