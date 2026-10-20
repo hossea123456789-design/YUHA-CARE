@@ -553,3 +553,7 @@ body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bot
     animation:none!important
   }
 }
+
+/* 날짜별 수면 입력표: 아침 → 낮잠 → 저녁 순서 안내 */
+.sleep-day-sequence-note{margin:10px 2px 2px;color:#87938c;font-size:10px;line-height:1.5;letter-spacing:-.13px}
+@media(max-width:390px){.sleep-day-sequence-note{font-size:9.5px}}
