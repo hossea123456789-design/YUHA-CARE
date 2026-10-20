@@ -2317,7 +2317,6 @@
     document.addEventListener("pointerdown",ev=>{
       if(nap2Popup&&!nap2Popup.contains(ev.target)&&!ev.target.closest(".sleep-nap-toggle"))closeNap2Popover();
     },true);
-    window.addEventListener("resize",()=>{if(nap2Popup)closeNap2Popover();});
     
     function makeSleepTimeButton(dateKey,field,value,label) {
       const b=document.createElement("button");b.type="button";
