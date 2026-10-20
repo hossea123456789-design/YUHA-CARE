@@ -406,8 +406,9 @@
         </svg>
       </span>
       <span class="app-progress-message" id="appProgressMessage">저장 중</span>
+      <span class="app-progress-percent" id="appProgressPercent" title="서버 처리 중에는 추정 진행률, 성공 시 100%">~0%</span>
     </div>
-    <div class="app-progress-track"><div class="app-progress-fill"></div></div>
+    <div class="app-progress-track" id="appProgressTrack" role="progressbar" aria-label="서버 요청 진행 상태" aria-valuemin="0" aria-valuemax="100"><div class="app-progress-fill" id="appProgressFill"></div></div>
   </div>
 
   <!-- 서버 스크립트 다운로드 전에 기기 캐시를 먼저 표시합니다. -->
@@ -490,43 +491,84 @@
         "인터넷 연결 없음 · 기기 저장 가능" : next === "error" ? "서버 연결 확인 필요" : "서버 연결 확인 중");
     }
 
-    function setProgressVisual(message, state) {
-      const el = document.getElementById("appProgress");
-      const label = document.getElementById("appProgressMessage");
-      if (!el || !label) return;
-      label.textContent = String(message || "").slice(0,55);
-      el.dataset.state = state;
+    // Apps Script는 실시간 전송량을 제공하지 않으므로 진행 중 %는 추정치(~)입니다.
+    // 100%는 서버가 성공 응답을 반환한 뒤에만 표시합니다.
+    let progressTickTimer=null;
+    function estimatedRequestPercent(taskInfo) {
+      const elapsed=Math.max(0,Date.now()-taskInfo.startedAt);
+      return Math.max(5,Math.min(92,Math.round(8+84*(1-Math.exp(-elapsed/2300)))));
+    }
+    function setProgressVisual(message, state, percentage=0) {
+      const el=document.getElementById("appProgress");
+      const label=document.getElementById("appProgressMessage");
+      const percentEl=document.getElementById("appProgressPercent");
+      const fill=document.getElementById("appProgressFill");
+      const track=document.getElementById("appProgressTrack");
+      if(!el||!label||!percentEl||!fill||!track)return;
+      const pct=Math.max(0,Math.min(100,Math.round(percentage)));
+      label.textContent=String(message||"").slice(0,55);
+      el.dataset.state=state;
+      percentEl.textContent=(state==="done"?"":"~")+pct+"%";
+      percentEl.title=state==="done"?"서버 처리 완료":
+        "서버 응답 대기 중 · 실제 전송량이 아닌 시각적 추정 진행률";
+      fill.style.width=pct+"%";
+      if(state==="done")track.setAttribute("aria-valuenow","100");
+      else track.removeAttribute("aria-valuenow");
+      track.setAttribute("aria-label",
+        state==="busy"?"서버 응답 대기 중, 진행률 추정 "+pct+"%":
+        state==="done"?"작업 완료": "작업 실패");
       el.classList.add("show");
     }
-
-    function showAppProgress(task, message, state = "busy") {
-      const el = document.getElementById("appProgress");
-      if (!el) return;
+    function renderActiveProgress() {
+      if(!progressTasks.size)return;
+      const active=[...progressTasks.values()].pop();
+      setProgressVisual(active.message,"busy",estimatedRequestPercent(active));
+    }
+    function stopProgressTicker(){
+      if(progressTickTimer!==null){clearInterval(progressTickTimer);progressTickTimer=null;}
+    }
+    function startProgressTicker() {
+      if(progressTickTimer!==null)return;
+      progressTickTimer=setInterval(()=>{
+        if(!progressTasks.size){stopProgressTicker();return;}
+        renderActiveProgress();
+      },170);
+    }
+    function showAppProgress(task,message,state="busy") {
+      const el=document.getElementById("appProgress");
+      if(!el)return;
       clearTimeout(progressHideTimer);
-      if (state === "busy") {
-        progressTasks.set(task,message);
-        if (el.classList.contains("show") && el.dataset.state === "busy") {
-          setProgressVisual(message, "busy");
-        } else {
+      if(state==="busy"){
+        const info=progressTasks.get(task);
+        if(info)info.message=message;
+        else progressTasks.set(task,{message,startedAt:Date.now()});
+        if(el.classList.contains("show")&&el.dataset.state==="busy"){
           clearTimeout(progressShowTimer);
-          progressShowTimer = setTimeout(() => {
-            if (progressTasks.size) setProgressVisual([...progressTasks.values()].pop(), "busy");
+          renderActiveProgress();
+          startProgressTicker();
+        }else{
+          clearTimeout(progressShowTimer);
+          progressShowTimer=setTimeout(()=>{
+            if(progressTasks.size){renderActiveProgress();startProgressTicker();}
           },PROGRESS_SHOW_DELAY);
         }
         return;
       }
+      const completed=progressTasks.get(task);
       progressTasks.delete(task);
-      if (progressTasks.size) {
+      if(progressTasks.size){
         clearTimeout(progressShowTimer);
-        setProgressVisual([...progressTasks.values()].pop(), "busy");
+        renderActiveProgress();
+        startProgressTicker();
         return;
       }
+      stopProgressTicker();
       clearTimeout(progressShowTimer);
-      // 완료는 짧은 마이크로 애니메이션만 표시, 오류는 조금 더 남겨 원인을 볼 수 있도록.
-      setProgressVisual(message,state);
-      progressHideTimer = setTimeout(() => {
-        if (!progressTasks.size) el.classList.remove("show");
-      }, state === "error" ? PROGRESS_ERROR_MS : PROGRESS_SUCCESS_MS);
+      const pct=state==="done"?100:(completed?estimatedRequestPercent(completed):0);
+      setProgressVisual(message,state,pct);
+      progressHideTimer=setTimeout(()=>{
+        if(!progressTasks.size)el.classList.remove("show");
+      },state==="error"?PROGRESS_ERROR_MS:PROGRESS_SUCCESS_MS);
     }
 
     window.addEventListener("yuha-db-status", event => {
