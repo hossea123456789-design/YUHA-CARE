@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><base target="_top"><meta charset="UTF-8"><title>유하 DB 연결</title></head>
+<body>
+<script>
+(() => {
+  'use strict';
+  const ORIGIN = <?!= JSON.stringify(trustedOrigin) ?>;
+  const NONCE = <?!= JSON.stringify(bridgeNonce) ?>;
+  const ALLOWED = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges']);
+  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }
+  window.addEventListener('message',event=>{
+    if(event.origin !== ORIGIN) return;
+    const msg=event.data;
+    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;
+    if(typeof msg.id!=='string'||!/^\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;
+    const args=Array.isArray(msg.args)?msg.args:[];
+    try{
+      google.script.run
+        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))
+        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))
+        [msg.method](...args);
+    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}
+  });
+  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.
+  send({type:'ready'});
+  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});
+})();
+</script>
+</body></html>
