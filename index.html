@@ -1970,11 +1970,12 @@
           </div>
           <div class="sleep-table-wrap" id="sleepTableWrap">
             <table class="sleep-table" aria-label="날짜별 수면 입력표">
-              <colgroup><col class="datecol"><col class="timecol"><col class="timecol"><col class="napcol"><col class="timecol"></colgroup>
-              <thead><tr><th>날짜<br>총수면</th><th>입실</th><th>잠듦</th><th>낮잠<br>시작 → 종료</th><th>기상<br>오늘 아침</th></tr></thead>
+              <colgroup><col class="datecol"><col class="timecol"><col class="napcol"><col class="timecol"><col class="timecol"></colgroup>
+              <thead><tr><th>날짜<br>총수면</th><th>기상<br>오늘 아침</th><th>낮잠<br>시작 → 종료</th><th>입실<br>오늘 밤</th><th>잠듦<br>오늘 밤</th></tr></thead>
               <tbody id="sleepTableBody"></tbody>
             </table>
           </div>
+          <p class="sleep-day-sequence-note">아침 기상 → 낮잠 → 밤 입실·취침 순서입니다. 총수면은 전날 밤잠과 이날 낮잠을 합산합니다.</p>
           <div class="sleep-status ${sleepStatusKind}" id="sleepStatus" role="status" aria-live="polite">${escapeHtml(sleepStatusText)}</div>
           <div class="sleep-sync-mini"><span id="sleepPendingCount">${sleepPending.length?`임시 보관 ${sleepPending.length}건`:"자동 저장"}</span><button type="button" id="sleepRetry" style="${sleepPending.length?"":"display:none"}">동기화 재시도</button></div>
         </div>`;
@@ -2110,7 +2111,7 @@
         const dateTitle=sleepViewMode==="month"?`${dd}`:((mm!==sleepViewMonth)?`${mm}/${dd}`:`${dd}`);
         dateTd.innerHTML=`<span class="sleep-date-label">${dateTitle} <span class="dow">${dow}</span>${dateKey===localDateKey(new Date())?'<span class="now">오늘</span>':""}</span><span class="sleep-total ${q.level==="empty"?"empty":`quality-${q.level}`}">${q.total!==null?conciseDuration(q.total):(q.partial!==null?conciseDuration(q.partial)+"*":"—")}</span><span class="sleep-quality-label quality-${q.level}" title="${escapeAttr(q.notes.join(" / "))}">${q.score!==null?q.score+"점":q.level==="partial"?"기록 중":"—"}</span>`;
         tr.appendChild(dateTd);
-        [["bedTime","입실"],["asleepTime","잠듦"],["napStart","낮잠 시작"],["napEnd","낮잠 끝"],["wakeTime","오늘 아침 기상"]].forEach(([field,label])=>{
+        [["wakeTime","오늘 아침 기상"],["napStart","낮잠 시작"],["napEnd","낮잠 끝"],["bedTime","오늘 밤 입실"],["asleepTime","오늘 밤 잠듦"]].forEach(([field,label])=>{
           if(field==="napEnd")return;
           const td=document.createElement("td");
           if(field==="napStart"){
@@ -2138,7 +2139,7 @@
       sleepEditing={dateKey,field};
       const row=getSleepRecord(dateKey);
       document.getElementById("sleepModalTitle").textContent=sleepFieldLabels[field];
-      document.getElementById("sleepModalDate").textContent=`${dateKey} (${DAY_NAMES[new Date(dateKey+"T12:00:00").getDay()]}) · ${field==="wakeTime"?"이날 아침":"해당 날짜"}`;
+      document.getElementById("sleepModalDate").textContent=`${dateKey} (${DAY_NAMES[new Date(dateKey+"T12:00:00").getDay()]}) · ${field==="wakeTime"?"이날 아침":field==="napStart"||field==="napEnd"?"이날 낮": "이날 밤"}`;
       document.getElementById("sleepModalInput").value=row[field]||({bedTime:"19:30",asleepTime:"20:00",napStart:"12:30",napEnd:"14:00",wakeTime:"06:30"}[field]);
       document.getElementById("sleepTimeModal").classList.add("show");
     }
