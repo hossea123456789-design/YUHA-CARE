@@ -2261,6 +2261,26 @@
       const today=getSleepRecord(displayed);
       const recordedAsleep=sleepMinutes(yesterday.asleepTime);
       const maybeAm=recordedAsleep!==null&&recordedAsleep>=240&&recordedAsleep<720&&today.wakeTime&&nightDuration(displayed)===null;
+      // 절대 입실/입면 시각은 점수에 중복 감점하지 않습니다.
+      // 18개월 관찰연구(https://pubmed.ncbi.nlm.nih.gov/26602742/)에서는
+      // 밤 22시 이후 입면과 발달 지표 사이 연관성을 보고했지만 인과·감점량을 입증한 것은 아닙니다.
+      const hasNightTiming=!!(yesterday.bedTime||yesterday.asleepTime);
+      const referenceAge=q.rec&&q.rec.months>=12&&q.rec.months<36;
+      const veryLateSleep=referenceAge&&recordedAsleep!==null&&
+        (recordedAsleep>=22*60||recordedAsleep<4*60);
+      const nightTimingText=hasNightTiming
+        ? '<div class="sleep-clock-context'+(veryLateSleep?' is-late':'')+'">'+
+          '<div class="sleep-clock-context-title">'+
+            (veryLateSleep?'늦은 입면 참고 (추가 감점 없음)':'취침 시각 참고 (추가 감점 없음)')+
+          '</div>'+
+          '<div class="sleep-clock-context-times">전날 입실 '+escapeHtml(yesterday.bedTime||'미기록')+
+            ' · 실제 입면 '+escapeHtml(yesterday.asleepTime||'미기록')+'</div>'+
+          '<div class="sleep-clock-context-explain">'+
+            (veryLateSleep
+              ? '18개월 대상 관찰연구에서 22시 이후 입면과 발달 지표의 연관성이 보고됐으나, 원인이나 개별 아기의 위험을 단정할 수 없습니다. 고정 시각만으로 감점하지 않습니다.'
+              : '입실 시각 자체의 조기·지연 여부는 별도 감점하지 않습니다. 입면 소요시간, 실제 수면량, 최근 취침·기상 규칙성으로 평가합니다.')+
+          '</div></div>'
+        : '';
       const formattedMinute=x=>x===null?"—":formatDuration(x);
       const metrics='<div class="sleep-detail-metrics">'+
         '<div><span>밤잠</span><strong>'+formattedMinute(q.night)+'</strong></div>'+
@@ -2298,12 +2318,13 @@
         '</strong><small>/100</small></div></div>'+
         metrics+
         '<details class="sleep-score-details" '+(sleepDetailExpanded?"open":"")+'>'+
-          '<summary>점수 계산 근거 <span>자세히 보기</span></summary>'+calculation+
+          '<summary>점수 계산 근거 <span>자세히 보기</span></summary>'+nightTimingText+calculation+
         (maybeAm?'<p class="sleep-day-warning">전날 취침 시각이 오전으로 입력되어 있습니다. 저녁 취침이었다면 다시 확인해 주세요.</p>':'')+
         '<p class="sleep-score-disclaimer">수면량 권고: '+
         '<a href="https://www.cdc.gov/sleep/about/" target="_blank" rel="noopener noreferrer">CDC</a> · '+
         '<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4877308/" target="_blank" rel="noopener noreferrer">AASM</a>. '+
         '추가 연구: <a href="https://pubmed.ncbi.nlm.nih.gov/37684151/" target="_blank" rel="noopener noreferrer">NSF 규칙성 합의</a> · '+
+        '<a href="https://pubmed.ncbi.nlm.nih.gov/26602742/" target="_blank" rel="noopener noreferrer">18개월 영아 입면 시각 관찰연구</a> · '+
         '<a href="https://pubmed.ncbi.nlm.nih.gov/42874417/" target="_blank" rel="noopener noreferrer">낮잠 전환 연구</a>. '+
         '세부 가중치와 깨시 관찰 구간은 앱 자체 참고 규칙이며 수면의 질을 진단하는 점수가 아닙니다. '+
         '밤중 각성 횟수·수면 무호흡·낮 컨디션은 기록하지 않아 점수에 포함되지 않습니다.</p></details>';
