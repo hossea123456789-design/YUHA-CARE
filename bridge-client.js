@@ -11,6 +11,9 @@
   let nonce = '', ready = false, seq = 0, warningTimer = null;
   let waiting = [];
   const pending = new Map();
+  function connectionChanged(state, message = '') {
+    window.dispatchEvent(new CustomEvent('yuha-db-status', {detail: {state, message}}));
+  }
 
   function validUrl(s) {
     try {
@@ -48,6 +51,7 @@
   }
   function connect() {
     if (!endpoint || !document.body) return;
+    connectionChanged(navigator.onLine ? 'connecting' : 'offline');
     ready = false;
     remote = null;
     remoteOrigin = '';
@@ -61,7 +65,10 @@
     frame.src = endpoint + '?bridge=1&origin=' + encodeURIComponent(APP_ORIGIN) + '&nonce=' + nonce;
     document.body.appendChild(frame);
     warningTimer = setTimeout(() => {
-      if (!ready) status('DB 연결 대기 중: Apps Script Code.gs 교체와 새 버전 배포를 확인하세요.', true);
+      if (!ready) {
+        status('DB 연결 대기 중: Apps Script Code.gs와 새 버전 배포를 확인하세요.', true);
+        connectionChanged('error', '서버 응답 지연');
+      }
     }, 18000);
   }
   function send(job) {
@@ -74,6 +81,7 @@
       const item = pending.get(id);
       if (!item) return;
       pending.delete(id);
+      connectionChanged('error', '서버 응답 시간 초과');
       item.failure(new Error('서버 응답 시간 초과. 오프라인 기록은 기기에 보관됩니다.'));
     }, 65000);
     pending.set(id, {success:job.success, failure:job.failure, timer});
@@ -111,6 +119,7 @@
       remote = ev.source;
       remoteOrigin = ev.origin;
       ready = true;
+      connectionChanged('connected');
       clearTimeout(warningTimer);
       status('',false);
       const jobs = waiting; waiting = [];
@@ -120,13 +129,17 @@
       if (!job) return;
       clearTimeout(job.timer);
       pending.delete(m.id);
-      if (m.ok) job.success(m.result);
-      else job.failure(new Error(m.error || 'Apps Script 오류'));
+      if (m.ok) { connectionChanged('connected'); job.success(m.result); }
+      else { connectionChanged('error', m.error || 'Apps Script 오류'); job.failure(new Error(m.error || 'Apps Script 오류')); }
     }
   });
   window.addEventListener('online', () => {if(endpoint && !ready) connect();});
+  window.addEventListener('offline', () => connectionChanged('offline'));
   window.addEventListener('DOMContentLoaded', () => {
     if (endpoint) connect();
-    else status('공통 DB 연결 주소 설정 오류입니다. GitHub config.js를 확인하세요.', true);
+    else {
+      status('공통 DB 연결 주소 설정 오류입니다. GitHub config.js를 확인하세요.', true);
+      connectionChanged('error', 'DB 설정 오류');
+    }
   });
 })();
