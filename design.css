@@ -695,28 +695,25 @@ body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bot
 }
 
 
-/* Accessible, high-contrast server operation percentage. */
-/* No prefix glyph: text clearly reads 68%, not a negative number. */
-.app-progress .app-progress-percent{
-  display:inline-flex!important;align-items:center;justify-content:center;
-  flex:0 0 auto;min-width:45px;height:28px;box-sizing:border-box;
-  padding:0 6px;margin-left:auto;border-radius:8px;
-  background:#eef3f1;border:1px solid #dbe7e0;
-  font-size:14px!important;font-weight:900!important;letter-spacing:-.4px!important;
-  line-height:1!important;color:#1d302a!important;
-  text-shadow:none!important;font-variant-numeric:tabular-nums;
-}
-.app-progress[data-state="done"] .app-progress-percent{
-  background:#e9f6ee;border-color:#cfe6d6;color:#164e39!important;
-}
+/* Progress percent: no pill, no fill; only white text on the existing dark neon toast. */
+.app-progress .app-progress-percent,
+.app-progress[data-state="done"] .app-progress-percent,
 .app-progress[data-state="error"] .app-progress-percent{
-  background:#fbeeed;border-color:#f2d6d4;color:#8d3436!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  padding:0!important;
+  height:auto!important;
+  min-width:34px!important;
+  box-shadow:none!important;
+  color:#ffffff!important;
+  font-size:12px!important;
+  font-weight:850!important;
+  text-shadow:none!important;
 }
-.app-progress .app-progress-message{color:#304238;font-weight:780!important}
 @media(max-width:355px){
- .app-progress .app-progress-percent{font-size:13px!important;min-width:41px}
+  .app-progress .app-progress-percent{font-size:12px!important}
 }
-
 
 /* Stable, no-layout-shift sticky navigation across checklist, sleep and settings tabs.
    Keep space for the completion meter even when that meter is not applicable. */
