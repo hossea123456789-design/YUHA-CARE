@@ -241,13 +241,47 @@
     .sleep-day.quality-partial,.sleep-quality-label.quality-partial {background:#e3f0ff;border-color:#9cc5f2}
     .sleep-total.quality-partial {color:#3776b8}
     .sleep-heat-label.quality-partial {color:#366ba3}
+
+    /* 연결은 오른쪽 상단에 상시 표시, 저장/화면 전환 상태는 하단 중앙에 표시 */
+    .brand-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+    .brand-bar h1{margin:0;min-width:0;font-size:clamp(18px,4.6vw,22px)}
+    .connection-state{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;padding:7px 9px;
+      border-radius:999px;background:#eef3fc;color:#42618d;font-size:11px;font-weight:800;white-space:nowrap;
+      border:1px solid #dfe7f3}
+    .connection-state::before{content:'';width:7px;height:7px;border-radius:50%;background:#8b9db3;flex-shrink:0}
+    .connection-state[data-state="connected"]{background:#e9f8ef;color:#176a3a;border-color:#caebd6}
+    .connection-state[data-state="connected"]::before{background:#1caa61}
+    .connection-state[data-state="connecting"]::before{background:#e6ad35;animation:connection-pulse 1.2s infinite}
+    .connection-state[data-state="offline"],.connection-state[data-state="error"]{background:#fff1ed;color:#a33f34;border-color:#ffded4}
+    .connection-state[data-state="offline"]::before,.connection-state[data-state="error"]::before{background:#e36552}
+    @keyframes connection-pulse{50%{opacity:.35}}
+    .save-status{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
+      overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+    .app-progress{position:fixed;z-index:90;left:50%;transform:translate(-50%,18px);
+      bottom:calc(89px + env(safe-area-inset-bottom,0px));width:min(340px,calc(100vw - 36px));max-width:95vw;
+      border-radius:14px;padding:11px 13px 10px;background:#213047;color:white;
+      box-shadow:0 9px 26px #10223a55;opacity:0;pointer-events:none;
+      transition:opacity .2s ease,transform .2s ease}
+    .app-progress.show{opacity:1;transform:translate(-50%,0)}
+    .app-progress[data-state="error"]{background:#9a3841}
+    .app-progress[data-state="done"]{background:#1b6f4a}
+    .app-progress-message{font-size:12px;font-weight:800;line-height:1.45}
+    .app-progress-track{height:4px;margin-top:8px;border-radius:99px;overflow:hidden;background:#ffffff38}
+    .app-progress-fill{height:100%;width:34%;background:#94c5ff;border-radius:99px;animation:yuha-progress 1.35s ease-in-out infinite}
+    .app-progress[data-state="done"] .app-progress-fill{animation:none;width:100%;background:#b2f1d0}
+    .app-progress[data-state="error"] .app-progress-fill{animation:none;width:100%;background:#ffc5c5}
+    @keyframes yuha-progress{0%{transform:translateX(-120%)}100%{transform:translateX(400%)}}
+    @media(prefers-reduced-motion:reduce){.app-progress-fill,.connection-state::before{animation:none!important}}
   </style>
 </head>
 
 <body>
   <div class="app">
     <header>
-      <h1>유하 육아 도구 모음</h1>
+      <div class="brand-bar">
+        <h1>유하 육아 도구 모음</h1>
+        <div class="connection-state" id="connectionState" role="status" data-state="connecting" title="서버 연결을 확인하고 있습니다">연결 중</div>
+      </div>
       <div class="summary" id="summary">서버 데이터를 불러오는 중입니다.</div>
       <div class="save-status" id="saveStatus">연결 준비 중</div>
       <div class="tabs" id="tabs"></div>
@@ -301,7 +335,46 @@
   </div>
 
   <div class="drag-toast" id="dragToast">이동 중 · 원하는 위치에서 손을 떼세요</div>
+  <div class="app-progress" id="appProgress" data-state="busy" role="status" aria-live="polite">
+    <div class="app-progress-message" id="appProgressMessage">준비 중</div>
+    <div class="app-progress-track"><div class="app-progress-fill"></div></div>
+  </div>
 
+  <!-- 서버 스크립트 다운로드 전에 기기 캐시를 먼저 표시합니다. -->
+  <script>
+    (function () {
+      try {
+        const snapshot = JSON.parse(localStorage.getItem('yuha_shared_checklist_client_cache_v1') || 'null');
+        if (!snapshot || !snapshot.data || !snapshot.data.daycare) return;
+        const d = snapshot.data;
+        const escape = v => String(v == null ? '' : v).replace(/[&<>"']/g,
+          c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const all = ['daycare','outing','daily','weekly'].flatMap(k => (d[k]?.sections || []).flatMap(s => s.items || []));
+        document.getElementById('summary').textContent =
+          '전체 ' + all.filter(i => i.checked).length + ' / ' + all.length + '개 완료';
+        const choices = ['daycare','sleep','outing','daily','weekly','settings'];
+        const labels = {'sleep':'수면 기록','settings':'설정'};
+        document.getElementById('tabs').innerHTML = choices.map((k,i) =>
+          '<button type="button" class="tab-btn' + (i===0?' active':'') +
+          '" disabled>' + escape(labels[k] || d[k]?.label || k) + '</button>').join('');
+        const sections = d.daycare.sections || [];
+        document.getElementById('main').innerHTML =
+          '<div class="panel-head"><div><h2 class="panel-title">' +
+          escape(d.daycare.title || '얼집 준비물') +
+          '</h2><span class="count">기기에 저장된 목록</span></div></div>' +
+          sections.map(section =>
+            '<section class="section"><div class="section-title-row"><span class="section-title">• ' +
+              escape(section.title) + '</span></div><div class="check-list">' +
+            (section.items || []).map(item =>
+              '<div class="item' + (item.checked?' checked':'') + '">' +
+              '<input class="item-check" type="checkbox" disabled' + (item.checked?' checked':'') + '>' +
+              '<span class="item-text">' + escape(item.text) + '</span></div>'
+            ).join('') + '</div></section>'
+          ).join('');
+        document.getElementById('saveStatus').textContent = '기기 캐시를 먼저 표시했습니다';
+      } catch (_) {}
+    })();
+  </script>
   <script src="config.js?v=20261020-shared1"></script>
   <script src="bridge-client.js?v=20261020-shared1"></script>
   <script>
