@@ -257,3 +257,115 @@ body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bot
   .settings-section-select{grid-template-columns:minmax(0,1fr) 84px!important}
   #focusSelectedTabBtn{padding:0 8px}
 }
+
+
+/* Scored sleep heatmap: distinct from the application's green primary palette. */
+.sleep-map-card{padding:14px 13px 13px}
+.sleep-heat-grid{width:min(100%,345px);max-width:345px;gap:5px}
+.sleep-heat-dow{font-size:10px;color:#81908d}
+.sleep-heat-square{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:100%;height:43px;min-width:0;position:relative;z-index:0;
+  border:1px solid #e5e9ef;border-radius:9px;
+  background:#f0f2f5;color:#9ba5ae;
+  font-variant-numeric:tabular-nums;font-size:13px;
+  transition:transform .13s ease,box-shadow .15s ease,border-color .15s ease
+}
+.sleep-heat-square::before{display:none!important}
+.sleep-heat-square.quality-excellent{background:#35599b;border-color:#35599b;color:#fff}
+.sleep-heat-square.quality-good{background:#b6cfef;border-color:#9cbae3;color:#254b86}
+.sleep-heat-square.quality-watch{background:#f3deb4;border-color:#ebd2a0;color:#805a21}
+.sleep-heat-square.quality-concern{background:#f0c0c9;border-color:#e6a7b1;color:#943e55}
+.sleep-heat-square.quality-partial{background:#e4eaf5;border-color:#d8e0ef;color:#7a8fae}
+.sleep-heat-square.quality-empty{background:#f0f2f5;border-color:#e5e9ef;color:#abb4bb}
+.sleep-heat-square.today::after{content:"";position:absolute;inset:-2px;border:2px solid #356c64;border-radius:11px;pointer-events:none}
+.sleep-heat-square.selected::after{content:"";position:absolute;inset:-3px;border:2px solid #29485f;border-radius:11px;pointer-events:none}
+.sleep-heat-square.selected.today::after{border-color:#204f90}
+.sleep-heat-square:focus-visible{outline:2px solid #234b93;outline-offset:3px}
+.sleep-heat-square:active{transform:scale(.96)}
+.sleep-heat-day{position:absolute;top:3px;left:5px;font-size:8px;font-weight:760;line-height:1;opacity:.85}
+.sleep-heat-score{display:block;font-size:15px;font-weight:840;line-height:1;letter-spacing:-.55px;margin-top:6px}
+.sleep-heat-square.quality-partial .sleep-heat-score,
+.sleep-heat-square.quality-empty .sleep-heat-score{font-size:13px;letter-spacing:0}
+.sleep-heat-legend{gap:6px 11px;margin-top:10px;font-size:10px;color:#77818b;justify-content:center}
+.sleep-heat-legend .sleep-legend-mark{border-radius:3px;width:10px;height:10px;border:0}
+.sleep-legend-mark.quality-excellent{background:#35599b}
+.sleep-legend-mark.quality-good{background:#b6cfef}
+.sleep-legend-mark.quality-watch{background:#f3deb4}
+.sleep-legend-mark.quality-concern{background:#f0c0c9}
+.sleep-legend-mark.quality-partial{background:#e4eaf5}
+.sleep-legend-mark.quality-empty{background:#f0f2f5;border:1px solid #e5e9ef}
+.sleep-heat-detail{display:block;min-width:0;padding:13px 12px;background:#fafbfc;border:1px solid #e7edf0;
+  border-radius:13px;line-height:1.4;margin-top:10px}
+.sleep-detail-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sleep-detail-date{font-size:13px;font-weight:840;color:#2b3e4e;letter-spacing:-.3px}
+.sleep-detail-subtitle{font-size:10px;color:#798b95;margin-top:4px}
+.sleep-detail-grade{display:flex;align-items:baseline;gap:3px;color:#405978}
+.sleep-detail-grade strong{font-size:23px;font-weight:860;line-height:1;font-variant-numeric:tabular-nums}
+.sleep-detail-grade small{font-size:10px;font-weight:680;color:#8796a0}
+.sleep-detail-grade.quality-excellent{color:#35599b}
+.sleep-detail-grade.quality-good{color:#3d6caa}
+.sleep-detail-grade.quality-watch{color:#99702b}
+.sleep-detail-grade.quality-concern{color:#b25465}
+.sleep-detail-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:11px 0 2px}
+.sleep-detail-metrics>div{display:flex;flex-direction:column;gap:4px;padding:9px 7px;
+  min-width:0;background:white;border:1px solid #edf0f3;border-radius:9px}
+.sleep-detail-metrics span{font-size:10px;color:#8b959e}
+.sleep-detail-metrics strong{font-size:12px;font-weight:800;color:#30414e;white-space:nowrap;letter-spacing:-.3px}
+.sleep-score-details{border-top:1px solid #e9eef0;margin-top:11px;padding-top:8px}
+.sleep-score-details summary{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:790;
+  color:#49618b;cursor:pointer;list-style:none;padding:2px 0 5px}
+.sleep-score-details summary::-webkit-details-marker{display:none}
+.sleep-score-details summary::before{content:"ⓘ";font-size:13px;color:#6b84b3}
+.sleep-score-details summary span{font-weight:600;color:#9babb8;font-size:10px;margin-left:auto}
+.sleep-score-details summary::after{content:"⌄";color:#7290bc;font-size:13px}
+.sleep-score-details[open] summary::after{content:"⌃"}
+.sleep-score-formula{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:#eef3fa;border-radius:10px;margin:10px 0 9px;padding:11px 12px}
+.sleep-score-formula span{font-size:11px;color:#667c97;font-weight:700}
+.sleep-score-formula strong{font-size:15px;color:#315b95;font-weight:860;font-variant-numeric:tabular-nums}
+.sleep-detail-breakdown{display:flex;flex-direction:column;gap:7px}
+.sleep-score-factor{background:#fff;border:1px solid #e8edf0;border-radius:10px;padding:10px 11px}
+.sleep-score-factor-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sleep-score-factor-top strong{font-size:12px;font-weight:800;color:#324754}
+.sleep-score-factor-top span{font-size:10px;font-weight:800}
+.sleep-score-factor-top .deduct{color:#b25264}
+.sleep-score-factor-top .no-deduct{color:#578e80}
+.sleep-score-factor-actual{font-size:11px;margin-top:5px;color:#2d3e49;font-weight:730}
+.sleep-score-factor-actual span{font-size:10px;font-weight:500;color:#81919b}
+.sleep-score-factor-basis{font-size:10px;line-height:1.5;color:#7d8f98;margin-top:5px}
+.sleep-score-pending{display:flex;flex-direction:column;gap:5px;font-size:11px;color:#6e8594;
+  background:white;border:1px solid #e4ecf3;border-radius:10px;padding:11px;margin-top:8px}
+.sleep-score-pending strong{color:#48627a;font-size:12px}
+.sleep-score-disclaimer{font-size:10px;line-height:1.6;color:#88959e;margin:10px 0 0}
+.sleep-score-disclaimer a{color:#416ba1;text-decoration:underline;text-underline-offset:2px}
+.sleep-day-warning{margin:8px 0 0;color:#ab775b;font-size:10px;line-height:1.5}
+.sleep-total.quality-excellent{color:#35599b}
+.sleep-total.quality-good{color:#4476aa}
+.sleep-quality-label.quality-excellent,.sleep-quality-label.quality-good{color:#35599b}
+.sleep-quality-label.quality-watch{color:#977338}
+.sleep-quality-label.quality-concern{color:#b25465}
+/* Daytime nap start/end in one horizontal row, including narrow phones. */
+.sleep-table col.datecol{width:19%}
+.sleep-table col.timecol{width:17%}
+.sleep-table col.napcol{width:30%}
+.sleep-nap-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;min-width:0;align-items:center}
+.sleep-nap-stack .sleep-time-btn{display:block;min-width:0;width:100%;min-height:36px;
+  padding:6px 0;border-radius:8px;letter-spacing:-.45px;font-size:10px;line-height:1;
+  font-variant-numeric:tabular-nums}
+.sleep-nap-stack .sleep-time-btn:not(.filled){font-size:12px}
+@media(max-width:420px){
+  .sleep-map-card{padding:13px 11px}
+  .sleep-heat-grid{gap:4px}
+  .sleep-heat-square{height:42px}
+  .sleep-heat-day{font-size:8px}
+  .sleep-heat-score{font-size:14px}
+  .sleep-table td{padding:6px 2px}
+  .sleep-nap-stack{gap:2px}
+  .sleep-nap-stack .sleep-time-btn{font-size:9.5px;letter-spacing:-.6px}
+  .sleep-detail-metrics strong{font-size:11px}
+}
+@media(max-width:355px){
+  .sleep-heat-square{height:39px}
+  .sleep-nap-stack .sleep-time-btn{font-size:9px}
+}
