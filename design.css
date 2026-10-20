@@ -557,3 +557,29 @@ body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bot
 /* 날짜별 수면 입력표: 아침 → 낮잠 → 저녁 순서 안내 */
 .sleep-day-sequence-note{margin:10px 2px 2px;color:#87938c;font-size:10px;line-height:1.5;letter-spacing:-.13px}
 @media(max-width:390px){.sleep-day-sequence-note{font-size:9.5px}}
+
+
+/* Optional second nap expands only for the selected day's cell. */
+.sleep-nap-group{display:flex;flex-direction:column;gap:3px;min-width:0;width:100%;align-items:stretch}
+.sleep-nap-stack.second{margin-top:1px;padding-top:4px;border-top:1px dashed #d5e1e6}
+.sleep-nap-stack.second .sleep-time-btn{background:#f0f6fb;border-color:#cfdeeb;color:#3e6587}
+.sleep-nap-stack.second .sleep-time-btn:not(.filled){background:#f8fbfd;color:#7692a8}
+.sleep-nap-toggle{appearance:none;border:0;background:transparent;color:#628a9a;font-size:9px;
+  font-weight:780;letter-spacing:-.2px;min-height:21px;padding:3px 1px;text-align:center;
+  border-radius:6px;line-height:1.1;white-space:nowrap;cursor:pointer}
+.sleep-nap-toggle:hover,.sleep-nap-toggle:focus-visible{background:#edf5f7;color:#315e74}
+.sleep-nap-toggle[aria-expanded="true"]{color:#3d6983}
+.sleep-score-coverage{display:flex;flex-direction:column;gap:3px;padding:8px 10px;margin:3px 0 9px;
+  background:#f8fafc;border:1px solid #e5ebf0;border-radius:9px}
+.sleep-score-coverage strong{font-size:11px;color:#376381}
+.sleep-score-coverage span{font-size:10px;color:#7c8c98;line-height:1.48}
+.sleep-detail-metrics strong small{font-size:9px;color:#8a9b9b;font-weight:690}
+.sleep-detail-subtitle{line-height:1.5}
+.sleep-score-formula{gap:7px;flex-wrap:wrap}
+.sleep-score-formula strong{font-size:12px;letter-spacing:-.35px}
+.sleep-score-factor-actual{overflow-wrap:anywhere}
+@media(max-width:400px){
+ .sleep-nap-toggle{font-size:8.5px}
+ .sleep-nap-group{gap:2px}
+ .sleep-nap-stack.second{padding-top:3px}
+}
