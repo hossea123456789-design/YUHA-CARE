@@ -7,15 +7,12 @@ const CACHE_TTL_SECONDS = 21600;
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.bridge === '1') return serveYuhaBridge_(e);
-  return HtmlService
-    .createTemplateFromFile('Index')
-    .evaluate()
-    .setTitle(APP_TITLE)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, user-scalable=no');
-}
-
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  // Only the GitHub site hosts the user-facing app.
+  return HtmlService.createHtmlOutput(
+    '<!doctype html><html lang="ko"><meta charset="utf-8"><title>유하 육아 도구 모음 DB API</title>' +
+    '<body><p>이 주소는 데이터 연결용입니다. 앱 화면은 GitHub Pages에서 여세요.</p>' +
+    '<p><a href="https://hossea123456789-design.github.io/YUHA-CARE/">앱 열기</a></p></body></html>'
+  ).setTitle(APP_TITLE + ' · DB API');
 }
 
 function getAppData() {
@@ -544,17 +541,20 @@ function syncSleepChanges(payload) {
   }
 }
 
-// GitHub Pages 연동. 허용된 GitHub Pages 출처에만 메시지 전송하는 브리지를 반환합니다.
+// GitHub Pages 화면은 GitHub에서만 관리하며 Code.gs만 DB API를 담당합니다.
+// HtmlService 응답은 Code.gs 안에서 생성하므로 Bridge.html 파일은 필요 없습니다.
 const YUHA_ALLOWED_ORIGIN_ = 'https://hossea123456789-design.github.io';
+
 function serveYuhaBridge_(e) {
   const origin = String(e.parameter.origin || '');
   const nonce = String(e.parameter.nonce || '');
   if (origin !== YUHA_ALLOWED_ORIGIN_ || !/^[a-zA-Z0-9_-]{16,128}$/.test(nonce)) {
     return HtmlService.createHtmlOutput('Invalid bridge parameters');
   }
-  const template = HtmlService.createTemplateFromFile('Bridge');
-  template.trustedOrigin = origin;
-  template.bridgeNonce = nonce;
-  return template.evaluate().setTitle('유하 DB 연결')
+  const html = "<!DOCTYPE html>\n<html lang=\"ko\">\n<head><base target=\"_top\"><meta charset=\"UTF-8\"><title>유하 DB 연결</title></head>\n<body>\n<script>\n(() => {\n  'use strict';\n  const ORIGIN = __YUHA_TRUSTED_ORIGIN_JSON__;\n  const NONCE = __YUHA_BRIDGE_NONCE_JSON__;\n  const ALLOWED = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges']);\n  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }\n  window.addEventListener('message',event=>{\n    if(event.origin !== ORIGIN) return;\n    const msg=event.data;\n    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;\n    if(typeof msg.id!=='string'||!/^\\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;\n    const args=Array.isArray(msg.args)?msg.args:[];\n    try{\n      google.script.run\n        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))\n        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))\n        [msg.method](...args);\n    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}\n  });\n  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.\n  send({type:'ready'});\n  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});\n})();\n</script>\n</body></html>";
+  return HtmlService.createHtmlOutput(html
+    .replace('__YUHA_TRUSTED_ORIGIN_JSON__', JSON.stringify(origin))
+    .replace('__YUHA_BRIDGE_NONCE_JSON__', JSON.stringify(nonce)))
+    .setTitle('유하 DB 연결')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
