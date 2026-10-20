@@ -206,3 +206,42 @@ main{padding:22px 20px 16px;min-height:45vh}
 }
 @media(min-width:700px){.app{border-left:1px solid #e9eeeb;border-right:1px solid #e9eeeb}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+
+/* Quiet, precision-aligned network activity indicator.
+   No gradients, emoji or sweeping decoration. */
+.app-progress{
+  left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));
+  transform:translate(-50%,8px) scale(.96);width:min(232px,calc(100vw - 64px));
+  max-width:232px;min-height:49px;padding:9px 13px 10px;border-radius:14px;
+  background:#fff;color:#33483e;border:1px solid #dce9df;
+  box-shadow:0 10px 34px #1c3e332b,0 1px 4px #1c3e3315;
+  transition:opacity .16s ease,transform .22s cubic-bezier(.2,1.15,.3,1),visibility .16s;
+  overflow:hidden}
+.app-progress.show{transform:translate(-50%,0) scale(1)}
+.app-progress::before{content:none!important;animation:none!important}
+.app-progress-top{display:flex;align-items:center;justify-content:flex-start;gap:10px;min-height:26px}
+.app-progress-icon{flex:0 0 25px;width:25px;height:25px;background:#edf5ef;
+  border:1px solid #e0eee4;border-radius:9px;color:#217b62;box-shadow:none}
+.app-progress-icon::before{content:none;display:none}
+.app-progress-icon::after{width:11px;height:11px;border:2px solid #b4d9c5;
+  border-top-color:#2c8d71;border-radius:50%;animation:yuha-spin .95s linear infinite}
+.app-progress-message{font-size:11.5px;line-height:1.3;letter-spacing:-.2px;font-weight:750;
+  color:#395348;max-width:164px}
+.app-progress-track{height:2px;margin-top:7px;background:#e7efe9;border-radius:4px}
+.app-progress-fill{width:37%;height:100%;background:#399c7f;box-shadow:none;
+  border-radius:4px;animation:yuha-progress 1.15s ease-in-out infinite}
+.app-progress[data-state="done"]{background:#fff;border-color:#d4eadd;box-shadow:0 9px 27px #225b4422}
+.app-progress[data-state="done"] .app-progress-icon{background:#e7f5ed;border-color:#d8ecde}
+.app-progress[data-state="done"] .app-progress-icon::after{
+  width:auto;height:auto;border:0;content:"✓";font-size:16px;line-height:1;
+  color:#238461;animation:yuha-check-pop .3s cubic-bezier(.2,1.6,.3,1) both}
+.app-progress[data-state="done"] .app-progress-icon::before{display:none!important}
+.app-progress[data-state="done"] .app-progress-fill{width:100%;background:#4aa68a;animation:none}
+.app-progress[data-state="done"] .app-progress-message{color:#207354}
+.app-progress[data-state="error"]{background:#fffaf9;border-color:#f0d8d3;box-shadow:0 10px 26px #65322920}
+.app-progress[data-state="error"] .app-progress-icon{background:#fbecea;border-color:#f5d5d0}
+.app-progress[data-state="error"] .app-progress-icon::after{content:"!";border:0;width:auto;height:auto;
+  font-size:16px;font-weight:800;animation:none;color:#b45e58}
+.app-progress[data-state="error"] .app-progress-message{color:#a5524e}
+.app-progress[data-state="error"] .app-progress-fill{width:100%;background:#cc8179;animation:none}
