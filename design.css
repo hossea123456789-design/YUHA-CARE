@@ -369,3 +369,72 @@ body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bot
   .sleep-heat-square{height:39px}
   .sleep-nap-stack .sleep-time-btn{font-size:9px}
 }
+
+
+/* Per-tab checklist progress: luminous jade neon with restrained motion */
+.progress-meta{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  min-width:0;margin:0 3px 9px;
+}
+.progress-meta .summary{
+  margin:0;min-width:0;flex:1;font-size:12px;line-height:1.35;
+  font-weight:710;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:#667b73;
+}
+.progress-percent{
+  display:inline-flex;align-items:baseline;justify-content:flex-end;flex:none;
+  font-size:16px;font-weight:870;letter-spacing:-.7px;
+  line-height:1.15;white-space:nowrap;min-width:45px;
+  font-variant-numeric:tabular-nums;color:#188e83;
+  text-shadow:0 0 8px #35e9c847,0 0 17px #59ffd53b;
+  transition:color .3s,text-shadow .3s;
+}
+.overall-meter{
+  height:7px;position:relative;isolation:isolate;margin:0 3px 16px;
+  overflow:visible;border-radius:999px;
+  background:linear-gradient(180deg,#e0eae5,#eaf3ee);
+  box-shadow:inset 0 1px 3px #154c2e22,0 1px 0 #ffffffb9;
+  border:1px solid #d6e5db;
+}
+.overall-meter-bar{
+  position:relative;isolation:isolate;width:0;height:100%;
+  min-width:0;border-radius:999px;
+  background:linear-gradient(92deg,#14bca1 0%,#19e1c0 52%,#8effe1 85%,#3de6c6 100%);
+  box-shadow:0 0 5px #0cb99c91,0 0 14px #14e6bd83,0 0 28px #20e6c24e;
+  transition:width .52s cubic-bezier(.18,.95,.3,1.02);
+}
+.overall-meter-bar::before{
+  content:"";position:absolute;inset:0;border-radius:999px;pointer-events:none;
+  background:linear-gradient(100deg,transparent 10%,#fff4 34%,#ffffffc9 48%,#f9fffc3b 58%,transparent 83%);
+  background-size:210% 100%;background-position:140% 50%;
+  animation:yuha-neon-scan 3s linear infinite;
+  mix-blend-mode:screen;
+}
+.overall-meter-bar::after{
+  content:"";position:absolute;right:0;top:50%;
+  width:6px;height:6px;transform:translate(50%,-50%);
+  border-radius:50%;background:#d4ffef;
+  box-shadow:0 0 5px 2px #c4ffe6,0 0 12px 4px #55ffca,0 0 18px 5px #14dda65e;
+  opacity:.94;
+}
+.overall-meter[data-complete="true"] .overall-meter-bar{
+  box-shadow:0 0 7px #16cca5ab,0 0 20px #26e9bcb0,0 0 32px #47efc274;
+}
+.overall-meter[data-complete="true"] .overall-meter-bar::after{
+  animation:yuha-neon-heartbeat 2.6s ease-in-out infinite;
+}
+.overall-meter[data-complete="true"] ~ .tabs{border-top-color:transparent}
+.no-checklist-progress .overall-meter,.no-checklist-progress .progress-percent{display:none}
+.no-checklist-progress .progress-meta{margin-bottom:12px}
+@keyframes yuha-neon-scan{
+  0%,14%{background-position:140% 50%}
+  80%,100%{background-position:-140% 50%}
+}
+@keyframes yuha-neon-heartbeat{
+  0%,100%{opacity:.8;box-shadow:0 0 4px #d4ffef,0 0 12px #55ffca}
+  50%{opacity:1;box-shadow:0 0 7px #e0fff3,0 0 20px 5px #2affcc}
+}
+@media(prefers-reduced-motion:reduce){
+  .overall-meter-bar,.progress-percent{transition:none!important}
+  .overall-meter-bar::before,.overall-meter-bar::after{animation:none!important}
+}
