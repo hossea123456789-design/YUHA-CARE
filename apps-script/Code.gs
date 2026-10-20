@@ -313,29 +313,60 @@ const SLEEP_FIELDS_ = Object.freeze({
   asleepTime: 4,
   napStart: 5,
   napEnd: 6,
-  wakeTime: 7
+  wakeTime: 7,
+  nap2Start: 12,
+  nap2End: 13
 });
 const SLEEP_WEEKDAYS_ = ['일', '월', '화', '수', '목', '금', '토'];
 
 function getSleepSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(SLEEP_SHEET_NAME);
-  if (sh) return sh;
+  if (sh) {
+    ensureNap2Columns_(sh);
+    return sh;
+  }
   // 다른 스프레드시트에 설치하는 경우에도 자동 생성
   sh = ss.insertSheet(SLEEP_SHEET_NAME);
-  sh.getRange(1,1,1,11).setValues([[
+  sh.getRange(1,1,1,13).setValues([[
     '기준일', '요일', '침대 입실', '실제 잠든 시각', '낮잠 시작',
     '낮잠 종료', '기상 (당일 아침)', '밤잠 시간', '낮잠 시간',
-    '총 수면', '최종 수정'
+    '총 수면', '최종 수정', '2차 낮잠 시작', '2차 낮잠 종료'
   ]]);
-  sh.getRange(1,1,1,11).setFontWeight('bold').setBackground('#344778').setFontColor('white');
+  sh.getRange(1,1,1,13).setFontWeight('bold').setBackground('#344778').setFontColor('white');
   sh.setFrozenRows(1);
   sh.getRange('A:A').setNumberFormat('@');
   sh.getRange('C:G').setNumberFormat('@');
+  sh.getRange('L:M').setNumberFormat('@');
   sh.getRange('H:J').setNumberFormat('[h]:mm');
   sh.setColumnWidth(1,125);
   sh.setColumnWidths(3,5,125);
+  sh.setColumnWidths(12,2,125);
   return sh;
+}
+
+// 기존 A:K 데이터는 변경하지 않습니다. 마지막에 L/M 열을 추가합니다.
+function sleepNapFormula_(row) {
+  const first = `IF(AND(E${row}<>"",F${row}<>""),MOD(TIMEVALUE(F${row})-TIMEVALUE(E${row}),1),0)`;
+  const second = `IF(AND(L${row}<>"",M${row}<>""),MOD(TIMEVALUE(M${row})-TIMEVALUE(L${row}),1),0)`;
+  return `=IF(AND(E${row}="",F${row}="",L${row}="",M${row}=""),"",${first}+${second})`;
+}
+function ensureNap2Columns_(sh) {
+  const max=sh.getMaxColumns();
+  if (max<13) sh.insertColumnsAfter(max,13-max);
+  const cells=sh.getRange(1,12,1,2).getDisplayValues()[0];
+  if (cells[0]==='2차 낮잠 시작' && cells[1]==='2차 낮잠 종료') return;
+  if (cells.some(value=>value && value!=='2차 낮잠 시작' && value!=='2차 낮잠 종료'))
+    throw new Error('SLEEP_LOG L:M 열에 기존 데이터가 있어 안전하게 2차 낮잠 열을 생성할 수 없습니다.');
+  sh.getRange(1,12,1,2).setValues([['2차 낮잠 시작','2차 낮잠 종료']]);
+  sh.getRange(1,12,1,2).setFontWeight('bold').setBackground('#344778').setFontColor('white');
+  sh.getRange('L:M').setNumberFormat('@');
+  sh.setColumnWidths(12,2,125);
+  const last=sh.getLastRow();
+  if(last>1) {
+    const formulas=Array.from({length:last-1},(_,i)=>[sleepNapFormula_(i+2)]);
+    sh.getRange(2,9,last-1,1).setFormulas(formulas).setNumberFormat('[h]:mm');
+  }
 }
 
 function validateSleepDate_(dateKey) {
@@ -364,14 +395,15 @@ function getSleepMonth(year, month) {
   const last = sheet.getLastRow();
   const records = {};
   if (last > 1) {
-    // 실제 입력 필드는 C:G에 위치합니다. 날짜는 A, 요일 B입니다.
-    const rows = sheet.getRange(2,1,last-1,7).getDisplayValues();
+    // 기존 C:G 및 추가된 L:M을 읽어 과거 기록도 그대로 지원합니다.
+    const rows = sheet.getRange(2,1,last-1,13).getDisplayValues();
     rows.forEach(row => {
       const dateKey = String(row[0]).trim();
       if (!dateKey.startsWith(prefix)) return;
       const payload = {
         bedTime:row[2] || '', asleepTime:row[3] || '',
-        napStart:row[4] || '', napEnd:row[5] || '', wakeTime:row[6] || ''
+        napStart:row[4] || '', napEnd:row[5] || '', wakeTime:row[6] || '',
+        nap2Start:row[11] || '', nap2End:row[12] || ''
       };
       // 날짜만 미리 배치한 빈 날짜는 요약에서 기록된 날로 세지 않습니다.
       if (Object.keys(payload).some(key=>payload[key])) records[dateKey] = payload;
@@ -415,7 +447,7 @@ function saveSleepField(payload) {
     sheet.getRange(rowIndex,8,1,3).setNumberFormat('[h]:mm');
     sheet.getRange(rowIndex,8,1,3).setFormulas([[
       sleepNightFormula_(rowIndex),
-      `=IF(OR(E${rowIndex}="",F${rowIndex}=""),"",MOD(TIMEVALUE(F${rowIndex})-TIMEVALUE(E${rowIndex}),1))`,
+      sleepNapFormula_(rowIndex),
       `=IF(COUNT(H${rowIndex}:I${rowIndex})=0,"",SUM(H${rowIndex}:I${rowIndex}))`
     ]]);
   }
@@ -487,7 +519,7 @@ function syncSleepChanges(payload) {
   if (!lock.tryLock(2500)) return {ok:false, busy:true, message:'다른 기기가 저장 중입니다. 다시 시도해 주세요.'};
   try {
     const sheet = getSleepSheet_();
-    const existing = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,7).getDisplayValues() : [];
+    const existing = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,13).getDisplayValues() : [];
     const rowByDate = Object.create(null);
     existing.forEach((row,i)=>{const key=String(row[0]||'').trim();if(key && !rowByDate[key])rowByDate[key]={index:i+2,values:row};});
     const profileSheet = getChildSettingsSheet_();
@@ -519,13 +551,14 @@ function syncSleepChanges(payload) {
           const parts=op.date.split('-').map(Number);
           const day=SLEEP_WEEKDAYS_[new Date(Date.UTC(parts[0],parts[1]-1,parts[2])).getUTCDay()];
           sheet.getRange(next,1,1,7).setNumberFormat('@');
+          sheet.getRange(next,12,1,2).setNumberFormat('@');
           sheet.getRange(next,1,1,2).setValues([[op.date,day]]);
           sheet.getRange(next,8,1,3).setNumberFormat('[h]:mm').setFormulas([[
             sleepNightFormula_(next),
-            `=IF(OR(E${next}=\"\",F${next}=\"\"),\"\",MOD(TIMEVALUE(F${next})-TIMEVALUE(E${next}),1))`,
+            sleepNapFormula_(next),
             `=IF(COUNT(H${next}:I${next})=0,\"\",SUM(H${next}:I${next}))`
           ]]);
-          rec={index:next,values:[op.date,day,'','','','','']};
+          rec={index:next,values:[op.date,day,'','','','','','','','','','','']};
           rowByDate[op.date]=rec;
         }
         sheet.getRange(rec.index,SLEEP_FIELDS_[op.field]).setNumberFormat('@').setValue(op.value);
