@@ -583,3 +583,67 @@ body.has-bottom-actions .app-progress{bottom:calc(81px + env(safe-area-inset-bot
  .sleep-nap-group{gap:2px}
  .sleep-nap-stack.second{padding-top:3px}
 }
+
+
+/* Nap row v3: identical single-row height whether or not a second nap is saved. */
+.sleep-nap-group.compact{
+  display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 19px;
+  align-items:center;gap:2px!important;min-width:0;width:100%;height:36px;
+}
+.sleep-nap-group.compact>.sleep-time-btn{
+  width:100%;min-width:0;min-height:34px;height:34px;margin:0;
+  padding:5px 0;border-radius:8px;font-size:9.5px;letter-spacing:-.55px;
+  font-variant-numeric:tabular-nums;overflow:hidden;white-space:nowrap;
+}
+.sleep-nap-group.compact>.sleep-time-btn:not(.filled){font-size:12px}
+.sleep-nap-group.compact>.sleep-nap-toggle{
+  display:grid!important;place-items:center;position:relative;
+  align-self:stretch;width:19px;height:34px;min-height:34px;
+  padding:0!important;margin:0!important;
+  background:#eaf3ef;border:1px solid #d5e6dc;border-radius:7px;
+  color:#326e5b;font-size:16px!important;font-weight:500!important;
+  line-height:1;letter-spacing:0;outline-offset:1px;
+}
+.sleep-nap-group.compact>.sleep-nap-toggle:hover,
+.sleep-nap-group.compact>.sleep-nap-toggle[aria-expanded="true"]{
+  background:#dfeee8;border-color:#9cc9b7;color:#276751;
+}
+.sleep-nap-group.compact>.sleep-nap-toggle.has-record::after{
+  content:"";position:absolute;width:5px;height:5px;border-radius:50%;
+  right:2px;top:3px;background:#2e9879;box-shadow:0 0 0 1px white;
+}
+.sleep-nap-popover{
+  box-sizing:border-box;position:fixed!important;z-index:125!important;
+  width:min(264px,calc(100vw - 18px));min-width:0;
+  padding:12px;border:1px solid #dfe9e4;border-radius:15px;
+  background:#fff;color:#263f35;
+  box-shadow:0 14px 38px rgba(15,56,43,.19),0 2px 8px rgba(15,56,43,.07);
+  animation:nap-pop-in .16s cubic-bezier(.2,.9,.25,1) both;
+}
+.nap-popover-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.nap-popover-heading strong{font-size:13px;font-weight:800;letter-spacing:-.3px;color:#294b3d}
+.nap-popover-close{
+  display:grid;place-items:center;background:#f2f6f3;border:0;border-radius:8px;
+  color:#7c9185;font-size:20px;line-height:1;height:25px;width:25px;min-height:25px;padding:0;
+}
+.nap-popover-times{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px}
+.nap-popover-times label{font-size:10px;font-weight:750;color:#758a7f;display:block;min-width:0}
+.nap-popover-times input{
+  display:block;box-sizing:border-box;max-width:100%;min-width:0;width:100%;
+  margin-top:4px;padding:7px 5px;height:38px;font-size:13px;font-weight:760;
+  background:#f9fbf9;border:1px solid #e0e9e3;border-radius:9px;color:#2f493c;
+  font-variant-numeric:tabular-nums;
+}
+.nap-popover-times input:focus{outline:none;border-color:#5db49a;box-shadow:0 0 0 2px #a6e1cc4d}
+.nap-popover-error{font-size:10px;color:#b95359;margin:4px 1px;min-height:0;line-height:1.4}
+.nap-popover-error:empty{display:none}
+.nap-popover-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px}
+.nap-popover-save{background:#297464;color:white;font-size:11px;font-weight:780;padding:8px 17px;min-height:33px;border-radius:9px;border:0}
+.nap-popover-delete{font-size:10px;color:#b16964;background:#fff8f7;border:1px solid #f1e2df;min-height:32px;padding:6px 9px;border-radius:9px}
+@keyframes nap-pop-in{from{opacity:0;transform:translateY(4px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media (max-width:420px){
+  .sleep-nap-group.compact{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 18px;gap:2px}
+  .sleep-nap-group.compact>.sleep-time-btn{font-size:9px!important;padding:3px 0}
+  .sleep-nap-group.compact>.sleep-nap-toggle{width:18px;font-size:15px!important}
+}
+@media(prefers-reduced-motion:reduce){.sleep-nap-popover{animation:none!important}}
