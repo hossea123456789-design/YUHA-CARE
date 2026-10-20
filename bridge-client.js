@@ -38,16 +38,8 @@
     return Array.from(a, x => x.toString(16).padStart(2, '0')).join('');
   }
   function status(message, bad) {
-    let el = document.getElementById('yuhaBridgeStatus');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'yuhaBridgeStatus';
-      el.style.cssText = 'position:fixed;bottom:96px;right:10px;z-index:4000;max-width:calc(100vw - 20px);padding:10px 12px;border-radius:10px;background:#243a5e;color:#fff;font:12px system-ui,sans-serif;box-shadow:0 6px 20px #0003';
-      document.body.appendChild(el);
-    }
-    el.textContent = message;
-    el.style.background = bad ? '#a72c37' : '#243a5e';
-    el.style.display = message ? 'block' : 'none';
+    // 연결 안내도 앱의 상단 연결 상태/하단 진행 바로 통일합니다.
+    if (message) connectionChanged(bad ? 'error' : 'connecting', message);
   }
   function connect() {
     if (!endpoint || !document.body) return;
