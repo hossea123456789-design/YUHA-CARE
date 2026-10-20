@@ -1850,32 +1850,57 @@
       if(months>=36&&months<72)return {months,min:600,max:780,label:"3~5세 권고 10~13시간"};
       return {months,min:null,max:null,label:"해당 월령 자동평가 제외"};
     }
+    // 수면 점수는 의료기기/임상 검증 척도가 아닌, 기록을 쉽게 비교하기 위한 참고 지표입니다.
+    // AASM/CDC의 총수면 권고량만 공인 기준입니다. 이하 감점 가중치는 이 앱 자체 규칙입니다.
     function getSleepQuality(dateKey) {
-      const row=getSleepRecord(dateKey),night=nightDuration(dateKey),nap=napDuration(row);
+      const today=getSleepRecord(dateKey);
+      const yesterday=getSleepRecord(shiftSleepDate(dateKey,-1));
+      const night=nightDuration(dateKey), nap=napDuration(today);
       const total=night!==null&&nap!==null?night+nap:null;
       const partial=(night||0)+(nap||0);
       const rec=sleepRecommendation(dateKey);
+      const hasAny=[today.napStart,today.napEnd,today.wakeTime,yesterday.asleepTime,yesterday.bedTime].some(Boolean);
+      const asleep=sleepMinutes(yesterday.asleepTime),bed=sleepMinutes(yesterday.bedTime);
+      const rawLatency=asleep!==null&&bed!==null?(asleep-bed+1440)%1440:null;
+      const latency=rawLatency!==null&&rawLatency<=180?rawLatency:null;
+      const missing=[];
+      if(night===null)missing.push("전날 실제 취침과 당일 아침 기상");
+      if(nap===null)missing.push("당일 낮잠 시작과 종료");
       if(total===null){
-        const prev=getSleepRecord(shiftSleepDate(dateKey,-1));
-        const hasAny=[row.napStart,row.napEnd,row.wakeTime,prev.asleepTime,prev.bedTime].some(Boolean);
-        const absent=[];
-        if(night===null) absent.push("전날 취침·오늘 기상");
-        if(nap===null) absent.push("오늘 낮잠");
-        return {level:hasAny?"partial":"empty",label:hasAny?"부분 기록":"미기록",total:null,partial:partial||null,
-          notes:[absent.join(" / ")+"을 입력하면 평가됩니다."]};
+        return {level:hasAny?"partial":"empty",label:hasAny?"부분 기록":"미기록",
+          total:null,night,nap,partial:partial||null,score:null,latency,rec,
+          breakdown:[],missing,notes:[hasAny?missing.join(" · ")+"을 입력하면 점수가 계산됩니다.":"아직 입력된 기록이 없습니다."]};
       }
-      if(rec.min===null)return {level:"empty",label:"기준 외",total,partial:total,notes:[rec.label]};
-      const notes=[];let level="good";
-      if(total<rec.min){level=(rec.min-total>=60)?"concern":"watch";notes.push("권고 수면량보다 짧습니다.");}
-      else if(total>rec.max){level=(total-rec.max>=60)?"concern":"watch";notes.push("권고 수면량보다 깁니다.");}
-      else notes.push("권고 수면량에 해당합니다.");
-      const yesterday=getSleepRecord(shiftSleepDate(dateKey,-1));
-      const bed=sleepMinutes(yesterday.bedTime),asleep=sleepMinutes(yesterday.asleepTime);
-      if(bed!==null&&asleep!==null){const latency=(asleep-bed+1440)%1440;
-        if(latency>45&&latency<=180){notes.push(`잠들기까지 ${latency}분 (참고)`);if(level==="good")level="watch";}}
-      if(rec.months>=12&&rec.months<36&&(nap<60||nap>180)){
-        notes.push("낮잠 1~3시간 범위 외 (참고)");if(level==="good")level="watch";}
-      return {level,label:{good:"권고 범위",watch:"살펴보기",concern:"수면량 차이"}[level],total,partial:total,notes};
+      if(rec.min===null){
+        return {level:"partial",label:"평가 기준 없음",total,night,nap,partial:total,score:null,latency,rec,
+          breakdown:[],missing:[],notes:[rec.label]};
+      }
+      const durationGap=total<rec.min?rec.min-total:total>rec.max?total-rec.max:0;
+      const durationPenalty=Math.min(60,Math.ceil(durationGap/15)*5);
+      const latencyPenalty=latency===null?0:Math.min(24,Math.ceil(Math.max(0,latency-30)/15)*6);
+      const napBand=rec.months>=12&&rec.months<36;
+      const napGap=napBand?(nap<60?60-nap:nap>180?nap-180:0):0;
+      const napPenalty=napBand?Math.min(12,Math.ceil(napGap/30)*4):0;
+      const score=Math.max(0,100-durationPenalty-latencyPenalty-napPenalty);
+      const level=score>=90?"excellent":score>=80?"good":score>=65?"watch":"concern";
+      const labels={excellent:"매우 양호",good:"양호",watch:"살펴보기",concern:"점검 필요"};
+      const breakdown=[
+        {key:"total",title:"총수면 시간",value:formatDuration(total),
+          standard:rec.label,penalty:durationPenalty,
+          basis:durationGap===0?"권고 시간 범위 내":`권고 범위를 ${formatDuration(durationGap)} 벗어남 · 15분당 5점 감점 (최대 60점)`},
+        {key:"latency",title:"잠들기까지",value:latency!==null?latency+"분":"입실/취침 확인 필요",
+          standard:"30분까지 감점 없음 (앱 자체 참고 기준)",penalty:latencyPenalty,
+          basis:latency===null?"기록이 없거나 3시간을 넘어 점수에서 제외":latency<=30?
+            "30분 이내로 감점 없음":"30분 초과분 15분당 6점 감점 (최대 24점)"},
+        {key:"nap",title:"낮잠 길이",value:formatDuration(nap),
+          standard:napBand?"1~3시간 참고 범위 (앱 자체 규칙)":"월령별 낮잠 감점 미적용",
+          penalty:napPenalty,
+          basis:napBand?(napGap===0?"참고 범위 내 · 감점 없음":"참고 범위를 벗어난 30분당 4점 감점 (최대 12점)"):"총수면에 합산하되 별도 점수 감점 없음"}
+      ];
+      const notes=breakdown.filter(x=>x.penalty>0).map(x=>x.title+" −"+x.penalty+"점");
+      if(!notes.length)notes.push("기록된 평가 항목에서 감점 없음");
+      return {level,label:labels[level],total,night,nap,partial:total,score,latency,rec,breakdown,
+        missing:[],notes,deductions:durationPenalty+latencyPenalty+napPenalty};
     }
 
     function conciseDuration(minutes) {
