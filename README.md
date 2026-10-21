@@ -153,3 +153,4 @@
 - 기존에 작성되어 즉시 노출되던 편지는 호환성을 위해 이미 읽은 상태로 간주합니다. 날짜별 회복 점수·아내 메모는 편지 제출/읽음 전환에 의해 덮어쓰지 않도록 서버에서 해당 필드만 병합합니다.
 - 저장 형식은 기존 `MENTAL_LOG` JSON에 `husbandLetterStatus`(`sealed`/`opened`)와 `husbandLetterOpenedAt`을 추가합니다. **Apps Script `Code.gs`를 새 버전으로 재배포해야 `schemaVersion:3`이 적용**되고 다른 기기에서 봉투/읽음 상태가 동기화됩니다. 이전 서버 응답이면 기기 기록을 보존하고 편지 관련 서버 저장을 보류합니다.
 - 프론트 캐시 버전: `mental.js?v=20261021-letter-envelope2`, `mental.css?v=20261021-letter-envelope2`.
+- 편지를 완료하자마자 바로 열어도 읽음 상태가 유실되지 않도록 서버에서 저장 순서를 안전하게 처리합니다.
