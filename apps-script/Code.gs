@@ -656,11 +656,16 @@ function mentalValidateEntry_(item) {
   const memo=String(item.memo||'').slice(0,600);
   // Date-specific message from the husband, stored with the existing recovery entry.
   const husbandLetter=String(item.husbandLetter||'').slice(0,1000);
+  // Older letters were already visible before the envelope UI: treat them as read.
+  const husbandLetterStatus=husbandLetter?
+    (item.husbandLetterStatus==='sealed'?'sealed':'opened'):'';
+  const husbandLetterOpenedAt=husbandLetterStatus==='opened'?
+    String(item.husbandLetterOpenedAt||'').slice(0,32):'';
   return {date,scores,offDutyMinutes,
     offDutyType:filter(item.offDutyType,MENTAL_OFFDUTY_KEYS_,8),
     basicNeedsDelayed:filter(item.basicNeedsDelayed,MENTAL_NEED_KEYS_,6),
     contexts:filter(item.contexts,MENTAL_CONTEXT_KEYS_,32),
-    memo,husbandLetter};
+    memo,husbandLetter,husbandLetterStatus,husbandLetterOpenedAt};
 }
 function mentalSheet_() {
   const ss=SpreadsheetApp.getActiveSpreadsheet();
@@ -689,13 +694,14 @@ function getMentalMonth(passphrase,year,month) {
       records[date]={...mentalValidateEntry_({...item,date}),revision:String(row[2]||'')};
     }catch(err){/* skip malformed data, never overwrite */}
   });
-  return {ok:true,records,year:y,month:m,schemaVersion:2};
+  return {ok:true,records,year:y,month:m,schemaVersion:3};
 }
 function syncMentalEntry(payload) {
   if(!payload||typeof payload!=='object')throw new Error('회복 기록 저장 요청 오류');
   mentalValidateAccess_(payload.passphrase);
   const item=mentalValidateEntry_(payload.entry);
   const letterOnly=payload.letterOnly===true;
+  const letterAction=['seal','open'].includes(payload.letterAction)?payload.letterAction:'';
   const expectedRevision=String(payload.expectedRevision||'');
   const lock=LockService.getScriptLock();
   if(!lock.tryLock(5000))return {ok:false,busy:true,message:'다른 기록을 저장 중입니다. 잠시 후 다시 시도해 주세요.'};
@@ -712,7 +718,26 @@ function syncMentalEntry(payload) {
     }
     // A husband's letter is a separate logical field: merge only that field
     // into the most recent server row, never stale local scores or other notes.
-    const merged=letterOnly&&currentEntry?{...currentEntry,husbandLetter:item.husbandLetter}:item;
+    let merged=item;
+    if(letterOnly){
+      if(letterAction==='open'){
+        // Only reveal the same letter that the reader saw; never overwrite
+        // a letter edited concurrently from the husband's device.
+        if(!currentEntry || !currentEntry.husbandLetter || currentEntry.husbandLetter!==item.husbandLetter){
+          return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
+        }
+        merged={...currentEntry,husbandLetterStatus:'opened',
+          husbandLetterOpenedAt:currentEntry.husbandLetterStatus==='opened'?
+            currentEntry.husbandLetterOpenedAt:(item.husbandLetterOpenedAt||new Date().toISOString())};
+      }else{
+        // Sealing an envelope replaces only letter fields, preserving the
+        // most recent recovery scores and memo from the wife's device.
+        merged=currentEntry?{...currentEntry,
+          husbandLetter:item.husbandLetter,
+          husbandLetterStatus:item.husbandLetterStatus,
+          husbandLetterOpenedAt:item.husbandLetterOpenedAt}:item;
+      }
+    }
     const serialized=JSON.stringify(merged);
     const previous=currentEntry?JSON.stringify(currentEntry):null;
     if(previous===serialized)return {ok:true,revision:currentRevision,unchanged:true,serverEntry:merged};
