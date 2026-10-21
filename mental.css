@@ -142,6 +142,25 @@
 #mentalLetterInput:focus{outline:2px solid #d7a989;outline-offset:1px}
 .mental-letter-bottom{display:flex;justify-content:space-between;gap:9px;margin-top:8px;
  font-size:10px;line-height:1.5;color:#a68b74}
+.mental-letter-envelope{position:relative;margin:15px 0 4px;text-align:center;border-radius:14px;
+ border:1px solid #e0c8b1;background:linear-gradient(160deg,#fff9f1,#f7e7d7);
+ padding:19px 14px 18px;box-shadow:inset 0 -5px 18px #d8bca51e}
+.mental-letter-envelope:before{content:"";position:absolute;inset:0 0 auto;height:30px;
+ background:linear-gradient(135deg,transparent 49%,#dbbfa841 50%,transparent 51%) left center/50% 100%,
+ linear-gradient(225deg,transparent 49%,#dbbfa841 50%,transparent 51%) right center/50% 100%;
+ pointer-events:none;opacity:.65}
+.mental-letter-envelope-symbol{font-size:42px;line-height:1.3;margin:2px 0 7px}
+.mental-letter-envelope strong{display:block;font-size:14px;color:#765441}
+.mental-letter-envelope p{font-size:11px;color:#9d7c67;margin:6px 0 15px}
+.mental-letter-open,.mental-letter-submit{border:0;border-radius:11px;background:#996b50;color:#fff;
+ padding:12px 17px;min-height:44px;font-size:12px;font-weight:830;cursor:pointer}
+.mental-letter-open{min-width:155px}
+.mental-letter-open span{font-size:15px}
+.mental-letter-submit{width:100%;margin-top:12px;background:#8c674f}
+.mental-letter-open:active,.mental-letter-submit:active{transform:scale(.985)}
+.mental-letter-validation{min-height:16px;font-size:11px;color:#a84040;margin:6px 1px 0}
+.mental-letter-opened{display:inline-block;background:#f1e3d7;color:#916c56;border-radius:20px;
+ font-size:10px;font-weight:760;padding:3px 9px;margin-bottom:9px}
 .mental-letter-status{font-size:10px;color:#a79280;margin-top:9px}
 @media(max-width:355px){.mental-letter-card{padding:13px 10px}.mental-letter-icon{width:34px;height:34px;font-size:19px}
  .mental-letter-head h3{font-size:12px!important}.mental-letter-action{padding:6px 8px;font-size:10px}}
