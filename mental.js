@@ -8,23 +8,10 @@
 const STORE="yuha_mental_recovery_local_v1";
 const PENDING="yuha_mental_recovery_pending_v1";
 const META="yuha_mental_recovery_meta_v1";
-const SYNC_SESSION="yuha_mental_sync_session_v1";
-const SYNC_DEVICE="yuha_mental_sync_device_v1";
-// Permanent browser credential storage is only enabled by explicit first-time opt-in.
-function readSyncSession(){
- try{const secret=sessionStorage.getItem(SYNC_SESSION);if(secret)return secret;}catch(_){}
- try{return localStorage.getItem(SYNC_DEVICE)||"";}catch(_){return "";}
-}
-function rememberSyncSession(secret){
- try{sessionStorage.setItem(SYNC_SESSION,secret);}catch(_){/* private browsing may block storage */}
-}
-function rememberSyncDevice(secret){
- try{localStorage.setItem(SYNC_DEVICE,secret);return true;}
- catch(error){console.warn("[YUHA MENTAL] Device sync opt-in not saved:",error);return false;}
-}
-function forgetSyncSession(){
- try{sessionStorage.removeItem(SYNC_SESSION);}catch(_){}
- try{localStorage.removeItem(SYNC_DEVICE);}catch(_){}
+// Legacy server passwords are cleared; PIN unlock authorizes the current tab only.
+function clearLegacySyncCredentials(){
+ try{sessionStorage.removeItem("yuha_mental_sync_session_v1");}catch(_){}
+ try{localStorage.removeItem("yuha_mental_sync_device_v1");}catch(_){}
 }
 const FIELDS=[
  {id:"energy",name:"신체 에너지",short:"에너지",question:"오늘 몸에 사용할 수 있는 에너지가 얼마나 남아 있었나요?",low:"완전 방전",high:"여유가 충분함"},
@@ -83,7 +70,6 @@ function levelName(v){
 }
 let records={};let pending={};let viewing=iso(new Date()),selected=viewing;
 let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloudError="",cloudSaving=false;
-let cloudRememberDevice=false;
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
 let conflict=null,screen=null,unlocked=false,unlockBusy=false;
 let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0;
@@ -188,9 +174,11 @@ function bindLock(){
    unlocked=true;
    hydrate();
    render();
-   // Restore an already authorized server sync after PIN unlock.
-   const remembered=readSyncSession();
-   if(remembered)activate(remembered);
+   // Use the same entered PIN for this tab's API session, never save the PIN.
+   const enteredPin=digits;
+   digits="";
+   clearLegacySyncCredentials();
+   activate(enteredPin);
   }catch(err){
    unlocked=false;
    console.error("[YUHA MENTAL] Unlock failed:",err);
@@ -257,7 +245,7 @@ function status(text,error){
 }
 function setState(text,error=false){cloudError=error?text:"";status(text,error)}
 function stateText(){return !storageOkay?"기기 저장 실패 · 저장 공간 확인":cloudBusy?"비공개 서버 연결 중":cloudSaving?"비공개 동기화 중":
- cloudError||(!cloudCode?"서버 동기화 미연결 · 기기에만 저장 중":cloudReady?"비공개 동기화 연결됨":"비공개 서버 미연결");}
+ cloudError||(!cloudCode?"서버 연결 준비 중":cloudReady?"자동 동기화 연결됨":"자동 동기화 연결 대기");}
 function progress(state,msg){
  if(typeof window.showAppProgress==="function")window.showAppProgress("mental-save",msg,state);
 }
@@ -265,9 +253,8 @@ function cloudCall(method,args,onSuccess,onFail){
  if(!window.google?.script?.run){onFail(new Error("서버 연결을 기다리는 중입니다."));return;}
  try{window.google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFail)[method](...args)}catch(e){onFail(e)}
 }
-function activate(pass,rememberDevice=false){
+function activate(pass){
  if(!pass)return;
- cloudRememberDevice=Boolean(rememberDevice);
  const epoch=++cloudEpoch;
  loadedMentalMonths.clear();loadingMentalMonths.clear();
  cloudCode=pass;
@@ -289,18 +276,14 @@ function activate(pass,rememberDevice=false){
    saveLocal();
    if(--outstanding===0&&!anyFailed){
      cloudBusy=false;cloudReady=true;cloudError="";
-     rememberSyncSession(cloudCode);
-     if(cloudRememberDevice&&!rememberSyncDevice(cloudCode))
-      setState("서버 연결됨 · 이 기기 자동 연결 설정 저장 실패",true);
-     progress("done","비공개 기록 연결 완료");
-     if(!cloudError)setState(stateText());
+     progress("done","회복 기록 자동 동기화 연결 완료");
+     setState(stateText());
      render();scheduleCloud(100);
    }
   },failed);
  });
  function failed(err){if(anyFailed||epoch!==cloudEpoch||!unlocked)return;anyFailed=true;cloudBusy=false;cloudReady=false;
    const reason=String(err?.message||err);
-   if(/접근 암호가 올바르지|동기화가 아직 설정되지 않았습니다/.test(reason))forgetSyncSession();
    progress("error","비공개 기록 연결 실패");setState("연결 실패: "+reason,true);render();}
 }
 // Load navigated months without overwriting unsynced records.
@@ -601,15 +584,10 @@ function tags(arr,values,kind){
   '<button type="button" class="mental-tag'+(values.includes(id)?' chosen':'')+'" data-mental-tag="'+kind+'" data-tag-id="'+E(id)+'" aria-pressed="'+values.includes(id)+'">'+E(label)+'</button>').join('')+'</div>';
 }
 function cloudPanel(){
- return '<details class="mental-cloud-details" '+(cloudOpen||(!cloudReady&&!readSyncSession())?'open':'')+' id="mentalCloudDetails"><summary>'+
-  '<span>기록 저장과 개인정보</span><small>'+(!cloudReady?'기기에 저장됨':'비공개 서버 연결됨')+'</small></summary>'+
-  '<div class="mental-cloud-inner"><p>정서·가족관계 기록은 민감한 개인 정보입니다. 이 기기 저장소는 암호화되어 있지 않으며 이 브라우저를 사용할 수 있는 사람에게 보일 수 있습니다. 공유할지 여부는 기록하는 본인이 결정해 주세요.</p>'+
-  '<p>기록은 입력 즉시 이 기기에 저장되며 인증 후에는 서버로 자동 동기화됩니다. 최초 한 번 Apps Script의 비공개 접근 암호(12자 이상)를 입력해 주세요. 이 암호는 화면 잠금용 PIN과 다릅니다.</p>'+
-  (cloudReady?'<button type="button" id="mentalCloudDisconnect">비공개 연결 끊기</button>':
-  '<div class="mental-cloud-connect"><input type="password" id="mentalCloudPass" autocomplete="off" minlength="12" placeholder="최초 1회 서버 접근 암호 (12자 이상)" aria-label="비공개 기록 접근 암호"/>'+
-  '<button type="button" id="mentalCloudConnect">처음 인증</button></div>'+
-  '<label class="mental-cloud-remember"><input type="checkbox" id="mentalRememberDevice"> 이 기기에서 자동 동기화 유지 (접근 암호가 브라우저에 저장됨)</label>')+
-  '<p class="mental-cloud-small">연결이 끊겨도 이 기기의 미동기화 기록은 남습니다. 다른 사람이 기기를 사용하는 경우 브라우저 사이트 데이터와 접근 권한을 별도로 관리해 주세요.</p>'+
+ return '<details class="mental-cloud-details" '+(cloudOpen?'open':'')+' id="mentalCloudDetails"><summary>'+
+  '<span>기록 저장과 개인정보</span><small>'+(cloudReady?'서버 자동 동기화':'서버 연결 확인 중')+'</small></summary>'+
+  '<div class="mental-cloud-inner"><p>아내 회복 탭에 들어올 때마다 4자리 PIN으로 로그인합니다. 인증 후 별도의 연결이나 저장 버튼 없이 서버 기록을 조회하고 입력한 수정 사항을 자동으로 저장합니다.</p>'+
+  '<p>오프라인이거나 서버 오류가 나면 기기에 변경사항을 보관하고, 다음 PIN 로그인 때 서버 동기화를 재시도합니다. 4자리 PIN은 강한 보안 수단이 아니므로 원본 Google Sheets의 공유 권한을 제한해 주세요.</p>'+
   '</div></details>';
 }
 function view(){
@@ -620,7 +598,6 @@ function view(){
   '<span class="count">Wife Mental Recovery · 개인 기록</span></div></div>'+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
-  (!cloudReady&&!cloudBusy&&!readSyncSession()?cloudPanel():'')+
   mainSummary()+
   '<div class="mental-actions-row"><a href="#mentalToday" class="mental-primary-action" id="mentalJumpToday">오늘 기록</a>'+
   '<span>'+E(warning)+'</span></div>'+
@@ -645,7 +622,7 @@ function view(){
     sparkline("전체 멘탈",r=>scoresOf(r)?.mental??null,"#527cae")+'</div>'+
    '<p class="mental-muted">그래프는 기록된 날짜만 표시하고 미기록일을 0으로 연결하지 않습니다.</p></section>'+
   '<section class="sleep-card mental-input-card" id="mentalToday">'+dateEditor()+'</section>'+
-  (cloudReady||cloudBusy||readSyncSession()?cloudPanel():'')+
+  cloudPanel()+
   '<p class="mental-footer">이 점수는 개인 baseline과 장기 변화 관찰을 위한 참고값입니다. 낮은 점수가 모성애나 양육 능력을 뜻하지 않습니다. 지속적인 어려움이 있다면 의료·상담 전문가의 도움을 고려할 수 있습니다.</p>'+
   '</div>';
 }
@@ -774,16 +751,6 @@ function bind(){
  if(contexts)contexts.addEventListener("toggle",()=>{contextsOpen=contexts.open});
  const cloud=screen.querySelector("#mentalCloudDetails");
  if(cloud)cloud.addEventListener("toggle",()=>{cloudOpen=cloud.open});
- screen.querySelector("#mentalCloudConnect")?.addEventListener("click",()=>{
-  const code=screen.querySelector("#mentalCloudPass")?.value||"";
-  if(code.length<12){setState("비공개 접근 암호는 12자 이상이어야 합니다.",true);return;}
-  const remember=Boolean(screen.querySelector("#mentalRememberDevice")?.checked);
-  activate(code,remember);screen.querySelector("#mentalCloudPass").value="";
- });
- screen.querySelector("#mentalCloudDisconnect")?.addEventListener("click",()=>{
-  cloudEpoch++;cloudCode="";cloudReady=false;loadedMentalMonths.clear();loadingMentalMonths.clear();forgetSyncSession();clearTimeout(syncingTimer);clearTimeout(retryTimer);
-  setState("이 기기에만 저장 중");render();
- });
  screen.querySelector("#mentalJumpToday")?.addEventListener("click",event=>{
   event.preventDefault();
   selected=iso(new Date());month=monthKey(selected);render();
