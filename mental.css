@@ -139,3 +139,50 @@
 @media(prefers-reduced-motion:reduce){.mental-choice,.mental-matrix-cell{transition:none!important}}
 
 @media(min-width:700px){.mental-top-cards{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+
+/* Recovery PIN — keypad is visible as soon as the tab opens.
+   In-app buttons work even when Android WebView declines automatic OS keyboard focus. */
+.mental-lock-card{max-width:390px;margin:16px auto!important;padding:20px 16px!important}
+.mental-lock-card>p{margin-bottom:16px!important}
+.mental-lock-card .mental-pin-readout{
+  display:block;width:100%;max-width:265px;height:48px;min-height:48px;
+  margin:7px auto 10px;padding:5px 12px;box-sizing:border-box;
+  border:1px solid #cdded2!important;border-radius:12px!important;
+  background:#f7faf8!important;color:#2b735b!important;
+  text-align:center;font-size:27px!important;font-weight:780!important;
+  letter-spacing:10px;line-height:38px;-webkit-text-security:disc;
+  outline-offset:2px;caret-color:transparent;
+}
+.mental-lock-card .mental-pin-readout:focus-visible{
+  outline:2px solid #75ae97;outline-offset:1px;
+}
+.mental-lock-card .mental-pin-keypad{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  width:100%;max-width:265px;gap:8px;margin:0 auto;
+}
+.mental-lock-card .mental-pin-key{
+  display:grid;place-items:center;height:49px;min-height:49px;
+  padding:0;border:1px solid #dfebe3;border-radius:12px;
+  background:white;color:#2e5f4d;
+  font-size:20px;font-weight:760;font-variant-numeric:tabular-nums;
+  touch-action:manipulation;cursor:pointer;
+}
+.mental-lock-card .mental-pin-key:active{
+  background:#dceee2;border-color:#8ebba1;transform:scale(.98);
+}
+.mental-lock-card .mental-pin-key.mental-pin-edit{
+  background:#f3f8f5;border-color:#e6eee7;
+  color:#527965;font-size:12px;font-weight:750;
+}
+.mental-lock-card .mental-pin-key[data-mental-pin="back"]{font-size:20px}
+.mental-lock-card .mental-lock-error{text-align:center;min-height:17px;margin:10px 0 0}
+.mental-lock-card .mental-lock-foot{margin-top:9px;padding-top:10px}
+@media(max-width:355px){
+ .mental-lock-card{padding:16px 13px!important}
+ .mental-lock-card .mental-pin-keypad{gap:6px;max-width:245px}
+ .mental-lock-card .mental-pin-key{height:45px;min-height:45px}
+}
+@media(prefers-reduced-motion:reduce){
+ .mental-lock-card .mental-pin-key:active{transform:none}
+}
