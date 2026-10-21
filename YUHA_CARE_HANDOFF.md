@@ -548,3 +548,12 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 앱 → 아내 회복 → 기록 저장과 개인정보 → 접근 암호 입력/연결 → 상태가 '비공개 동기화 연결됨'으로 표시될 때까지 실제 완료 아님. 다른 기기도 첫 연결 필요.
 - QA: JavaScript parse 및 구현 전제 정적 검사, Sheets 메타데이터/헤더 검증. 실제 Apps Script 메서드 호출, 편집 동기화, 교차기기 재조회, 연결 실패 복구는 **라이브 서버 배포 후 검증 필요**. 사용자 기록은 테스트 목적으로 변경하지 않음.
 - 개인정보: Google Sheet 공유 권한이 바뀌면 해당 Sheet의 `MENTAL_LOG`를 직접 열람 가능해짐. 클라이언트 PIN은 Sheet 접근을 통제하지 않는다.
+
+## 21. 2026-10-21 — Apps Script 갱신 후 프론트 배포
+
+- 사용자 확인: 연결된 Apps Script의 `Code.gs` 갱신은 사용자가 직접 완료. 새 버전의 실제 웹앱 배포 및 `YUHA_MENTAL_ACCESS_KEY` Script Properties 설정 여부는 프론트 코드만으로 증명하지 못하므로 구분한다.
+- `mental.js`: PIN 해제 후 서버 인증 미연결 상태에서 상단에 '기록 동기화 연결' 버튼을 노출. 버튼을 누르면 기존 '기록 저장과 개인정보'를 펼치고 해당 위치로 스크롤하여 암호 입력/연결 UI 접근을 단축. 현재 미연결 상태를 '서버 동기화 미연결 · 기기에만 저장 중'으로 명확히 표시.
+- `mental.js`: Apps Script에 설정하는 별도 12자 이상 접근 암호와 화면 잠금 PIN의 차이를 명시. 인증되지 않은 상태에서 자동으로 서버에 기록을 전송하거나 개인 기록을 외부에 노출하지 않음.
+- `index.html`: `mental.js?v=20261021-mental-sync2`, `bridge-client.js?v=20261021-mental-sync2`, `mental.css?v=20261021-mental-sync2`로 자산 캐시 무효화. 프론트는 기존 `config.js`의 `/exec` URL과 브리지 `getMentalMonth`, `syncMentalEntry` 호출 유지.
+- 검증: 원본 체크리스트·수면 DB 및 실 회복 기록을 테스트 목적으로 변경하지 않는다. GitHub Pages 작업 성공은 Apps Script 배포/암호 설정/실 데이터 양방향 동기화 성공과 구분한다.
+- 사용자 실행 경로: PIN 해제 → 상단 '기록 동기화 연결' → Apps Script Script Properties에 설정한 비공개 접근 암호 입력 → 연결 → 상태 '비공개 동기화 연결됨' 확인. 기존 4자리 PIN을 서버 암호로 사용하지 않는다.
