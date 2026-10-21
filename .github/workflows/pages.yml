@@ -53,3 +53,17 @@ jobs:
           path: public-site
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Smoke test published envelope artwork
+        run: |
+          set -euo pipefail
+          base="${{ steps.deployment.outputs.page_url }}"
+          for name in mental-letter-sealed.svg mental-letter-opened.svg; do
+            url="${base%/}/assets/${name}?deploy=${GITHUB_SHA}"
+            tmp="$(mktemp)"
+            curl --fail --silent --show-error --location \
+              --retry 10 --retry-delay 5 --retry-all-errors \
+              --connect-timeout 12 --max-time 20 --output "$tmp" "$url"
+            grep -q '<svg' "$tmp" || { echo "Invalid deployed SVG: $url"; exit 1; }
+            echo "PASS deployed SVG: $url ($(wc -c < "$tmp") bytes)"
+            rm -f "$tmp"
+          done
