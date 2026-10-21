@@ -111,6 +111,40 @@
 .mental-cloud-remember input{flex-shrink:0;margin:2px 0 0;accent-color:#2a795e}
 .mental-cloud-connect button,.mental-cloud-inner>button{padding:8px 12px;border:0;border-radius:8px;background:#2a795e;color:#fff;font-size:11px;font-weight:750}
 .mental-cloud-small{font-size:10px;color:#99a69a!important;margin-top:9px!important}
+/* Daily letter: a warm, separate keepsake above the recovery metrics. */
+.mental-letter-card{position:relative;overflow:hidden;border-radius:16px;padding:17px 16px 14px;
+ background:linear-gradient(145deg,#fff8f0 0%,#fffaf5 63%,#fff5ec 100%);
+ border:1px solid #eddccc;box-shadow:0 3px 11px #9b7a5c11;min-width:0}
+.mental-letter-card::after{content:"";position:absolute;right:-22px;top:-22px;width:106px;height:106px;
+ border-radius:50%;border:16px solid #f5e6d866;pointer-events:none}
+.mental-letter-top{display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+.mental-letter-icon{width:41px;height:41px;flex-shrink:0;border-radius:12px;background:#f6e5d5;
+ display:grid;place-items:center;font-size:23px;color:#ae7555}
+.mental-letter-head{flex:1;min-width:0}
+.mental-letter-head>span{display:block;color:#ae8b70;font-size:9px;font-weight:820;letter-spacing:1px}
+.mental-letter-head h3{margin:3px 0 2px!important;color:#674e3f!important;font-size:14px!important}
+.mental-letter-head small{font-size:10px;color:#b09a8a}
+.mental-letter-action{border:1px solid #dfc8b7;border-radius:10px;background:#fffaf5;
+ color:#8b6651;font-size:11px;font-weight:800;min-height:38px;padding:7px 11px;
+ white-space:nowrap;flex-shrink:0;cursor:pointer;position:relative;z-index:1}
+.mental-letter-paper{margin:14px 1px 0;background:#fffdf9;border:1px solid #eadfcf;
+ border-radius:12px;padding:15px 15px 12px;box-shadow:0 2px 6px #8c67410b}
+.mental-letter-paper p{margin:0;color:#625044;white-space:pre-wrap;overflow-wrap:anywhere;
+ font-size:13px;line-height:1.9}
+.mental-letter-sign{text-align:right;margin-top:14px;color:#a57b67;font-size:11px;font-weight:730}
+.mental-letter-empty{margin:14px 0 2px;padding:16px 12px;border:1px dashed #e1cdbb;
+ border-radius:10px;text-align:center;color:#a58570;font-size:12px}
+.mental-letter-empty span{display:block;font-size:10px;color:#b29b89;margin-top:4px}
+.mental-letter-edit-label{display:block;font-size:11px;color:#8d6b53;margin:15px 0 7px;font-weight:750}
+#mentalLetterInput{display:block;box-sizing:border-box;width:100%;min-height:116px;padding:12px;
+ border-radius:10px;border:1px solid #decbb7;background:#fffefa;color:#614b3d;
+ font-family:inherit;font-size:13px;line-height:1.7;resize:vertical}
+#mentalLetterInput:focus{outline:2px solid #d7a989;outline-offset:1px}
+.mental-letter-bottom{display:flex;justify-content:space-between;gap:9px;margin-top:8px;
+ font-size:10px;line-height:1.5;color:#a68b74}
+.mental-letter-status{font-size:10px;color:#a79280;margin-top:9px}
+@media(max-width:355px){.mental-letter-card{padding:13px 10px}.mental-letter-icon{width:34px;height:34px;font-size:19px}
+ .mental-letter-head h3{font-size:12px!important}.mental-letter-action{padding:6px 8px;font-size:10px}}
 .mental-footer{font-size:10px;color:#91a296;line-height:1.75;margin:0 2px 27px}
 #mentalToday{scroll-margin-top:200px}
 .mental-locked{min-height:50vh;justify-content:center}
