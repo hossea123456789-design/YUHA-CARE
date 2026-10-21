@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 360 250" width="720" height="500" role="img" aria-label="밀랍 인장을 열어 편지를 꺼낸 봉투">
+<defs>
+ <linearGradient id="parchment" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fffaf1"/><stop offset="44%" stop-color="#f8ead6"/><stop offset="100%" stop-color="#e8cfaf"/></linearGradient>
+ <linearGradient id="fold" x1="0%" y1="0%" x2="100%" y2="95%"><stop stop-color="#fffdf6"/><stop offset="54%" stop-color="#f6e5cf"/><stop offset="100%" stop-color="#e6cba8"/></linearGradient>
+ <linearGradient id="shadowfold" x1="5%" y1="20%" x2="95%" y2="85%"><stop stop-color="#ecd1b0"/><stop offset=".54" stop-color="#fff5e4"/><stop offset="1" stop-color="#e4c4a0"/></linearGradient>
+ <radialGradient id="wax" cx="28%" cy="19%" r="88%"><stop stop-color="#e28a7f"/><stop offset=".3" stop-color="#b1444b"/><stop offset=".65" stop-color="#842a3a"/><stop offset="1" stop-color="#4e1729"/></radialGradient>
+ <linearGradient id="waxInner" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#882639"/><stop offset="1" stop-color="#5e1a30"/></linearGradient>
+ <pattern id="grain" patternUnits="userSpaceOnUse" width="21" height="25"><path d="m2 3 5 1m9 13 5-1M3 18l3 1" fill="none" stroke="#a48c6d" stroke-width=".4" opacity=".24"/></pattern>
+ <filter id="drop" x="-30%" y="-35%" width="160%" height="180%"><feDropShadow dx="0" dy="7" stdDeviation="5.2" flood-color="#795538" flood-opacity=".25"/></filter>
+ <filter id="waxDrop" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2.1" stdDeviation="2" flood-color="#532333" flood-opacity=".4"/></filter>
+ <clipPath id="leftSeal"><rect x="142" y="128" width="38" height="79"/></clipPath><clipPath id="rightSeal"><rect x="180" y="128" width="40" height="79"/></clipPath>
+ <g id="stamp">
+  <path d="M177 140c8-3 14 2 19 4 8-2 14 6 14 12 5 6 4 13 0 19 1 8-7 12-14 12-5 7-11 8-18 6-8 3-15-1-18-7-8-1-11-9-9-15-5-7-2-14 2-19 1-7 8-11 15-10 4-4 6-4 9-2z" fill="url(#wax)" stroke="#642134" stroke-width="1.6"/>
+  <path d="M155 162c2-10 13-19 27-18" stroke="#f5ada4" stroke-width="2.1" stroke-linecap="round" opacity=".76" fill="none"/>
+  <circle cx="180" cy="168" r="21" fill="none" stroke="#d9897d" stroke-width="1.45"/>
+  <circle cx="180" cy="168" r="18.1" fill="url(#waxInner)" stroke="#4b1728" stroke-width="1"/>
+  <circle cx="180" cy="168" r="15.9" fill="none" stroke="#c37b75" stroke-opacity=".72" stroke-width=".86"/>
+  <path d="M171 180q10-12 15-25M175 176q-7-2-10-11 9 0 11 8M181 164q-3-9 4-12 2 7-3 13M181 169q7-9 13-8-3 9-12 10M176 176q6-6 13-2-4 6-12 5" fill="none" stroke="#d99588" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+ </g>
+ </defs>
+<g filter="url(#drop)">
+<path d="M17 104 180 12 343 104" fill="url(#fold)" stroke="#dbbd96" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M26 102 180 19 334 102" fill="url(#grain)" opacity=".6"/>
+<rect x="17" y="102" width="326" height="128" rx="8" fill="#e6caa6"/>
+<rect x="51" y="51" width="258" height="125" rx="4" fill="#fffdf5" stroke="#dfc39b" stroke-width="1.2"/>
+  <path d="M78 82H282M78 94H265M78 106H277" stroke="#ceb28e" opacity=".42" stroke-width="1.2"/>
+<rect x="17" y="103" width="326" height="128" rx="8" fill="url(#parchment)" stroke="#d2b48d" stroke-width="1.2"/>
+  <path d="M18 109 180 177 342 109v118H18Z" fill="#f4e2c9" stroke="#e1c09a" stroke-width="1.1"/>
+  <path d="M18 109 181 179 18 229Z" fill="url(#shadowfold)" stroke="#dfc09b" stroke-width="1.1"/>
+  <path d="M342 109 179 179 342 229Z" fill="url(#shadowfold)" stroke="#dfc09b" stroke-width="1.1"/>
+  <path d="M18 230 180 143 342 230Z" fill="url(#parchment)" stroke="#d8b58b" stroke-width="1.2"/>
+  <path d="M18 230 180 143 342 230" fill="none" stroke="#fffdf6" stroke-width="1.2" opacity=".86"/>
+  <path d="M18 108v113q0 8 8 8h308q8 0 8-8V108" fill="url(#grain)" opacity=".28"/>
+
+<g filter="url(#waxDrop)"><g transform="translate(-5 1) rotate(-5 180 168)" clip-path="url(#leftSeal)"><use href="#stamp"/></g>
+ <g transform="translate(5 1) rotate(6 180 168)" clip-path="url(#rightSeal)"><use href="#stamp"/></g></g>
+</g>
+</svg>
