@@ -35,7 +35,7 @@ const daysIn=(y,m)=>new Date(y,m,0).getDate();
 const monthKey=d=>d.slice(0,7);
 const nice=v=>Number.isInteger(v)?String(v):Number(v).toFixed(1);
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
-const fixed=(n,places=1)=>n===null?"—":n.toFixed(places);
+const fixed=(n,places=1)=>typeof n==="number"&&Number.isFinite(n)?n.toFixed(places):"—";
 const empty=date=>({date,scores:Object.fromEntries(FIELDS.map(x=>[x.id,null])),offDutyMinutes:0,offDutyType:[],basicNeedsDelayed:[],contexts:[],memo:"",revision:""});
 const validScore=v=>typeof v==="number"&&Number.isFinite(v)&&v>=0&&v<=10;
 function normalize(date,item){
@@ -57,7 +57,7 @@ function scoresOf(entry){
  return {mental:m,recovery,core:mean(CORE.map(k=>entry.scores[k])),by:entry.scores,score100:m*10};
 }
 function level(value){
- if(value===null)return "empty";
+ if(!validScore(value))return "empty";
  return value<3?"critical":value<4.5?"low":value<6?"watch":value<7.5?"stable":"good";
 }
 function levelName(v){
@@ -399,7 +399,7 @@ function weeklyMatrix(){
   s+='<div class="mental-matrix-label" title="'+E(f.name)+'">'+E(f.short)+'</div>';
   d.forEach(date=>{
    const metric=scoresOf(records[date]);
-   const value=f.id==="total"?metric?.mental:(validScore(records[date]?.scores?.[f.id])?records[date].scores[f.id]:null);
+   const value=f.id==="total"?(metric?.mental??null):(validScore(records[date]?.scores?.[f.id])?records[date].scores[f.id]:null);
    s+='<button type="button" class="mental-matrix-cell '+heatStyle(value)+(date===selected?' is-selected':'')+
      '" data-mental-date="'+date+'" aria-label="'+E(f.name)+' '+date+' '+(value===null?'미기록':fixed(value)+'점')+'">'+
      (value===null?'·':fixed(value))+'</button>';
@@ -611,7 +611,7 @@ function refreshOverview(){
   const metric=scoresOf(entry(selected));
   const cells=[...screen.querySelectorAll('.mental-matrix-cell[data-mental-date="'+selected+'"]')];
   cells.forEach((cell,i)=>{
-    const f=FIELDS[i],v=i===7?metric?.mental:
+    const f=FIELDS[i],v=i===7?(metric?.mental??null):
       validScore(entry(selected).scores[f?.id])?entry(selected).scores[f.id]:null;
     cell.className="mental-matrix-cell mental-"+level(v)+" is-selected";
     cell.textContent=v===null?"·":fixed(v);
