@@ -142,14 +142,41 @@
 #mentalLetterInput:focus{outline:2px solid #d7a989;outline-offset:1px}
 .mental-letter-bottom{display:flex;justify-content:space-between;gap:9px;margin-top:8px;
  font-size:10px;line-height:1.5;color:#a68b74}
-.mental-letter-envelope{position:relative;margin:15px 0 4px;text-align:center;border-radius:14px;
- border:1px solid #e0c8b1;background:linear-gradient(160deg,#fff9f1,#f7e7d7);
- padding:19px 14px 18px;box-shadow:inset 0 -5px 18px #d8bca51e}
-.mental-letter-envelope:before{content:"";position:absolute;inset:0 0 auto;height:30px;
- background:linear-gradient(135deg,transparent 49%,#dbbfa841 50%,transparent 51%) left center/50% 100%,
- linear-gradient(225deg,transparent 49%,#dbbfa841 50%,transparent 51%) right center/50% 100%;
- pointer-events:none;opacity:.65}
-.mental-letter-envelope-symbol{font-size:42px;line-height:1.3;margin:2px 0 7px}
+/* Premium wax-sealed letter artwork: sharp SVG at any screen resolution. */
+.mental-letter-envelope{position:relative;margin:15px 0 4px;text-align:center;border-radius:16px;
+ border:1px solid #e5d2b7;background:radial-gradient(ellipse at 50% 5%,#fffdf8 0%,#f9f0e3 74%,#f3e5d2 100%);
+ padding:4px 12px 18px;box-shadow:inset 0 1px 0 #fff9f3,0 5px 16px #a8845d13;overflow:hidden}
+.mental-envelope-illustration{position:relative;width:min(100%,355px);aspect-ratio:360/250;
+ margin:0 auto -2px;isolation:isolate;pointer-events:none}
+.mental-envelope-visual{position:absolute;inset:0;width:100%;height:100%;display:block;
+ object-fit:contain;user-select:none;-webkit-user-drag:none}
+.mental-envelope-sealed-art{opacity:1;transform:translate3d(0,0,0);z-index:2}
+.mental-envelope-opened-art{opacity:0;transform:translate3d(0,9px,0) scale(.985);z-index:1}
+.mental-letter-envelope.is-opening .mental-envelope-sealed-art{
+ animation:mentalWaxSeparation .37s cubic-bezier(.22,.68,.32,1) forwards}
+.mental-letter-envelope.is-opening .mental-envelope-opened-art{
+ animation:mentalEnvelopeReveal .60s cubic-bezier(.2,.65,.27,1) forwards}
+@keyframes mentalWaxSeparation{
+ 0%,20%{opacity:1;transform:translate3d(0,0,0)}
+ 55%{opacity:.88;transform:translate3d(0,-2px,0) scale(.998)}
+ 100%{opacity:0;transform:translate3d(0,-6px,0) scale(.985)}
+}
+@keyframes mentalEnvelopeReveal{
+ 0%,24%{opacity:0;transform:translate3d(0,9px,0) scale(.985)}
+ 56%{opacity:.72}
+ 100%{opacity:1;transform:translate3d(0,-2px,0) scale(1)}
+}
+.mental-letter-envelope.is-opening strong,.mental-letter-envelope.is-opening>p{opacity:.55;transition:opacity .25s}
+.mental-letter-envelope.is-opening .mental-letter-open{opacity:.65;cursor:default;pointer-events:none}
+.mental-letter-paper.mental-letter-revealed{animation:mentalLetterPaperIn .3s ease-out both}
+@keyframes mentalLetterPaperIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){
+ .mental-letter-envelope.is-opening .mental-envelope-sealed-art,
+ .mental-letter-envelope.is-opening .mental-envelope-opened-art,
+ .mental-letter-paper.mental-letter-revealed{animation:none!important}
+ .mental-letter-envelope.is-opening .mental-envelope-sealed-art{opacity:0}
+ .mental-letter-envelope.is-opening .mental-envelope-opened-art{opacity:1;transform:none}
+}
 .mental-letter-envelope strong{display:block;font-size:14px;color:#765441}
 .mental-letter-envelope p{font-size:11px;color:#9d7c67;margin:6px 0 15px}
 .mental-letter-open,.mental-letter-submit{border:0;border-radius:11px;background:#996b50;color:#fff;
