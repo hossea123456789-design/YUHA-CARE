@@ -154,3 +154,9 @@
 - 저장 형식은 기존 `MENTAL_LOG` JSON에 `husbandLetterStatus`(`sealed`/`opened`)와 `husbandLetterOpenedAt`을 추가합니다. **Apps Script `Code.gs`를 새 버전으로 재배포해야 `schemaVersion:3`이 적용**되고 다른 기기에서 봉투/읽음 상태가 동기화됩니다. 이전 서버 응답이면 기기 기록을 보존하고 편지 관련 서버 저장을 보류합니다.
 - 프론트 캐시 버전: `mental.js?v=20261021-letter-envelope2`, `mental.css?v=20261021-letter-envelope2`.
 - 편지를 완료하자마자 바로 열어도 읽음 상태가 유실되지 않도록 서버에서 저장 순서를 안전하게 처리합니다.
+
+## 아내 회복 편지 디자인 개선 — 밀랍 인장 봉투 (2026-10-22)
+
+- 기존 💌 이모지 기반 봉투 대신 **고해상도 SVG 두 장**(`assets/mental-letter-sealed.svg`, `assets/mental-letter-opened.svg`)으로 교체했습니다. 따뜻한 아이보리 종이, 정교한 접힘/그림자/종이 질감, 깊은 버건디 인장과 식물 문양을 적용합니다. 텍스트·개인정보는 이미지에 넣지 않습니다.
+- 아내가 '편지 열기'를 누르면 약 **620ms** 동안 밀봉 봉투가 희미해지고 인장이 풀린 열린 봉투가 드러납니다. 이어서 편지지 본문이 짧게 나타나며 기존 `opened` 상태 및 `husbandLetterOpenedAt`이 자동으로 기록·동기화됩니다. `prefers-reduced-motion` 환경에서는 애니메이션 없이 즉시 엽니다.
+- 수정한 파일: `mental.js`(실제 이미지 삽입/클릭 애니메이션), `mental.css`(미세 전환과 모바일 대응), `index.html`(버전 `20261022-premium-wax1`). 서버 API 및 Apps Script 코드 변경 **없음**. 기존 편지·읽음 데이터는 그대로 유지됩니다.
