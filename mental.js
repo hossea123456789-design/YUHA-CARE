@@ -42,7 +42,7 @@ const nice=v=>Number.isInteger(v)?String(v):Number(v).toFixed(1);
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
 const fixed=(n,places=1)=>typeof n==="number"&&Number.isFinite(n)?n.toFixed(places):"—";
 const LETTER_MAX=1000;
-const empty=date=>({date,scores:Object.fromEntries(FIELDS.map(x=>[x.id,null])),offDutyMinutes:0,offDutyType:[],basicNeedsDelayed:[],contexts:[],memo:"",husbandLetter:"",revision:""});
+const empty=date=>({date,scores:Object.fromEntries(FIELDS.map(x=>[x.id,null])),offDutyMinutes:0,offDutyType:[],basicNeedsDelayed:[],contexts:[],memo:"",husbandLetter:"",husbandLetterStatus:"",husbandLetterOpenedAt:"",revision:""});
 const validScore=v=>typeof v==="number"&&Number.isFinite(v)&&v>=0&&v<=10;
 function normalize(date,item){
  const x=empty(date),a=item&&typeof item==="object"?item:{};
@@ -51,6 +51,9 @@ function normalize(date,item){
  for(const key of ["offDutyType","basicNeedsDelayed","contexts"])x[key]=Array.isArray(a[key])?[...new Set(a[key].filter(v=>typeof v==="string"))].slice(0,40):[];
  x.memo=String(a.memo||"").slice(0,600);
  x.husbandLetter=String(a.husbandLetter||"").slice(0,LETTER_MAX);
+ // Existing visible letters remain opened; new submitted letters begin sealed.
+ x.husbandLetterStatus=x.husbandLetter?(a.husbandLetterStatus==="sealed"?"sealed":"opened"):"";
+ x.husbandLetterOpenedAt=x.husbandLetterStatus==="opened"?String(a.husbandLetterOpenedAt||"").slice(0,32):"";
  x.revision=String(a.revision||"");
  return x;
 }
@@ -74,7 +77,7 @@ let records={};let pending={};let viewing=iso(new Date()),selected=viewing;
 let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloudError="",cloudSaving=false;
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
 let conflict=null,screen=null,unlocked=false,unlockBusy=false;
-let letterEditing=false,letterEditDate="",letterBackendSupported=false;
+let letterEditing=false,letterEditDate="",letterDraft="",letterBackendSupported=false;
 let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0;
 const loadedMentalMonths=new Set(),loadingMentalMonths=new Set(); // per-page throttling; not cryptographic brute-force protection.
 const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
@@ -133,7 +136,7 @@ function lock(){
   letterBackendSupported=false;
   clearTimeout(syncingTimer);clearTimeout(retryTimer);
   records={};pending={};conflict=null;
-  letterEditing=false;letterEditDate="";
+  letterEditing=false;letterEditDate="";letterDraft="";
   if(screen)screen.replaceChildren();
 }
 function lockMarkup(){
@@ -227,7 +230,7 @@ function hydrate(){
  for(const [date,item] of Object.entries(all))if(/^20\d{2}-\d{2}-\d{2}$/.test(date))records[date]=normalize(date,item);
  const p=storageRead(PENDING,{});
  for(const [date,item] of Object.entries(p))if(records[date]&&item&&typeof item==="object"){
-   pending[date]={expectedRevision:String(item.expectedRevision||""),entry:normalize(date,item.entry||records[date]),letterOnly:item.letterOnly===true};
+   pending[date]={expectedRevision:String(item.expectedRevision||""),entry:normalize(date,item.entry||records[date]),letterOnly:item.letterOnly===true,letterAction:["seal","open"].includes(item.letterAction)?item.letterAction:""};
  }
 }
 function entry(date){return records[date]||empty(date)}
@@ -235,12 +238,12 @@ function list(start,end){
  return Object.entries(records).filter(([date])=>date>=start&&date<=end)
    .map(([date,v])=>({date,row:v,metric:scoresOf(v)})).sort((a,b)=>a.date.localeCompare(b.date));
 }
-function changes(date,fn,letterOnly=false){
+function changes(date,fn,letterOnly=false,letterAction=""){
  const existing=pending[date],obj=normalize(date,entry(date));fn(obj);
  records[date]=obj;
  // Letter-only writes never overwrite a spouse's concurrent recovery scores.
  const safeLetterOnly=letterOnly&&(!existing||existing.letterOnly===true);
- pending[date]={entry:normalize(date,obj),expectedRevision:obj.revision||"",letterOnly:safeLetterOnly};
+ pending[date]={entry:normalize(date,obj),expectedRevision:obj.revision||"",letterOnly:safeLetterOnly,letterAction:safeLetterOnly?letterAction:""};
  if(!saveLocal())setState("기기 저장 실패 · 저장 공간을 확인해 주세요",true);
  else setState(cloudReady?"기기 저장 완료 · 비공개 동기화 대기":"이 기기에 저장됨");
  scheduleCloud();
@@ -276,7 +279,7 @@ function activate(pass){
   cloudCall("getMentalMonth",[cloudCode,y,m],result=>{
    if(epoch!==cloudEpoch || !unlocked)return;
    if(!result?.ok){failed(new Error("조회 실패"));return;}
-   if(Number(result.schemaVersion)>=2)letterBackendSupported=true;
+   if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
    for(const [date,value] of Object.entries(result.records||{})){
      if(!pending[date])records[date]=normalize(date,value);
      else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&value.revision)conflict={date,local:entry(date),server:normalize(date,value)};
@@ -306,7 +309,7 @@ function fetchMentalMonthIfNeeded(k){
   loadingMentalMonths.delete(k);
   if(epoch!==cloudEpoch||!unlocked||!cloudReady)return;
   if(!result?.ok){setState("회복 기록의 "+k+"월 조회 실패 · 기기 기록 보관",true);return;}
-  if(Number(result.schemaVersion)>=2)letterBackendSupported=true;
+  if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
   for(const [date,value] of Object.entries(result.records||{})){
    if(!pending[date])records[date]=normalize(date,value);
    else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&value.revision)
@@ -346,7 +349,7 @@ function syncNext(){
  const p=pending[date],version=JSON.stringify(p.entry);
  cloudSaving=true;setState("비공개 서버에 저장 중");progress("busy","회복 기록 저장 중");
  const epoch=cloudEpoch;
- cloudCall("syncMentalEntry",[{passphrase:cloudCode,entry:p.entry,expectedRevision:p.expectedRevision,letterOnly:p.letterOnly===true}],result=>{
+ cloudCall("syncMentalEntry",[{passphrase:cloudCode,entry:p.entry,expectedRevision:p.expectedRevision,letterOnly:p.letterOnly===true,letterAction:p.letterAction||""}],result=>{
   if(epoch!==cloudEpoch||!unlocked)return;
   cloudSaving=false;
   if(result?.conflict){
@@ -752,7 +755,7 @@ function refreshScores(){
 }
 function setSelected(d){
  if(!/^20\d{2}-\d{2}-\d{2}$/.test(d))return;
- letterEditing=false;letterEditDate="";
+ letterEditing=false;letterEditDate="";letterDraft="";
  selected=d;month=monthKey(d);render();
  const header=document.getElementById("mentalToday");
  if(header)header.scrollIntoView({block:"start",behavior:"smooth"});
@@ -761,14 +764,14 @@ function bind(){
  bindHusbandLetter();
  screen.querySelectorAll("[data-month-step]").forEach(b=>b.addEventListener("click",()=>{
   const step=Number(b.dataset.monthStep);
-  letterEditing=false;letterEditDate="";
+  letterEditing=false;letterEditDate="";letterDraft="";
   if(step===0){selected=iso(new Date());month=monthKey(selected)}
   else{const [y,m]=month.split("-").map(Number),t=new Date(y,m-1+step,1);month=iso(t).slice(0,7);selected=month+"-01";}
   render();
  }));
  screen.querySelectorAll("[data-week-step]").forEach(b=>b.addEventListener("click",()=>{
   const step=Number(b.dataset.weekStep);
-  letterEditing=false;letterEditDate="";
+  letterEditing=false;letterEditDate="";letterDraft="";
   if(step===0)selected=iso(new Date());
   else selected=shift(selected,7*step);
   month=monthKey(selected);render();
@@ -815,7 +818,7 @@ function bind(){
  if(cloud)cloud.addEventListener("toggle",()=>{cloudOpen=cloud.open});
  screen.querySelector("#mentalJumpToday")?.addEventListener("click",event=>{
   event.preventDefault();
-  letterEditing=false;letterEditDate="";
+  letterEditing=false;letterEditDate="";letterDraft="";
   selected=iso(new Date());month=monthKey(selected);render();
   document.getElementById("mentalToday")?.scrollIntoView({behavior:"smooth",block:"start"});
  });
