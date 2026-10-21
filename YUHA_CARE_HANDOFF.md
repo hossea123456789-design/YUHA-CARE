@@ -557,3 +557,17 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - `index.html`: `mental.js?v=20261021-mental-sync2`, `bridge-client.js?v=20261021-mental-sync2`, `mental.css?v=20261021-mental-sync2`로 자산 캐시 무효화. 프론트는 기존 `config.js`의 `/exec` URL과 브리지 `getMentalMonth`, `syncMentalEntry` 호출 유지.
 - 검증: 원본 체크리스트·수면 DB 및 실 회복 기록을 테스트 목적으로 변경하지 않는다. GitHub Pages 작업 성공은 Apps Script 배포/암호 설정/실 데이터 양방향 동기화 성공과 구분한다.
 - 사용자 실행 경로: PIN 해제 → 상단 '기록 동기화 연결' → Apps Script Script Properties에 설정한 비공개 접근 암호 입력 → 연결 → 상태 '비공개 동기화 연결됨' 확인. 기존 4자리 PIN을 서버 암호로 사용하지 않는다.
+
+## 22. 2026-10-21 — 별도 연결 버튼 제거 및 기기 자동 동기화
+
+### 원인과 설계
+- 사용자 요청: 아내 회복 탭은 수면/체크리스트처럼 입력하면 알아서 원격 자동 저장되어야 하며 매번 '기록 동기화 연결' 버튼을 눌러선 안 됨.
+- 기존 코드에서 `getMentalMonth`, `syncMentalEntry`는 Apps Script `YUHA_MENTAL_ACCESS_KEY` 검증을 요구한다. 이 암호를 공개 GitHub 프론트 소스에 넣거나 인증을 없애면 개인 정서 기록이 공개 API에서 조회될 수 있으므로 금지. 대신 인증 성공한 기기에 한해 자동 재연결을 구현한다.
+- `mental.js`: 중복 상단 동기화 연결 버튼 제거, 최초 미인증 시 '기록 저장과 개인정보' 패널을 위쪽에 펼쳐 인증 입력. 성공 시 자동 서버 읽기/저장과 기존 pending 큐 동기화 사용.
+- 옵션: 사용자가 체크박스 '이 기기에서 자동 동기화 유지'를 명시적으로 선택한 경우에만 별도 강한 접근 암호를 `localStorage`(`yuha_mental_sync_device_v1`)에 저장. 다음 브라우저 실행 후 PIN 해제 시 `readSyncSession()`이 `sessionStorage`→`localStorage` 순서로 찾고 `activate()`를 자동 호출한다. 비선택은 종전처럼 탭 세션에서만 자동 인증.
+- 비공개 연결 끊기는 세션/기기 인증키를 모두 지우고, 기존 날짜별 실제 로컬 기록과 미동기화 큐는 보존한다. 인증이 틀린 경우도 저장한 접근 키 제거; 일시적인 네트워크 오류는 로컬 편집을 유지.
+- `index.html` 캐시 버전은 `mental.js?v=20261021-mental-autosync1`, `mental.css?v=20261021-mental-autosync1`. 새 Apps Script 함수 변경 없음. GitHub Pages 배포는 `main` 자동.
+
+### 검증·잔여 위험
+- 소스 문법 검사와 조건별 렌더/상태 경로를 확인하고 실제 서버 데이터는 테스트용으로 수정하지 않는다. 실제 사용기기 PIN 해제·동기화 결과 확인은 별도다.
+- 기기 저장 접근키는 브라우저에서 암호화되지 않는다. 이 기능은 개인 소유 신뢰 기기에서만 명시적 선택; 민감 내용이 있는 비공개 서버의 보안 수준과 사용 편의성 간 타협임을 UX/README에 고지한다.
