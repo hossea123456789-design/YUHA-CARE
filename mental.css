@@ -107,6 +107,8 @@
 .mental-cloud-details{margin-top:0;background:#fff}.mental-cloud-inner p{font-size:11px;color:#7b8e81;line-height:1.65;margin:0 0 8px}
 .mental-cloud-connect{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
 .mental-cloud-connect input{min-width:0;padding:8px;border:1px solid #dde8e0;border-radius:8px;font-size:12px}
+.mental-cloud-remember{display:flex;align-items:flex-start;gap:7px;margin:10px 0 5px;color:#536e5d;font-size:11px;line-height:1.45;cursor:pointer}
+.mental-cloud-remember input{flex-shrink:0;margin:2px 0 0;accent-color:#2a795e}
 .mental-cloud-connect button,.mental-cloud-inner>button{padding:8px 12px;border:0;border-radius:8px;background:#2a795e;color:#fff;font-size:11px;font-weight:750}
 .mental-cloud-small{font-size:10px;color:#99a69a!important;margin-top:9px!important}
 .mental-footer{font-size:10px;color:#91a296;line-height:1.75;margin:0 2px 27px}
