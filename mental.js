@@ -41,7 +41,8 @@ const monthKey=d=>d.slice(0,7);
 const nice=v=>Number.isInteger(v)?String(v):Number(v).toFixed(1);
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
 const fixed=(n,places=1)=>typeof n==="number"&&Number.isFinite(n)?n.toFixed(places):"—";
-const empty=date=>({date,scores:Object.fromEntries(FIELDS.map(x=>[x.id,null])),offDutyMinutes:0,offDutyType:[],basicNeedsDelayed:[],contexts:[],memo:"",revision:""});
+const LETTER_MAX=1000;
+const empty=date=>({date,scores:Object.fromEntries(FIELDS.map(x=>[x.id,null])),offDutyMinutes:0,offDutyType:[],basicNeedsDelayed:[],contexts:[],memo:"",husbandLetter:"",revision:""});
 const validScore=v=>typeof v==="number"&&Number.isFinite(v)&&v>=0&&v<=10;
 function normalize(date,item){
  const x=empty(date),a=item&&typeof item==="object"?item:{};
@@ -49,6 +50,7 @@ function normalize(date,item){
  x.offDutyMinutes=Number.isFinite(Number(a.offDutyMinutes))?Math.max(0,Math.min(1440,Math.round(Number(a.offDutyMinutes)))):0;
  for(const key of ["offDutyType","basicNeedsDelayed","contexts"])x[key]=Array.isArray(a[key])?[...new Set(a[key].filter(v=>typeof v==="string"))].slice(0,40):[];
  x.memo=String(a.memo||"").slice(0,600);
+ x.husbandLetter=String(a.husbandLetter||"").slice(0,LETTER_MAX);
  x.revision=String(a.revision||"");
  return x;
 }
@@ -72,6 +74,7 @@ let records={};let pending={};let viewing=iso(new Date()),selected=viewing;
 let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloudError="",cloudSaving=false;
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
 let conflict=null,screen=null,unlocked=false,unlockBusy=false;
+let letterEditing=false,letterEditDate="";
 let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0;
 const loadedMentalMonths=new Set(),loadingMentalMonths=new Set(); // per-page throttling; not cryptographic brute-force protection.
 const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
@@ -129,6 +132,7 @@ function lock(){
   cloudCode="";cloudReady=false;cloudBusy=false;cloudSaving=false;cloudError="";
   clearTimeout(syncingTimer);clearTimeout(retryTimer);
   records={};pending={};conflict=null;
+  letterEditing=false;letterEditDate="";
   if(screen)screen.replaceChildren();
 }
 function lockMarkup(){
@@ -583,6 +587,43 @@ function tags(arr,values,kind){
  return '<div class="mental-tags">'+arr.map(([id,label])=>
   '<button type="button" class="mental-tag'+(values.includes(id)?' chosen':'')+'" data-mental-tag="'+kind+'" data-tag-id="'+E(id)+'" aria-pressed="'+values.includes(id)+'">'+E(label)+'</button>').join('')+'</div>';
 }
+function husbandLetterHTML(){
+ const date=selected,letter=entry(date).husbandLetter||"";
+ const editing=letterEditing&&letterEditDate===date;
+ const label=Number(date.slice(5,7))+"월 "+Number(date.slice(8,10))+"일";
+ return '<section class="mental-letter-card" id="mentalHusbandLetter" aria-label="남편이 남긴 오늘의 편지">'+
+  '<div class="mental-letter-top"><span class="mental-letter-icon" aria-hidden="true">✉</span>'+
+  '<div class="mental-letter-head"><span>FROM HUSBAND · TO YOU</span><h3>남편이 남긴 오늘의 한마디</h3>'+
+  '<small>'+label+' · 우리의 작은 편지</small></div>'+
+  '<button type="button" class="mental-letter-action" id="mentalLetterToggle">'+(editing?"편지 접기":letter?"수정":"편지 쓰기")+'</button></div>'+
+  (editing?
+   '<label class="mental-letter-edit-label" for="mentalLetterInput">전하고 싶은 마음을 편지로 남겨 주세요.</label>'+
+   '<textarea id="mentalLetterInput" maxlength="'+LETTER_MAX+'" rows="5" placeholder="오늘 당신에게 꼭 전하고 싶은 말...">'+E(letter)+'</textarea>'+
+   '<div class="mental-letter-bottom"><span>글을 쓰면 자동으로 저장·동기화됩니다.</span><span id="mentalLetterCount">'+letter.length+'/'+LETTER_MAX+'</span></div>':
+   letter?'<div class="mental-letter-paper"><p>'+E(letter)+'</p><div class="mental-letter-sign">언제나 당신 편인 남편이 ♡</div></div>':
+   '<p class="mental-letter-empty">아직 남겨진 편지가 없어요.<span>짧은 한마디라도 오늘의 마음을 남겨 보세요.</span></p>')+
+  '<div class="mental-letter-status" id="mentalLetterSaveState" aria-live="polite">'+
+  (pending[date]?"변경사항 기기에 보관 중 · 서버 자동 저장 대기":cloudReady?"서버 자동 동기화 연결됨":"기기에 저장 · 서버 연결 대기")+'</div>'+
+  '</section>';
+}
+function bindHusbandLetter(){
+ const card=screen?.querySelector("#mentalHusbandLetter");if(!card)return;
+ card.querySelector("#mentalLetterToggle")?.addEventListener("click",()=>{
+  letterEditing=!(letterEditing&&letterEditDate===selected);
+  letterEditDate=letterEditing?selected:"";
+  card.outerHTML=husbandLetterHTML();
+  bindHusbandLetter();
+  if(letterEditing)screen.querySelector("#mentalLetterInput")?.focus({preventScroll:true});
+ });
+ const input=card.querySelector("#mentalLetterInput");
+ if(input)input.addEventListener("input",()=>{
+  const date=selected,text=input.value.slice(0,LETTER_MAX);
+  if(entry(date).husbandLetter!==text)changes(date,item=>{item.husbandLetter=text;});
+  const count=card.querySelector("#mentalLetterCount");if(count)count.textContent=text.length+"/"+LETTER_MAX;
+  const state=card.querySelector("#mentalLetterSaveState");
+  if(state)state.textContent="기기에 저장됨 · 서버 자동 저장 대기";
+ });
+}
 function cloudPanel(){
  return '<details class="mental-cloud-details" '+(cloudOpen?'open':'')+' id="mentalCloudDetails"><summary>'+
   '<span>기록 저장과 개인정보</span><small>'+(cloudReady?'서버 자동 동기화':'서버 연결 확인 중')+'</small></summary>'+
@@ -598,6 +639,7 @@ function view(){
   '<span class="count">Wife Mental Recovery · 개인 기록</span></div></div>'+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
+  husbandLetterHTML()+
   mainSummary()+
   '<div class="mental-actions-row"><a href="#mentalToday" class="mental-primary-action" id="mentalJumpToday">오늘 기록</a>'+
   '<span>'+E(warning)+'</span></div>'+
@@ -694,19 +736,23 @@ function refreshScores(){
 }
 function setSelected(d){
  if(!/^20\d{2}-\d{2}-\d{2}$/.test(d))return;
+ letterEditing=false;letterEditDate="";
  selected=d;month=monthKey(d);render();
  const header=document.getElementById("mentalToday");
  if(header)header.scrollIntoView({block:"start",behavior:"smooth"});
 }
 function bind(){
+ bindHusbandLetter();
  screen.querySelectorAll("[data-month-step]").forEach(b=>b.addEventListener("click",()=>{
   const step=Number(b.dataset.monthStep);
+  letterEditing=false;letterEditDate="";
   if(step===0){selected=iso(new Date());month=monthKey(selected)}
   else{const [y,m]=month.split("-").map(Number),t=new Date(y,m-1+step,1);month=iso(t).slice(0,7);selected=month+"-01";}
   render();
  }));
  screen.querySelectorAll("[data-week-step]").forEach(b=>b.addEventListener("click",()=>{
   const step=Number(b.dataset.weekStep);
+  letterEditing=false;letterEditDate="";
   if(step===0)selected=iso(new Date());
   else selected=shift(selected,7*step);
   month=monthKey(selected);render();
@@ -753,6 +799,7 @@ function bind(){
  if(cloud)cloud.addEventListener("toggle",()=>{cloudOpen=cloud.open});
  screen.querySelector("#mentalJumpToday")?.addEventListener("click",event=>{
   event.preventDefault();
+  letterEditing=false;letterEditDate="";
   selected=iso(new Date());month=monthKey(selected);render();
   document.getElementById("mentalToday")?.scrollIntoView({behavior:"smooth",block:"start"});
  });
@@ -766,6 +813,8 @@ function updateIndicators(){
   const completed=FIELDS.filter(f=>validScore(entry(selected).scores[f.id])).length;
   saveCount.textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"변경 보관 중":"기록 저장됨");
  }
+ const letterState=screen.querySelector("#mentalLetterSaveState");
+ if(letterState)letterState.textContent=pending[selected]?"변경사항 기기에 보관 중 · 서버 자동 저장 대기":cloudReady?"서버 자동 동기화 연결됨":"기기에 저장 · 서버 연결 대기";
 }
 window.YuhaMental={render,lock,activate,metric:scoresOf,trend,level,fields:FIELDS,
  /* testing helpers have no write privileges beyond local test data */ _preview:{normalize,scoresOf,summary,warningPatterns,weekDays}};
