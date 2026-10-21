@@ -226,7 +226,7 @@ function hydrate(){
  for(const [date,item] of Object.entries(all))if(/^20\d{2}-\d{2}-\d{2}$/.test(date))records[date]=normalize(date,item);
  const p=storageRead(PENDING,{});
  for(const [date,item] of Object.entries(p))if(records[date]&&item&&typeof item==="object"){
-   pending[date]={expectedRevision:String(item.expectedRevision||""),entry:normalize(date,item.entry||records[date])};
+   pending[date]={expectedRevision:String(item.expectedRevision||""),entry:normalize(date,item.entry||records[date]),letterOnly:item.letterOnly===true};
  }
 }
 function entry(date){return records[date]||empty(date)}
@@ -234,10 +234,12 @@ function list(start,end){
  return Object.entries(records).filter(([date])=>date>=start&&date<=end)
    .map(([date,v])=>({date,row:v,metric:scoresOf(v)})).sort((a,b)=>a.date.localeCompare(b.date));
 }
-function changes(date,fn){
- const obj=normalize(date,entry(date));fn(obj);
+function changes(date,fn,letterOnly=false){
+ const existing=pending[date],obj=normalize(date,entry(date));fn(obj);
  records[date]=obj;
- pending[date]={entry:normalize(date,obj),expectedRevision:obj.revision||""};
+ // Letter-only writes never overwrite a spouse's concurrent recovery scores.
+ const safeLetterOnly=letterOnly&&(!existing||existing.letterOnly===true);
+ pending[date]={entry:normalize(date,obj),expectedRevision:obj.revision||"",letterOnly:safeLetterOnly};
  if(!saveLocal())setState("기기 저장 실패 · 저장 공간을 확인해 주세요",true);
  else setState(cloudReady?"기기 저장 완료 · 비공개 동기화 대기":"이 기기에 저장됨");
  scheduleCloud();
@@ -334,7 +336,7 @@ function syncNext(){
  const p=pending[date],version=JSON.stringify(p.entry);
  cloudSaving=true;setState("비공개 서버에 저장 중");progress("busy","회복 기록 저장 중");
  const epoch=cloudEpoch;
- cloudCall("syncMentalEntry",[{passphrase:cloudCode,entry:p.entry,expectedRevision:p.expectedRevision}],result=>{
+ cloudCall("syncMentalEntry",[{passphrase:cloudCode,entry:p.entry,expectedRevision:p.expectedRevision,letterOnly:p.letterOnly===true}],result=>{
   if(epoch!==cloudEpoch||!unlocked)return;
   cloudSaving=false;
   if(result?.conflict){
@@ -347,14 +349,18 @@ function syncNext(){
     retryTimer=setTimeout(syncNext,5000);return;
   }
   if(pending[date]&&JSON.stringify(pending[date].entry)===version){
-    records[date].revision=String(result.revision||"");
+    // Backend returns an up-to-date row for letter-only writes, preserving any
+    // recovery score changes that occurred on the wife's device.
+    if(p.letterOnly&&result.serverEntry)records[date]=normalize(date,{...result.serverEntry,revision:result.revision||""});
+    else records[date].revision=String(result.revision||"");
     delete pending[date];
   }else if(pending[date]){
     pending[date].expectedRevision=String(result.revision||"");
     pending[date].entry.revision=String(result.revision||"");
   }
   saveLocal();progress("done","회복 기록 저장 완료");setState(stateText());
-  scheduleCloud(250);if(screen)updateIndicators();
+  scheduleCloud(250);
+  if(screen){if(p.letterOnly&&selected===date&&!letterEditing)refreshScores();updateIndicators();}
  },err=>{if(epoch!==cloudEpoch||!unlocked)return;
    cloudSaving=false;progress("error","회복 기록 저장 실패");
    setState("서버 오류 · 기기 기록 보관: "+String(err?.message||err),true);
@@ -618,7 +624,7 @@ function bindHusbandLetter(){
  const input=card.querySelector("#mentalLetterInput");
  if(input)input.addEventListener("input",()=>{
   const date=selected,text=input.value.slice(0,LETTER_MAX);
-  if(entry(date).husbandLetter!==text)changes(date,item=>{item.husbandLetter=text;});
+  if(entry(date).husbandLetter!==text)changes(date,item=>{item.husbandLetter=text;},true);
   const count=card.querySelector("#mentalLetterCount");if(count)count.textContent=text.length+"/"+LETTER_MAX;
   const state=card.querySelector("#mentalLetterSaveState");
   if(state)state.textContent="기기에 저장됨 · 서버 자동 저장 대기";
