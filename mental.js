@@ -67,13 +67,14 @@ let records={};let pending={};let viewing=iso(new Date()),selected=viewing;
 let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloudError="",cloudSaving=false;
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
 let conflict=null,screen=null,unlocked=false,unlockBusy=false;
-let pinFailures=0,pinBlockedUntil=0; // per-page throttling; not cryptographic brute-force protection.
+let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0; // per-page throttling; not cryptographic brute-force protection.
 const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
 async function sha256(value){
   const bytes=new TextEncoder().encode(value),hash=await crypto.subtle.digest("SHA-256",bytes);
   return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,"0")).join("");
 }
 function lock(){
+  cloudEpoch++;
   if(unlocked&&Object.keys(pending).length)saveLocal();
   unlocked=false;
   cloudCode="";cloudReady=false;cloudBusy=false;cloudSaving=false;cloudError="";
@@ -149,6 +150,7 @@ function changes(date,fn){
  if(!saveLocal())setState("기기 저장 실패 · 저장 공간을 확인해 주세요",true);
  else setState(cloudReady?"기기 저장 완료 · 비공개 동기화 대기":"이 기기에 저장됨");
  scheduleCloud();
+ if(screen&&unlocked)refreshOverview();
 }
 function status(text,error){
  const el=document.getElementById("mentalStatus");if(!el)return;
@@ -165,6 +167,7 @@ function cloudCall(method,args,onSuccess,onFail){
  try{window.google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFail)[method](...args)}catch(e){onFail(e)}
 }
 function activate(pass){
+ const epoch=++cloudEpoch;
  cloudCode=pass;
  cloudBusy=true;cloudReady=false;cloudError="";
  setState("비공개 서버 연결 중");
@@ -174,6 +177,7 @@ function activate(pass){
  [...new Set(keys)].forEach(k=>{
   const [y,m]=k.split("-").map(Number);
   cloudCall("getMentalMonth",[cloudCode,y,m],result=>{
+   if(epoch!==cloudEpoch || !unlocked)return;
    if(!result?.ok){failed(new Error("조회 실패"));return;}
    for(const [date,value] of Object.entries(result.records||{})){
      if(!pending[date])records[date]=normalize(date,value);
@@ -187,7 +191,7 @@ function activate(pass){
    }
   },failed);
  });
- function failed(err){if(anyFailed)return;anyFailed=true;cloudBusy=false;cloudReady=false;
+ function failed(err){if(anyFailed||epoch!==cloudEpoch||!unlocked)return;anyFailed=true;cloudBusy=false;cloudReady=false;
    progress("error","비공개 기록 연결 실패");setState("연결 실패: "+String(err?.message||err),true);render();}
 }
 function scheduleCloud(delay=1800){
@@ -202,7 +206,9 @@ function syncNext(){
  if(conflict?.date===date){setState("다른 기기 수정 충돌 · 선택 필요",true);return;}
  const p=pending[date],version=JSON.stringify(p.entry);
  cloudSaving=true;setState("비공개 서버에 저장 중");progress("busy","회복 기록 저장 중");
+ const epoch=cloudEpoch;
  cloudCall("syncMentalEntry",[{passphrase:cloudCode,entry:p.entry,expectedRevision:p.expectedRevision}],result=>{
+  if(epoch!==cloudEpoch||!unlocked)return;
   cloudSaving=false;
   if(result?.conflict){
     conflict={date,local:normalize(date,p.entry),server:normalize(date,result.serverEntry||{}),
@@ -222,7 +228,8 @@ function syncNext(){
   }
   saveLocal();progress("done","회복 기록 저장 완료");setState(stateText());
   scheduleCloud(250);if(screen)updateIndicators();
- },err=>{cloudSaving=false;progress("error","회복 기록 저장 실패");
+ },err=>{if(epoch!==cloudEpoch||!unlocked)return;
+   cloudSaving=false;progress("error","회복 기록 저장 실패");
    setState("서버 오류 · 기기 기록 보관: "+String(err?.message||err),true);
    retryTimer=setTimeout(syncNext,10000);
  });
@@ -500,6 +507,46 @@ function render(){
  screen.innerHTML=view();
  bind();
 }
+function refreshOverview(){
+ if(!screen||!unlocked)return;
+ // Update computed elements without recreating the seven input rows.
+ const temp=document.createElement("div");temp.innerHTML=mainSummary();
+ for(const name of ["mental-top-cards","mental-core-cards"]){
+  const replacement=temp.querySelector("."+name),existing=screen.querySelector("."+name);
+  if(existing&&replacement)existing.replaceWith(replacement);
+ }
+ const score=scoresOf(entry(selected));
+ const monthDay=screen.querySelector('.mental-month-grid [data-mental-date="'+selected+'"]');
+ if(monthDay){
+  const val=score?.mental??null;
+  monthDay.className="sleep-heat-square mental-day mental-"+level(val)+
+    (selected===iso(new Date())?" today":"")+" selected";
+  monthDay.querySelector(".sleep-heat-score").textContent=val===null?"—":Math.round(val*10);
+  monthDay.setAttribute("aria-label",selected+" "+(val===null?"미기록":fixed(val)+"점"));
+ }
+ const weekday=weekDays(selected);
+ if(weekday.includes(selected)){
+  const metric=scoresOf(entry(selected));
+  const cells=[...screen.querySelectorAll('.mental-matrix-cell[data-mental-date="'+selected+'"]')];
+  cells.forEach((cell,i)=>{
+    const f=FIELDS[i],v=i===7?metric?.mental:
+      validScore(entry(selected).scores[f?.id])?entry(selected).scores[f.id]:null;
+    cell.className="mental-matrix-cell mental-"+level(v)+" is-selected";
+    cell.textContent=v===null?"·":fixed(v);
+  });
+ }
+ const replaceBody=(selector,html)=>{
+  const el=screen.querySelector(selector);
+  if(el)el.innerHTML=html;
+ };
+ replaceBody(".mental-insight-card",'<h3>회복 방향과 주간 요약</h3>'+insightHTML());
+ replaceBody(".mental-chart-card",'<h3>월간 변화</h3>'+
+   sparkline("멘탈 점수",r=>scoresOf(r)?.mental??null,"#527cae")+
+   sparkline("회복 핵심 · 통제감/휴식/나다움",r=>scoresOf(r)?.core??null,"#358b78")+
+   '<div class="mental-two-line">'+sparkline("신체 에너지",r=>validScore(r?.scores?.energy)?r.scores.energy:null,"#bc8260")+
+   sparkline("전체 멘탈",r=>scoresOf(r)?.mental??null,"#527cae")+'</div>'+
+   '<p class="mental-muted">미기록일을 0으로 연결하지 않습니다.</p>');
+}
 function refreshScores(){
  const row=entry(selected);
  FIELDS.forEach(f=>{
@@ -515,11 +562,7 @@ function refreshScores(){
  const metric=scoresOf(row);
  screen.querySelector(".mental-editor-score").textContent=metric?fixed(metric.mental):completed+"/7";
  screen.querySelector(".mental-local-note>span:last-child").textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"변경 보관 중":"기록 저장됨");
- screen.querySelectorAll(".mental-top-cards,.mental-core-cards").forEach(el=>{
-  const fresh=new DOMParser().parseFromString(mainSummary(),"text/html");
-  const replacement=fresh.querySelector(el.classList.contains("mental-top-cards")?".mental-top-cards":".mental-core-cards");
-  if(replacement)el.replaceWith(replacement);
- });
+ refreshOverview();
  status(stateText(),!storageOkay);
 }
 function setSelected(d){
@@ -586,7 +629,7 @@ function bind(){
   activate(code);screen.querySelector("#mentalCloudPass").value="";
  });
  screen.querySelector("#mentalCloudDisconnect")?.addEventListener("click",()=>{
-  cloudCode="";cloudReady=false;clearTimeout(syncingTimer);clearTimeout(retryTimer);
+  cloudEpoch++;cloudCode="";cloudReady=false;clearTimeout(syncingTimer);clearTimeout(retryTimer);
   setState("이 기기에만 저장 중");render();
  });
  screen.querySelector("#mentalJumpToday")?.addEventListener("click",event=>{
