@@ -356,6 +356,7 @@ function sparkline(title,source,color){
 function summary(end=iso(new Date())){
  const t=trend(end),assessment=recoveryAssessment(end);
  const today=scoresOf(records[end]);const rows=t.cur;
+ const recent14=list(shift(end,-13),end).filter(x=>x.metric);
  const metrics=FIELDS.map(f=>({...f,avg:avgKey(rows,f.id)}));
  const best=metrics.filter(v=>v.avg!==null).sort((a,b)=>b.avg-a.avg)[0];
  const lowest=metrics.filter(v=>v.avg!==null).sort((a,b)=>a.avg-b.avg)[0];
@@ -373,7 +374,10 @@ function summary(end=iso(new Date())){
   else if(row.offDutyMinutes===0)controls.push(target.mental);
  }
  if(exposed.length>=3&&controls.length>=3)startEffect=mean(exposed)-mean(controls);
- return {t,assessment,today,metrics,best,lowest,offDuty,delayed,bestDay,startEffect,exposed:exposed.length,controls:controls.length};
+ return {t,assessment,today,metrics,best,lowest,offDuty,delayed,bestDay,
+  average14:recent14.length>=7?mean(recent14.map(x=>x.metric.mental)):null,
+  needDelayAvg:rows.length?mean(rows.map(x=>x.row.basicNeedsDelayed.length)):null,
+  startEffect,exposed:exposed.length,controls:controls.length};
 }
 function scoreCard(name,val,detail){
  return '<div class="mental-score-card"><span>'+E(name)+'</span><strong>'+ (val===null?'—':fixed(val))+
@@ -383,6 +387,7 @@ function mainSummary(){
  const s=summary(),day=s.today;
  return '<div class="mental-top-cards">'+
   scoreCard("오늘 상태",day?.mental??null,day?levelName(day.mental):"미기록")+
+  scoreCard("가중 회복",day?.recovery??null,"통제감·휴식·나다움 중심")+
   scoreCard("7일 평균",s.t.currAvg,s.t.cur.length+'일 기록')+
   scoreCard("지난주 대비",s.t.delta,s.t.delta===null?"각 주 4일 이상 필요":(s.t.delta>0?"상승":s.t.delta<0?"하락":"동일"))+
   '</div>'+
@@ -397,7 +402,9 @@ function insightHTML(){
  const a=s.assessment;
  const week=s.t.cur.length>=4?'<div class="mental-week-card">'+
   '<div class="mental-week-head"><strong>이번 주 돌아보기</strong><span>'+s.t.cur.length+'일 기록</span></div>'+
-  '<div class="mental-week-grid"><span>평균 상태</span><strong>'+fixed(s.t.currAvg)+'/10</strong>'+
+  '<div class="mental-week-grid"><span>7일 평균</span><strong>'+fixed(s.t.currAvg)+'/10</strong>'+
+  '<span>14일 평균</span><strong>'+fixed(s.average14)+'/10</strong>'+
+  '<span>기본욕구 미룸 평균</span><strong>'+fixed(s.needDelayAvg)+'개/기록일</strong>'+
   '<span>개인시간</span><strong>'+Math.floor(s.offDuty/60)+'시간 '+s.offDuty%60+'분</strong>'+
   '<span>기본욕구를 미룬 날</span><strong>'+s.delayed+'일</strong>'+
   '<span>가장 여유가 있었던 날</span><strong>'+(s.bestDay?.date.slice(5)||'—')+'</strong>'+
