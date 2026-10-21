@@ -249,7 +249,7 @@ function status(text,error){
 }
 function setState(text,error=false){cloudError=error?text:"";status(text,error)}
 function stateText(){return !storageOkay?"기기 저장 실패 · 저장 공간 확인":cloudBusy?"비공개 서버 연결 중":cloudSaving?"비공개 동기화 중":
- cloudError||(!cloudCode?"이 기기에만 저장 중":cloudReady?"비공개 동기화 연결됨":"비공개 서버 미연결");}
+ cloudError||(!cloudCode?"서버 동기화 미연결 · 기기에만 저장 중":cloudReady?"비공개 동기화 연결됨":"비공개 서버 미연결");}
 function progress(state,msg){
  if(typeof window.showAppProgress==="function")window.showAppProgress("mental-save",msg,state);
 }
@@ -591,7 +591,7 @@ function cloudPanel(){
  return '<details class="mental-cloud-details" '+(cloudOpen?'open':'')+' id="mentalCloudDetails"><summary>'+
   '<span>기록 저장과 개인정보</span><small>'+(!cloudReady?'기기에 저장됨':'비공개 서버 연결됨')+'</small></summary>'+
   '<div class="mental-cloud-inner"><p>정서·가족관계 기록은 민감한 개인 정보입니다. 이 기기 저장소는 암호화되어 있지 않으며 이 브라우저를 사용할 수 있는 사람에게 보일 수 있습니다. 공유할지 여부는 기록하는 본인이 결정해 주세요.</p>'+
-  '<p>여러 기기에서 동기화하려면 Apps Script에 별도 비공개 접근 암호 설정과 최신 Code.gs 배포가 필요합니다. 암호는 GitHub에 저장하지 않습니다. 연결에 성공하면 현재 브라우저 탭에서는 PIN을 다시 풀 때 자동 재연결됩니다.</p>'+
+  '<p>Apps Script에 최신 Code.gs를 배포했다면 Script Properties의 별도 비공개 접근 암호(12자 이상)를 입력해 연결하세요. 이 암호는 화면 잠금용 4자리 PIN과 다릅니다. 인증에 성공하면 현재 브라우저 탭에서는 PIN을 다시 풀 때 자동 재연결됩니다.</p>'+
   (cloudReady?'<button type="button" id="mentalCloudDisconnect">비공개 연결 끊기</button>':
   '<div class="mental-cloud-connect"><input type="password" id="mentalCloudPass" autocomplete="off" minlength="12" placeholder="비공개 접근 암호 (12자 이상)" aria-label="비공개 기록 접근 암호"/>'+
   '<button type="button" id="mentalCloudConnect">연결</button></div>')+
@@ -606,6 +606,7 @@ function view(){
   '<span class="count">Wife Mental Recovery · 개인 기록</span></div></div>'+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
+  (!cloudReady&&!cloudBusy?'<div class="mental-actions-row"><button type="button" class="mental-primary-action" id="mentalConnectJump">기록 동기화 연결</button><span>서버에 연결하기 전까지는 이 기기에만 저장됩니다.</span></div>':'')+
   mainSummary()+
   '<div class="mental-actions-row"><a href="#mentalToday" class="mental-primary-action" id="mentalJumpToday">오늘 기록</a>'+
   '<span>'+E(warning)+'</span></div>'+
@@ -759,6 +760,12 @@ function bind(){
  if(contexts)contexts.addEventListener("toggle",()=>{contextsOpen=contexts.open});
  const cloud=screen.querySelector("#mentalCloudDetails");
  if(cloud)cloud.addEventListener("toggle",()=>{cloudOpen=cloud.open});
+ screen.querySelector("#mentalConnectJump")?.addEventListener("click",()=>{
+  if(!cloud)return;
+  cloud.open=true;
+  cloudOpen=true;
+  cloud.scrollIntoView({behavior:"smooth",block:"start"});
+ });
  screen.querySelector("#mentalCloudConnect")?.addEventListener("click",()=>{
   const code=screen.querySelector("#mentalCloudPass")?.value||"";
   if(code.length<12){setState("비공개 접근 암호는 12자 이상이어야 합니다.",true);return;}
