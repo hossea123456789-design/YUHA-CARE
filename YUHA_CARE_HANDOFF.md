@@ -601,3 +601,14 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 브리지 JS 및 `index.html` inline script 문법 검사 PASS.
 - V8 가상 브라우저에서 최초 iframe 생성, 초기 요청 대기, 11초 타임아웃, 2번째 프레임 교체, 두 번째 무응답에서 대기 요청 실패 콜백, 3번째 ready 복구, 정상 RPC 응답 및 중복 실패 없음 **8항목 PASS**.
 - **Google이 해당 Chrome 계정/쿠키를 차단하는 경우 JavaScript 재시도만으로 해결되지 않음.** 사용자 기기 Chrome에서 오류 화면의 'Google 서버 주소 직접 열어보기'를 통해 로그인/접근 거부 여부 확인 후, 기존 Apps Script 웹앱 배포 접근 범위 또는 Chrome 계정·사이트 설정을 확인해야 함. 무조건 공개 배포로 권장하거나 인증·데이터 접근 제한을 제거하지 말 것.
+
+## 25. 2026-10-21 — 아내 회복에 남편의 오늘의 편지 추가
+
+### 요청·사용 흐름
+- 남편이 아내 회복에 날짜별 짧은 편지/한마디를 작성하고, 아내는 본인 기기에서 같은 날짜를 열어 읽는 형태. 기존 아내 회복 PIN 입력(매 진입 4자리), 별도 서버 로그인 없음.
+- UI: `mental.js`에서 `husbandLetterHTML()`를 요약 지표 앞에 배치. '편지 쓰기/수정/편지 접기', 따뜻한 종이 카드, 읽기 모드 줄바꿈·서명, 편집 모드 1,000자 제한과 입력 즉시 로컬 자동 저장. `mental.css`에 `.mental-letter-*` 스킨 및 355px 이하 대응. 현재 선택 날짜 기준 카드 갱신; 달력·주간·월간 선택과 연동. 7개 지표 통계에는 포함하지 않음.
+- 로컬 모델: 기존 `yuha_mental_recovery_local_v1`에 `husbandLetter` 속성 추가(빈 문자열 기본). `yuha_mental_recovery_pending_v1`에 `letterOnly` metadata 추가. 이전 자료는 `normalize()`에서 자동 호환. 글자마다 `changes(date,fn,true)` 로컬 기록, 서버는 원래 debounce `scheduleCloud()`.
+- 서버: 동일 `MENTAL_LOG` A:C, 같은 JSON row의 `husbandLetter` 저장. `syncMentalEntry({letterOnly:true})` 요청 시 락 안에서 서버에 있는 최신 회복 기록을 읽고 **husbandLetter 필드만 merge**, 최신 점수와 아내 메모는 그대로 보존. 일반 요청은 기존 expectedRevision 충돌 감지 유지. 성공 응답 `serverEntry`로 프론트가 최신 점수를 재수신.
+- 새 백엔드 지원 판별: `getMentalMonth`의 `schemaVersion:2`. 기존 `schemaVersion:1`은 신설 필드를 서버에서 잘라버려 유실 위험이 있으므로 프론트는 신설 편지의 업로드를 막고 로컬/pending으로 보존하며 '최신 Apps Script 배포 필요'를 명시. 프론트 버전 `mental.js?v=20261021-husband-letter1`, `mental.css?v=20261021-husband-letter1`.
+- 서버 배포 별도 수행: GitHub Actions는 Pages만 자동. 사용자에게 <https://github.com/hossea123456789-design/YUHA-CARE/blob/main/apps-script/Code.gs> 최신 코드로 **실제 Apps Script 교체 후 기존 웹앱 새 버전 재배포**가 필수. 기존 `/exec` 주소 및 Google Sheets 데이터 유지.
+- 회귀: 동일 날짜 다른 기기 아내 점수 수정 + 남편 편지 생성/수정/삭제(빈 내용)에서 기존 회복 기록 보존, 오래된 서버 스키마에서 전송 보류, 재진입 시 PIN/서버 조회 후 새 편지 표시, XSS 엔티티 및 1,000자 제한 점검. 실 서비스/사용자 기록은 테스트로 수정하지 않음.
