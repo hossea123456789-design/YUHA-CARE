@@ -293,7 +293,7 @@ function activate(pass){
 // Load navigated months without overwriting unsynced records.
 function fetchMentalMonthIfNeeded(k){
  if(!cloudReady||!cloudCode||!unlocked||loadedMentalMonths.has(k)||loadingMentalMonths.has(k))return;
- if(!/^20\\d{2}-(0[1-9]|1[0-2])$/.test(k))return;
+ if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(k))return;
  const epoch=cloudEpoch;
  loadingMentalMonths.add(k);
  const [year,monthNumber]=k.split("-").map(Number);
