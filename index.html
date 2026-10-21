@@ -459,7 +459,7 @@
     })();
   </script>
   <script src="config.js?v=20261020-shared1"></script>
-  <script src="bridge-client.js?v=20261021-mental-sync2"></script>
+  <script src="bridge-client.js?v=20261021-bridge-recovery1"></script>
   <script src="mental.js?v=20261021-pin-login-sync1"></script>
   <script>
     const CLIENT_CACHE_KEY = "yuha_shared_checklist_client_cache_v1";
@@ -486,6 +486,8 @@
     let checklistRetryCount = 0;
     let checklistCacheAvailable = true;
     let checklistLoading = false;
+    let checklistFirstLoadRetryTimer = null;
+    let checklistFirstLoadRetryAt = 0;
     let dragWatchdogTimer = null;
     const checklistActivePointers = new Set();
     let checklistLastInteractionAt = 0;
@@ -603,8 +605,11 @@
     }
 
     window.addEventListener("yuha-db-status", event => {
-      setConnectionState(event.detail?.state || "connecting", event.detail?.message || "");
-      // 연결 상태 자체는 우측 상단으로만 알립니다. 진행바는 실제 데이터 요청에만 표시합니다.
+      const state=event.detail?.state||"connecting";
+      setConnectionState(state,event.detail?.message||"");
+      // Some Chrome profiles block cross-site Google iframe. Retry after reconnection.
+      if(state==="connected"&&!checklistServerChecked&&!checklistLoading&&navigator.onLine)
+        scheduleChecklistFirstLoadRetry(350);
     });
     window.addEventListener("offline", () => {
       setConnectionState("offline");
@@ -663,7 +668,59 @@
 
     // 마지막 화면은 로컬 캐시에서 즉시 띄우고, 서버 확인은 비동기로 수행합니다.
     // 이전 세션에서 서버 저장에 실패한 변경사항(dirty)은 서버 응답으로 덮어쓰지 않습니다.
+    function showFirstLoadConnectionError(reason){
+      if(data)return;
+      const main=document.getElementById("main");
+      if(!main)return;
+      main.replaceChildren();
+      const card=document.createElement("div");
+      card.className="loading";
+      card.style.cssText="max-width:430px;margin:16px auto;padding:19px 16px;line-height:1.75;text-align:center";
+      const head=document.createElement("strong");
+      head.textContent="Chrome에서 Google 연결을 확인해 주세요";
+      head.style.cssText="display:block;color:#a43f38;font-size:15px;margin-bottom:8px";
+      const body=document.createElement("p");
+      body.textContent="앱은 서버 재접속을 시도하고 있습니다. 카카오톡 안에서는 열리지만 크롬에서는 안 된다면 크롬의 Google 로그인 또는 서드파티 쿠키 차단이 원인일 수 있습니다. 기존 기록은 삭제하지 않습니다.";
+      body.style.cssText="margin:6px 0 12px;font-size:12px";
+      const detail=document.createElement("p");
+      detail.textContent=String(reason||"서버 응답이 없습니다.").slice(0,160);
+      detail.style.cssText="font-size:11px;opacity:.72;margin:5px 0 12px;word-break:break-word";
+      const retry=document.createElement("button");
+      retry.type="button";
+      retry.textContent="다시 연결";
+      retry.style.cssText="border:0;border-radius:9px;background:#257658;color:white;padding:11px 20px;font-weight:750;margin:5px";
+      retry.addEventListener("click",()=>{
+        retry.disabled=true;
+        window.YuhaDBBridge?.reconnect();
+        loadFromServer();
+      });
+      const link=document.createElement("a");
+      link.textContent="Google 서버 주소 직접 열어보기";
+      link.href=window.YUHA_GAS_WEBAPP_URL||"#";
+      link.target="_blank";
+      link.rel="noopener noreferrer";
+      link.style.cssText="display:block;margin:12px 0 0;font-size:12px;color:#2374a5;text-decoration:underline";
+      const hint=document.createElement("p");
+      hint.textContent="크롬에서 서버 주소를 열었을 때 로그인·접근 거부가 뜨면 Google 계정 및 Apps Script 웹앱 배포의 액세스 권한을 확인하세요. 주소가 정상적으로 열린다면 크롬의 서드파티 쿠키·사이트 설정을 확인하세요.";
+      hint.style.cssText="font-size:11px;margin:9px 0 0;color:#7c8783";
+      card.append(head,body,detail,retry,link,hint);
+      main.appendChild(card);
+    }
+    function scheduleChecklistFirstLoadRetry(delay=2200){
+      if(checklistServerChecked||checklistLoading||checklistFirstLoadRetryTimer!==null||!navigator.onLine)return;
+      if(Date.now()-checklistFirstLoadRetryAt<1200)return;
+      checklistFirstLoadRetryTimer=setTimeout(()=>{
+        checklistFirstLoadRetryTimer=null;
+        if(!checklistServerChecked&&!checklistLoading&&navigator.onLine){
+          checklistFirstLoadRetryAt=Date.now();
+          loadFromServer();
+        }
+      },delay);
+    }
     function loadFromServer() {
+      if(checklistFirstLoadRetryTimer!==null){
+        clearTimeout(checklistFirstLoadRetryTimer);checklistFirstLoadRetryTimer=null;
+      }
       const hadCache = !!data || loadClientCache();
       if(checklistLoading)return;
       checklistLoading=true;
@@ -683,6 +740,7 @@
             if(checklistDirty)scheduleChecklistRetry();
             showAppProgress("checklist-read","목록 조회 실패","error");
             setSaveStatus(hadCache ? "기기 기록 유지 · 서버 조회 실패" : "서버 조회 실패", "error");
+            if(!hadCache)showFirstLoadConnectionError("서버가 정상적인 체크리스트 응답을 반환하지 않았습니다.");
             return;
           }
           showAppProgress("checklist-read","목록 업데이트 완료","done");
@@ -726,6 +784,7 @@
           showAppProgress("checklist-read","목록 조회 실패","error");
           setSaveStatus(hadCache ? "기기 기록 유지 · 서버 연결 실패" :
             "서버 연결 실패: " + (error.message || error), "error");
+          if(!hadCache)showFirstLoadConnectionError(error?.message||String(error));
         })
         .getAppData();
     }
