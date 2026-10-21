@@ -619,7 +619,7 @@ function husbandLetterHTML(){
    letter?'<div class="mental-letter-paper"><p>'+E(letter)+'</p><div class="mental-letter-sign">언제나 당신 편인 남편이 ♡</div></div>':
    '<p class="mental-letter-empty">아직 남겨진 편지가 없어요.<span>짧은 한마디라도 오늘의 마음을 남겨 보세요.</span></p>')+
   '<div class="mental-letter-status" id="mentalLetterSaveState" aria-live="polite">'+
-  (pending[date]?"변경사항 기기에 보관 중 · 서버 자동 저장 대기":cloudReady?"서버 자동 동기화 연결됨":"기기에 저장 · 서버 연결 대기")+'</div>'+
+  (pending[date]?(letterBackendSupported?"변경사항 기기에 보관 중 · 서버 자동 저장 대기":"편지 전송 대기 · Apps Script 최신 배포 필요"):cloudReady?"서버 자동 동기화 연결됨":"기기에 저장 · 서버 연결 대기")+'</div>'+
   '</section>';
 }
 function bindHusbandLetter(){
@@ -637,7 +637,7 @@ function bindHusbandLetter(){
   if(entry(date).husbandLetter!==text)changes(date,item=>{item.husbandLetter=text;},true);
   const count=card.querySelector("#mentalLetterCount");if(count)count.textContent=text.length+"/"+LETTER_MAX;
   const state=card.querySelector("#mentalLetterSaveState");
-  if(state)state.textContent="기기에 저장됨 · 서버 자동 저장 대기";
+  if(state)state.textContent=letterBackendSupported?"기기에 저장됨 · 서버 자동 저장 대기":"기기에 저장됨 · 최신 Apps Script 배포 후 서버 전송";
  });
 }
 function cloudPanel(){
