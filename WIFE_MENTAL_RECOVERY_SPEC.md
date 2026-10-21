@@ -1,0 +1,167 @@
+# 아내 회복 · Wife Mental Recovery Heatmap — 기능 명세 및 구현 인수인계
+
+> YUHA-CARE의 **민감한 개인 회복 기록** 기능. 코드: `mental.js`, `mental.css`, `index.html`, `bridge-client.js`, `apps-script/Code.gs`. 이 문서는 [YUHA_CARE_HANDOFF.md](./YUHA_CARE_HANDOFF.md)의 상세 부록이다.  
+> 구현 시작: 2026-10-21. 저장소 기본 브랜치: `main`. **향후 수정 시 두 MD를 함께 갱신한다.**
+
+## 1. 목적 및 절대 원칙
+
+아내가 육아·직장·가사·가족 관계의 의무를 지속하며 경험하는 소진 정도, 소진 요인, 실제 회복 방향을 **스스로 인식할 수 있도록 돕는 기록 도구**. “배우자가 정상으로 돌아왔는가”를 감시하거나 평가하지 않는다. 낮은 점수는 모성애·양육 능력·배우자로서의 역할을 평가하지 않는다. 기록하는 본인의 자율성과 공유 동의를 최우선으로 둔다.
+
+- 1일 1회, 기본 입력은 5단계 빠른 선택 7개. Context·개인시간·기본욕구·메모는 **선택 입력**, 펼치기 전에는 보이지 않음.
+- 점수 방향 통일: **0=매우 어려움, 10=매우 좋음**, 0.5점 단위.
+- 하루 점수 하나로 진단·회복 완료 판단을 하지 않음. **절대점수보다 변화 방향과 지속 기간**을 함께 분석.
+- 사용자가 하루 기록을 놓쳐도 경고하거나 소급 입력을 요구하지 않음. **미기록은 점수 0이 아니라 미기록**.
+- 기존 **수면 기록 달력형 히트맵** UI 구성·색상 단계·상세 카드 언어를 재사용하여 일관성 유지.
+- 현재 **전용 PIN `0808`** 요청 반영: 아내 회복 탭을 열 때 잠금이 표시되고 올바른 PIN을 입력해야 로컬 기록 열람. 탭을 벗어나면 다시 잠김.
+
+## 2. 입력 지표: 7개 × 0~10점
+
+| 코드 | 한글 이름 | 질문 취지 |
+| --- | --- | --- |
+| `energy` | 신체 에너지 | 오늘 활용할 신체적 에너지가 얼마나 남았는가 |
+| `control` | 삶의 통제감 | 내 시간/다음 행동을 스스로 결정할 수 있었는가 |
+| `capacity` | 육아 감당 여력 | 육아라는 역할을 감당할 심리적 여유가 남았는가 |
+| `tolerance` | 돌발상황 인내력 | 반복·예상 밖 상황을 견디는 정서적 여유 |
+| `rest` | 죄책감 없는 휴식 | 휴식 중 가족·의무에 대한 압박에서 벗어날 수 있었는가 |
+| `selfAction` | 나를 위한 실제 행동 | 본인이 원하는 의무 외 활동을 실제로 했는가 |
+| `self` | 나다운 감각 | 역할과 별개로 자신으로 존재한다는 느낌 |
+
+빠른 응답 5단계: **매우 힘듦=2**, **힘듦=4**, **보통=5.5**, **괜찮음=7**, **좋음=9**. 선택한 후 `+`/`−` 버튼으로 0.5점 간격 조정, 범위 0~10. 각 항목에서 미선택은 null. 저장값이 숫자 0인 것과 null(미기록)은 반드시 구별.
+
+`SELF_ACTION`은 생필품 주문·아이용품 구매·어린이집 준비 등 의무 행동을 포함하지 않음. `REST`는 개인시간의 **길이가 아닌 심리적 쉼의 질**을 평가하며, 개인시간 길이는 별도 context로 저장.
+
+## 3. 점수 및 기준
+
+### 3.1 Mental Score
+`DailyMentalScore = (ENERGY + CONTROL + CAPACITY + TOLERANCE + REST + SELF_ACTION + SELF)/7`, 0~10점.
+`MentalScore100 = DailyMentalScore × 10`, 0~100.
+**7개가 모두 숫자로 기록된 날만 총점을 계산**하며 일부 입력 중에는 `입력 n/7` 표시. 누락을 0으로 취급하지 않음.
+
+예시: [3,2,4,3,4,2,3] → 21/7 = **3.0점** → **30/100**.
+
+### 3.2 Recovery Score (가중 회복 점수)
+`0.30 CONTROL + 0.25 REST + 0.25 SELF + 0.10 ENERGY + 0.10 TOLERANCE`.
+`CAPACITY`와 `SELF_ACTION`은 가중 점수에서는 제외하되 **전체 평균·항목별 히트맵·회복 추세**에서는 추적. 7개 중 미입력 항목이 있으면 계산 보류(부분 입력에 따른 낙관 편향 방지).
+
+위 예시에서는 0.6 + 1.0 + 0.75 + 0.3 + 0.3 = **2.95/10**.
+
+### 3.3 색상 단계 (기존 수면 히트맵 구조 참조)
+| 구간 (10점) | 상태 | 구분 |
+| --- | --- | --- |
+| 0~2.9 | 많이 소모됨 | 차분한 적색 |
+| 3~4.4 | 소진 | 주황 |
+| 4.5~5.9 | 회복 필요 | 노랑 |
+| 6~7.4 | 회복 중·안정 | 녹색 |
+| 7.5~10 | 양호 | 청색 |
+| 미기록 | 빈칸 | 회색 |
+
+이 구간은 **사용자 정의 대시보드 색상 지침이지 임상 진단 절단점이 아님**. 경고를 과하게 노출하지 말고 긍정 변화도 동등하게 표시.
+
+## 4. Context / 기본욕구 / 개인시간 기록
+
+### 4.1 선택형 Context
+개인시간 길이: `no_personal_time`/`personal_under30`/`personal_30to60`/`personal_60to120`/`personal_120to240`/`personal_over240`. 개인시간 길이 구간은 1개만 선택 가능하도록 처리.
+
+육아: `care_normal`, `care_hard`, `sleep_resistance`, `meal_stress`, `outing_tired`, `behavior_issues`, `night_wakings`.
+
+가족·분담: `husband_on_time`, `husband_overtime`, `husband_late_overtime`, `husband_available`, `husband_unavailable`, `husband_exhausted`, `maternal_help`, `no_maternal_help`, `inlaw_schedule`, `family_contact`, `family_event`.
+
+몸/직장: `sleep_deprived`, `meal_skipped`, `hungry`, `physical_discomfort`, `period`, `illness`, `work_stress`, `work_overtime`.
+
+### 4.2 개인시간
+`offDutyMinutes`: 0~1440분, 정수. 0은 기록된 ‘0분’과 기록하지 않아 초기값 0인 경우가 구별되지 않는 v1 한계가 있음. 필요하면 나중에 `null` 기반 선택 입력으로 개선. 종류 `offDutyType`: `home`, `shopping`, `cafe`, `nap`, `friends_family`, `exercise`, `hobby`, `nothing`.
+
+### 4.3 기본욕구 지연
+`basicNeedsDelayed` 다중 선택: `toilet`, `meal`, `water`, `shower`, `hygiene`, `sleep`.
+
+`BasicNeedDelayCount = basicNeedsDelayed.length`. 0개=양호, 1개=관찰, 2개=주의, 3개 이상=중요한 관찰. 3개 이상이며 `MentalScore ≤4`인 날 별도 분석 메시지를 제공.
+
+`memo`: 600자 이내 자유 기록, 필수 아님.
+
+## 5. 화면 구성
+
+1. 헤더의 새 **“아내 회복” 탭**; 체크리스트 탭별 % 표시와는 구분되며 헤더 높이 불변.
+2. PIN 잠금 화면. 숫자 입력 `0808`으로 잠금 해제, 다른 탭을 누르면 잠금. 잠금 상태에서는 로컬 기록 읽기/로드를 지연.
+3. 상단 대시보드 4개: **오늘 멘탈 / 가중 회복 / 최근 7일 평균 / 전주 대비**, 그 아래 핵심 3지표 **CONTROL·REST·SELF**의 7일 평균.
+4. 기존 수면 히트맵을 재사용한 **월간 7열 달력**: 좌상단 날짜·가운데 100점 환산 점수·색상 단계. 날짜 누르면 해당 날짜 입력 카드로 이동.
+5. **8×7 주간 지표별 히트맵**: 세로 7개 항목+총점, 가로 월~일. 색상은 월간과 동일. 빈 기록은 "·".
+6. **회복 신호 및 주간 요약**: 최근 주 추세·최고/최저 지표·주간 개인시간·기본욕구 미룬 날·상대적으로 여유 있던 날짜·14일 평균.
+7. 월간 그래프: 멘탈 점수, 회복 핵심(통제감/휴식/나다움 평균), 신체 에너지와 전체 멘탈의 변화. 기록 공백은 직선으로 연결하지 않음.
+8. 선택 날짜 상세 입력: 7개 질문 5단계 버튼, 0.5 조정. Context 영역은 `details`로 접힘.
+9. 개인정보/연결: 로컬만 사용하는 기본 상태, 비공개 서버 동기화는 **명시적 연결** 필요.
+
+**시각 규칙:** `mental.css`를 우선 변경. `sleep-heat-grid` / `sleep-heat-square` / `sleep-heat-day` / `sleep-heat-score` / `sleep-card`를 활용하되 민감한 성인 기록을 아기 수면 데이터와 혼합하지 않는다.
+
+## 6. 추세·회복·경고와 긍정 메시지
+
+- `trend(end)`: 최근 7일·이전 7일 각각 **완료 기록 4일 이상**일 때 평균 차이를 산출. 그 외에는 `—`/“기록이 더 필요함”. 기록하지 않은 날 0 처리 금지.
+- `recoveryAssessment()`: 다음 중 3개 이상 상승/개선 시 **회복 방향 신호** (전체 7일 평균, CONTROL, REST, SELF, TOLERANCE, SELF_ACTION≥4인 날 주 2회 이상, 기본욕구 지연 감소). 지난주 대비 상승 여부로 판단. 진단 아님.
+- 의미 있는 안정 지속: 연속 2주에 각각 완료 4일 이상, 평균 ≥5.5, CONTROL·REST·SELF·TOLERANCE 평균 ≥5, SELF_ACTION ≥4인 날 주 2회 이상, 기본욕구 미룸 평균 ≤1. **“회복 완료” 금지**.
+- 최근 5일의 연속 점수 하락 4회, CONTROL ≤3 최근 4일 연속, ENERGY ≤3 최근 5일 연속, SELF/SELF_ACTION ≤3 최근 7일 연속, 개인시간 ≥120분인데 REST ≤3, 기본욕구 3개 이상+Mental≤4를 관찰 신호로 표시. 의료 위험 경보처럼 표현하지 않는다.
+- 긍정 신호: 전체 평균 지난주 대비 ≥0.3점 상승, 핵심 점수 전주 대비 ≥0.6점, 최근 7일 SELF_ACTION≥4 날 2일 이상. **긍정적 회복도 보여줘야** 부담/감시 앱이 되지 않는다.
+- 개인시간 효과: 최근 14일에서 2시간 이상 개인시간 사용일 다음 날과 개인시간 0분 기록일 다음 날 평균을 기술적으로 비교. 각 집단 최소 3일 기록. **인과관계로 주장하지 않는다**. 일·육아 강도·건강 변수의 교란이 크다.
+- 기본값은 중립적 지원 문구. 경고/판정 강화·매일 입력 독촉 금지.
+
+## 7. 데이터 구조
+
+### 7.1 로컬 기록
+저장 키:
+- `yuha_mental_recovery_local_v1`: `records = { "YYYY-MM-DD": entry }`
+- `yuha_mental_recovery_pending_v1`: 날짜별 미동기화 기록과 `expectedRevision`
+- `yuha_mental_recovery_meta_v1`: 예약된 키(현 버전에서는 사용하지 않음)
+
+예시 (허구 값):
+
+```json
+{
+  "date":"2026-10-21",
+  "scores":{"energy":4,"control":3,"capacity":4,"tolerance":5,"rest":3,"selfAction":2,"self":3},
+  "offDutyMinutes":30,
+  "offDutyType":["home"],
+  "basicNeedsDelayed":["meal","toilet"],
+  "contexts":["husband_overtime","sleep_resistance"],
+  "memo":"하루를 돌아보는 비공개 메모",
+  "revision":""
+}
+```
+
+- 변경 즉시 `localStorage`에 동기식 저장, 실패 시 오류 안내. 아직 온라인 저장 불가여도 기록은 브라우저 기기에 남음.
+- **PIN은 로컬 데이터 암호화가 아니다.** 4자리 PIN은 UI 잠금일 뿐이므로 사이트 저장소 접근 가능한 사람이나 개발자 도구 사용자는 기록 내용을 확인할 수 있다. 취약한 4자리 PIN을 진짜 암호화 키로 사용했다고 주장하지 말 것.
+- 본인 동의 없이 데이터를 체크리스트 `CHECKLIST_DB`, 수면 `SLEEP_LOG`, 공개 GitHub, 콘솔 로그 또는 알림에 복제하지 않는다.
+- 사용자가 브라우저 사이트 데이터를 삭제하면 로컬 기록도 사라질 수 있음.
+
+### 7.2 서버(선택적, 비공개)
+- 기존 `apps-script/Code.gs`에 `getMentalMonth(passphrase,year,month)`, `syncMentalEntry({passphrase,entry,expectedRevision})` 추가.
+- 기존 Google Sheets에 **독립 `MENTAL_LOG` 시트(A:기준일, B:JSON, C:최종 수정)** 만 신규 생성. 기존 시트와 수면 수식·데이터는 변경하지 않음.
+- `getMentalMonth`는 입력된 비공개 암호를 먼저 검증한 뒤 월별 기록을 조회.
+- `syncMentalEntry`는 `LockService`+`expectedRevision`으로 날짜 단위 동시 수정 충돌을 감지하고 덮어쓰지 않음.
+- Apps Script의 **Script Properties `YUHA_MENTAL_ACCESS_KEY`**에 12자 이상 별도 암호를 관리자가 직접 설정해야 서버 기능 사용 가능. **여기에 `0808`을 쓰지 않으며 GitHub에 값을 기록하지 않는다.** PIN은 화면 잠금 전용, 서버 암호는 실제 API 조회/쓰기 권한 검사.
+- 브리지 허용 메서드 `getMentalMonth`, `syncMentalEntry`를 `Code.gs`와 `bridge-client.js` 양쪽에 추가.
+- **GitHub 소스 수정 ≠ 실제 Apps Script 신규 배포**. 현재 브라우저에서 회복 탭의 로컬 저장은 동작하나, Apps Script 최신 `Code.gs` 배포/Script Property 설정 여부가 확인되지 않으면 다중 기기 서버 동기화를 완료했다고 말하지 말 것.
+- 백엔드 암호 검사에는 별도 요청 횟수 제한/계정별 인증이 없음. 12자 이상의 예측 어려운 암호 사용 권장. 운영상 더 강한 보안이 필요하면 인증 공급자/접근 제어를 별도 설계.
+
+## 8. PIN 잠금 동작
+
+- 아내 회복 탭을 눌렀을 때 `mental.js`는 먼저 **간편 잠금 화면**을 렌더링하고, unlock 성공 시에만 브라우저의 `yuha_mental_recovery_local_v1` 데이터를 읽음.
+- PIN `0808`의 SHA-256 다이제스트만 코드에 포함. SHA 해시는 비밀번호 암호화가 **아님**, 4자리 공간은 추측 가능. SHA 검사 자체는 웹의 HTTPS `crypto.subtle.digest` 사용.
+- 실패 5회면 화면에서 30초 재입력 제한(클라이언트 측 UX 제한으로 실제 악의적 공격 방지는 아님).
+- 다른 탭으로 이동하면 `YuhaMental.lock()`이 로컬 메모리의 민감한 기록 참조 및 활성 서버 암호를 정리. 해당 탭을 다시 열 때 PIN을 다시 요구.
+- 서버 응답이 잠금 이후 늦게 도착하더라도 `cloudEpoch` 검사로 기록이 다른 탭에 그려지지 않도록 한다.
+
+## 9. 테스트
+
+- JS 구문 검증: `mental.js`, `bridge-client.js`, `index.html`의 inline scripts, `Code.gs`.
+- 알고리즘 테스트: 예제 [3,2,4,3,4,2,3] → Mental 3.0/10, 가중 회복 2.95/10; 불완전 기록 → 총점 null; 모든 값 10 → 10.0/10.
+- 주간 기준: 2026-10-21 수요일의 월요일 시작/일요일 종료 범위는 2026-10-19~2026-10-25.
+- 수동/자동 UI 검사 권장: PIN 0808 입력→오류/성공→탭 이탈 재잠금, 열림 상태에서 7개 점수 선택→지표별/월간 히트맵 즉시 갱신, Context 펼치기·복원·기기 재진입, 320/360/390/768px.
+- 서버 검증 필요: Script Properties 미설정 때 접근 거절, 잘못된 암호 접근 거절, 정상 암호 조회·저장, 중복 쓰기 idempotency, 다른 기기 같은 날짜 revision 충돌, 기기 오프라인 편집 복구.
+- **실제 구글 시트 데이터는 테스트 목적으로 초기화하거나 임의로 생성된 샘플 점수를 쓰지 않는다.**
+
+## 10. 앞으로 변경할 때
+
+1. `YUHA_CARE_HANDOFF.md` + 이 문서 + 현재 `main` 코드 읽기.
+2. 변경 요청을 정서/수면/체크리스트로 명확히 분리하고 **민감 기록의 접근 제어**를 우선 검토.
+3. 코드·CSS·브리지·Apps Script·Pages workflow 중 실제 필요한 파일만 수정. PIN `0808`은 사용자가 변경 요청하지 않는 한 유지.
+4. 저장 실패/오프라인/기기 전환/충돌/개인정보 노출 및 점수 불완전 기록 검사.
+5. GitHub `main` 직접 반영, Pages Actions `head_sha`/`conclusion=success` 확인.
+6. 인수인계 문서의 결정·변경·검증·미해결 항목을 같은 작업에서 업데이트.
