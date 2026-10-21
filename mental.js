@@ -74,7 +74,7 @@ let records={};let pending={};let viewing=iso(new Date()),selected=viewing;
 let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloudError="",cloudSaving=false;
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
 let conflict=null,screen=null,unlocked=false,unlockBusy=false;
-let letterEditing=false,letterEditDate="";
+let letterEditing=false,letterEditDate="",letterBackendSupported=false;
 let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0;
 const loadedMentalMonths=new Set(),loadingMentalMonths=new Set(); // per-page throttling; not cryptographic brute-force protection.
 const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
@@ -130,6 +130,7 @@ function lock(){
   if(unlocked&&Object.keys(pending).length)saveLocal();
   unlocked=false;
   cloudCode="";cloudReady=false;cloudBusy=false;cloudSaving=false;cloudError="";
+  letterBackendSupported=false;
   clearTimeout(syncingTimer);clearTimeout(retryTimer);
   records={};pending={};conflict=null;
   letterEditing=false;letterEditDate="";
@@ -261,6 +262,7 @@ function cloudCall(method,args,onSuccess,onFail){
 }
 function activate(pass){
  if(!pass)return;
+ letterBackendSupported=false;
  const epoch=++cloudEpoch;
  loadedMentalMonths.clear();loadingMentalMonths.clear();
  cloudCode=pass;
@@ -274,6 +276,7 @@ function activate(pass){
   cloudCall("getMentalMonth",[cloudCode,y,m],result=>{
    if(epoch!==cloudEpoch || !unlocked)return;
    if(!result?.ok){failed(new Error("조회 실패"));return;}
+   if(Number(result.schemaVersion)>=2)letterBackendSupported=true;
    for(const [date,value] of Object.entries(result.records||{})){
      if(!pending[date])records[date]=normalize(date,value);
      else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&value.revision)conflict={date,local:entry(date),server:normalize(date,value)};
@@ -303,6 +306,7 @@ function fetchMentalMonthIfNeeded(k){
   loadingMentalMonths.delete(k);
   if(epoch!==cloudEpoch||!unlocked||!cloudReady)return;
   if(!result?.ok){setState("회복 기록의 "+k+"월 조회 실패 · 기기 기록 보관",true);return;}
+  if(Number(result.schemaVersion)>=2)letterBackendSupported=true;
   for(const [date,value] of Object.entries(result.records||{})){
    if(!pending[date])records[date]=normalize(date,value);
    else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&value.revision)
@@ -330,8 +334,14 @@ function scheduleCloud(delay=1800){
 }
 function syncNext(){
  if(!cloudReady||!cloudCode||cloudSaving)return;
- const date=Object.keys(pending).sort()[0];
- if(!date)return;
+ const dates=Object.keys(pending).sort();
+ if(!dates.length)return;
+ // Old Apps Script ignores husbandLetter; avoid silently discarding new notes.
+ const date=dates.find(d=>letterBackendSupported||(!pending[d].letterOnly&&!pending[d].entry.husbandLetter));
+ if(!date){
+  setState("편지 자동 동기화 대기 · 최신 Apps Script Code.gs 배포 필요 · 기기 기록 보관",true);
+  return;
+ }
  if(conflict?.date===date){setState("다른 기기 수정 충돌 · 선택 필요",true);return;}
  const p=pending[date],version=JSON.stringify(p.entry);
  cloudSaving=true;setState("비공개 서버에 저장 중");progress("busy","회복 기록 저장 중");
@@ -820,7 +830,9 @@ function updateIndicators(){
   saveCount.textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"변경 보관 중":"기록 저장됨");
  }
  const letterState=screen.querySelector("#mentalLetterSaveState");
- if(letterState)letterState.textContent=pending[selected]?"변경사항 기기에 보관 중 · 서버 자동 저장 대기":cloudReady?"서버 자동 동기화 연결됨":"기기에 저장 · 서버 연결 대기";
+ if(letterState)letterState.textContent=pending[selected]?
+  (letterBackendSupported?"변경사항 기기에 보관 중 · 서버 자동 저장 대기":"편지 전송 대기 · Apps Script 최신 배포 필요"):
+  cloudReady?"서버 자동 동기화 연결됨":"기기에 저장 · 서버 연결 대기";
 }
 window.YuhaMental={render,lock,activate,metric:scoresOf,trend,level,fields:FIELDS,
  /* testing helpers have no write privileges beyond local test data */ _preview:{normalize,scoresOf,summary,warningPatterns,weekDays}};
