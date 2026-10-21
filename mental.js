@@ -276,7 +276,7 @@ function activate(pass){
    if(!result?.ok){failed(new Error("조회 실패"));return;}
    for(const [date,value] of Object.entries(result.records||{})){
      if(!pending[date])records[date]=normalize(date,value);
-     else if(pending[date].expectedRevision===""&&value.revision)conflict={date,local:entry(date),server:normalize(date,value)};
+     else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&value.revision)conflict={date,local:entry(date),server:normalize(date,value)};
    }
    loadedMentalMonths.add(k);
    saveLocal();
@@ -305,7 +305,7 @@ function fetchMentalMonthIfNeeded(k){
   if(!result?.ok){setState("회복 기록의 "+k+"월 조회 실패 · 기기 기록 보관",true);return;}
   for(const [date,value] of Object.entries(result.records||{})){
    if(!pending[date])records[date]=normalize(date,value);
-   else if(pending[date].expectedRevision===""&&value.revision)
+   else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&value.revision)
     conflict={date,local:entry(date),server:normalize(date,value)};
   }
   loadedMentalMonths.add(k);
