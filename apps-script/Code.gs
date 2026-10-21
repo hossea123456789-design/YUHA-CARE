@@ -595,7 +595,36 @@ const MENTAL_CONTEXT_KEYS_ = [
 ];
 const MENTAL_OFFDUTY_KEYS_=['home','shopping','cafe','nap','friends_family','exercise','hobby','nothing'];
 const MENTAL_NEED_KEYS_=['toilet','meal','water','shower','hygiene','sleep'];
+// 4-digit recovery PIN authenticates the server only while its tab is unlocked.
+// This is weaker than the former long secret; limit guesses at the server.
+const MENTAL_PIN_DIGEST_ = 'd387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0';
+const MENTAL_PIN_CACHE_KEY_ = 'YUHA_MENTAL_PIN_THROTTLE_v1';
+function mentalValidatePin_(pin) {
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(5000))throw new Error('PIN 검증 요청이 많습니다. 잠시 후 다시 시도해 주세요.');
+  try {
+    const cache=CacheService.getScriptCache(), now=Date.now();
+    let state={fails:0,until:0};
+    try{state=JSON.parse(cache.get(MENTAL_PIN_CACHE_KEY_)||'null')||state;}catch(_){}
+    if(Number(state.until||0)>now)
+      throw new Error('PIN 입력 제한 중입니다. 15분 후 다시 시도해 주세요.');
+    const digest=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(pin||''),Utilities.Charset.UTF_8)
+      .map(byte=>(byte&255).toString(16).padStart(2,'0')).join('');
+    if(digest!==MENTAL_PIN_DIGEST_){
+      const fails=Number(state.fails||0)+1;
+      cache.put(MENTAL_PIN_CACHE_KEY_,JSON.stringify({
+        fails:fails>=5?0:fails,until:fails>=5?now+900000:0
+      }),900);
+      throw new Error(fails>=5?'PIN 입력 제한 중입니다. 15분 후 다시 시도해 주세요.':'회복 탭 PIN이 올바르지 않습니다.');
+    }
+    cache.remove(MENTAL_PIN_CACHE_KEY_);
+  }finally{lock.releaseLock();}
+}
 function mentalValidateAccess_(passphrase) {
+  if(/^\d{4}$/.test(String(passphrase||''))){
+    mentalValidatePin_(String(passphrase));return;
+  }
+  // Older clients remain compatible with the strong server access password.
   const configured=PropertiesService.getScriptProperties().getProperty(MENTAL_SECRET_PROP_);
   if(!configured || configured.length<12) throw new Error('아내 회복 기록의 비공개 동기화가 아직 설정되지 않았습니다. Apps Script Script Properties에서 접근 암호를 설정해 주세요.');
   const a=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(passphrase||''),Utilities.Charset.UTF_8);
