@@ -69,9 +69,50 @@ let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsO
 let conflict=null,screen=null,unlocked=false,unlockBusy=false;
 let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0; // per-page throttling; not cryptographic brute-force protection.
 const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
+function sha256Fallback(bytes) {
+ // Deterministic SHA-256 for WebViews without SubtleCrypto (PIN is only a UI lock).
+ const k=[
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+ ];
+ const rotr=(x,n)=>(x>>>n)|(x<<(32-n));
+ const h=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+ const b=Array.from(bytes),bitLength=b.length*8;
+ b.push(0x80);while(b.length%64!==56)b.push(0);
+ for(let i=7;i>=0;i--)b.push(Math.floor(bitLength/Math.pow(2,i*8))&255);
+ const w=new Uint32Array(64);
+ for(let off=0;off<b.length;off+=64){
+  for(let i=0;i<16;i++){const j=off+i*4;w[i]=((b[j]<<24)|(b[j+1]<<16)|(b[j+2]<<8)|b[j+3])>>>0;}
+  for(let i=16;i<64;i++){
+   const x=w[i-15],y=w[i-2],s0=rotr(x,7)^rotr(x,18)^(x>>>3),s1=rotr(y,17)^rotr(y,19)^(y>>>10);
+   w[i]=(w[i-16]+s0+w[i-7]+s1)>>>0;
+  }
+  let [a,b0,c,d,e,f,g,hh]=h;
+  for(let i=0;i<64;i++){
+   const s1=rotr(e,6)^rotr(e,11)^rotr(e,25),choose=(e&f)^(~e&g);
+   const t1=(hh+s1+choose+k[i]+w[i])>>>0,s0=rotr(a,2)^rotr(a,13)^rotr(a,22);
+   const t2=(s0+((a&b0)^(a&c)^(b0&c)))>>>0;
+   hh=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b0;b0=a;a=(t1+t2)>>>0;
+  }
+  [a,b0,c,d,e,f,g,hh].forEach((v,i)=>h[i]=(h[i]+v)>>>0);
+ }
+ return h.map(x=>x.toString(16).padStart(8,"0")).join("");
+}
 async function sha256(value){
-  const bytes=new TextEncoder().encode(value),hash=await crypto.subtle.digest("SHA-256",bytes);
-  return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,"0")).join("");
+ const bytes=new TextEncoder().encode(value);
+ if(typeof crypto!=="undefined"&&crypto&&crypto.subtle&&typeof crypto.subtle.digest==="function"){
+  try{
+   const hash=await crypto.subtle.digest("SHA-256",bytes);
+   return Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,"0")).join("");
+  }catch(error){console.warn("[YUHA MENTAL] Native PIN digest unavailable; using local fallback");}
+ }
+ return sha256Fallback(bytes);
 }
 function lock(){
   cloudEpoch++;
@@ -83,41 +124,74 @@ function lock(){
   if(screen)screen.replaceChildren();
 }
 function lockMarkup(){
+ const keys=["1","2","3","4","5","6","7","8","9","지우기","0","⌫"];
  return '<div class="mental-root mental-locked">'+
    '<section class="sleep-card mental-lock-card">'+
      '<div class="mental-lock-icon" aria-hidden="true">✳</div>'+
      '<h2>아내 회복 · 비공개 기록</h2>'+
-     '<p>기록을 확인하려면 4자리 비밀번호를 입력해 주세요.</p>'+
+     '<p>숫자 4자리를 입력하면 자동으로 잠금이 해제됩니다.</p>'+
      '<form id="mentalUnlockForm" autocomplete="off">'+
        '<label for="mentalPinInput">잠금 비밀번호</label>'+
-       '<div class="mental-unlock-line"><input id="mentalPinInput" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off" placeholder="••••" aria-label="아내 회복 탭 비밀번호" required>'+
-       '<button type="submit" id="mentalUnlockButton">열기</button></div>'+
+       '<input id="mentalPinInput" class="mental-pin-readout" type="password" inputmode="none" maxlength="4" autocomplete="off" readonly aria-label="입력된 비밀번호" placeholder="••••">'+
+       '<div class="mental-pin-keypad" role="group" aria-label="숫자 비밀번호 입력 패드">'+
+       keys.map(key=>'<button type="button" class="mental-pin-key'+(key==="지우기"||key==="⌫"?" mental-pin-edit":"")+
+         '" data-mental-pin="'+(key==="지우기"?"clear":key==="⌫"?"back":key)+'" aria-label="'+(key==="⌫"?"마지막 숫자 지우기":key)+'">'+key+'</button>').join("")+
+       '</div>'+
        '<span class="mental-lock-error" id="mentalLockError" role="alert" aria-live="polite"></span>'+
      '</form>'+
      '<div class="mental-lock-foot">다른 탭으로 이동하면 다시 잠깁니다. 4자리 잠금은 화면 열람용이며 기기 내 기록은 암호화되지 않습니다.</div>'+
    '</section></div>';
 }
 function bindLock(){
- const form=screen.querySelector("#mentalUnlockForm"),input=screen.querySelector("#mentalPinInput");
- form?.addEventListener("submit",async ev=>{
-   ev.preventDefault();
-   if(unlockBusy)return;
-   const error=screen.querySelector("#mentalLockError"),now=Date.now();
-   if(now<pinBlockedUntil){error.textContent="잠시 후 다시 입력해 주세요.";return;}
-   const pin=input.value;
-   if(!/^[0-9]{4}$/.test(pin)){error.textContent="숫자 4자리를 입력해 주세요.";return;}
-   unlockBusy=true;
-   try{
-     const hash=await sha256(pin);
-     if(hash!==PIN_HASH){
-       pinFailures++;
-       if(pinFailures>=5){pinBlockedUntil=Date.now()+30000;pinFailures=0;}
-       error.textContent="비밀번호가 다릅니다.";input.value="";input.focus();return;
-     }
-     pinFailures=0;pinBlockedUntil=0;unlocked=true;hydrate();render();
-   }catch(_){error.textContent="안전 연결이 필요한 기능입니다. HTTPS로 접속해 주세요.";}
-   finally{unlockBusy=false;}
+ const form=screen.querySelector("#mentalUnlockForm"),input=screen.querySelector("#mentalPinInput"),
+   error=screen.querySelector("#mentalLockError");
+ if(!form||!input)return;
+ let digits="";
+ const display=()=>{input.value=digits;input.setAttribute("aria-label","비밀번호 "+digits.length+"/4자리 입력");};
+ const verify=async()=>{
+  if(unlockBusy||digits.length!==4)return;
+  if(Date.now()<pinBlockedUntil){
+   error.textContent="잠시 후 다시 입력해 주세요.";digits="";display();return;
+  }
+  unlockBusy=true;
+  try{
+   const hash=await sha256(digits);
+   if(hash!==PIN_HASH){
+    pinFailures++;
+    if(pinFailures>=5){pinBlockedUntil=Date.now()+30000;pinFailures=0;}
+    error.textContent=pinBlockedUntil>Date.now()?"입력이 여러 번 틀렸습니다. 30초 후 다시 시도해 주세요.":"비밀번호가 다릅니다.";
+    digits="";display();return;
+   }
+   pinFailures=0;pinBlockedUntil=0;
+   unlocked=true;
+   hydrate();
+   render();
+  }catch(err){
+   unlocked=false;
+   console.error("[YUHA MENTAL] Unlock failed:",err);
+   error.textContent="잠금 해제 중 문제가 발생했습니다. 새로고침 후 다시 시도해 주세요.";
+   digits="";display();
+  }finally{unlockBusy=false;}
+ };
+ const action=key=>{
+  if(unlockBusy)return;
+  if(Date.now()<pinBlockedUntil){error.textContent="잠시 후 다시 입력해 주세요.";return;}
+  if(key==="clear")digits="";
+  else if(key==="back")digits=digits.slice(0,-1);
+  else if(/^[0-9]$/.test(key)&&digits.length<4)digits+=key;
+  error.textContent="";
+  display();
+  if(digits.length===4)void verify();
+ };
+ form.querySelectorAll("[data-mental-pin]").forEach(button=>
+  button.addEventListener("click",()=>action(button.dataset.mentalPin)));
+ form.addEventListener("submit",e=>{e.preventDefault();void verify();});
+ input.addEventListener("keydown",e=>{
+  if(/^[0-9]$/.test(e.key)){e.preventDefault();action(e.key);}
+  else if(e.key==="Backspace"){e.preventDefault();action("back");}
+  else if(e.key==="Escape"){e.preventDefault();action("clear");}
  });
+ try{input.focus({preventScroll:true});}catch(_){input.focus();}
 }
 
 function storageRead(key,def){
