@@ -19,10 +19,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      - name: Collect only public web files
+      - name: Collect public web files and letter artwork
         run: |
-          mkdir -p public-site
+          set -euo pipefail
+          mkdir -p public-site/assets
           cp index.html design.css mental.css mental.js bridge-client.js config.js public-site/
+          cp assets/mental-letter-sealed.svg assets/mental-letter-opened.svg public-site/assets/
+      - name: Verify artwork paths and integrity before publishing
+        run: |
+          set -euo pipefail
+          node --check public-site/mental.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          root = Path('public-site')
+          page = (root / 'index.html').read_text(encoding='utf-8')
+          script = (root / 'mental.js').read_text(encoding='utf-8')
+          for name in ('mental-letter-sealed.svg', 'mental-letter-opened.svg'):
+              relative = 'assets/' + name
+              asset = root / relative
+              if not asset.is_file() or asset.stat().st_size < 512:
+                  raise SystemExit(f'Missing or empty deployed SVG: {relative}')
+              ET.parse(asset)
+              if relative not in script:
+                  raise SystemExit(f'Artwork not referenced by frontend: {relative}')
+          if 'mental.js?v=' not in page or 'mental.css?v=' not in page:
+              raise SystemExit('Frontend asset cache paths missing from index.html')
+          print('PASS: frontend JS, both deployed envelope SVGs, and asset URLs')
+          PY
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public-site
