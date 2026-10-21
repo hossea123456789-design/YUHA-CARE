@@ -654,11 +654,13 @@ function mentalValidateEntry_(item) {
   const offDutyMinutes=Number(item.offDutyMinutes||0);
   if(!Number.isInteger(offDutyMinutes)||offDutyMinutes<0||offDutyMinutes>1440)throw new Error('개인시간은 0~1440분 범위여야 합니다.');
   const memo=String(item.memo||'').slice(0,600);
+  // Date-specific message from the husband, stored with the existing recovery entry.
+  const husbandLetter=String(item.husbandLetter||'').slice(0,1000);
   return {date,scores,offDutyMinutes,
     offDutyType:filter(item.offDutyType,MENTAL_OFFDUTY_KEYS_,8),
     basicNeedsDelayed:filter(item.basicNeedsDelayed,MENTAL_NEED_KEYS_,6),
     contexts:filter(item.contexts,MENTAL_CONTEXT_KEYS_,32),
-    memo};
+    memo,husbandLetter};
 }
 function mentalSheet_() {
   const ss=SpreadsheetApp.getActiveSpreadsheet();
