@@ -4,7 +4,7 @@
   'use strict';
 
   const APP_ORIGIN = 'https://hossea123456789-design.github.io';
-  const METHODS = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges']);
+  const METHODS = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges','getMentalMonth','syncMentalEntry']);
   let endpoint = validUrl(window.YUHA_GAS_WEBAPP_URL)
     ? window.YUHA_GAS_WEBAPP_URL : '';
   let frame = null, remote = null, remoteOrigin = '';
