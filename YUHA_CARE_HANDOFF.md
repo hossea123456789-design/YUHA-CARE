@@ -639,3 +639,16 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 
 ### 검증
 - `mental.js` 문법 검사, SVG 경로/파일 실제 존재 확인, sealed/opened 이미지 URL, 읽음 액션 유지, 모션 감소 옵션과 중복 클릭 차단 검증. 실제 기기에서 애니메이션 체감, Chrome·카카오톡 WebView의 로딩은 배포 후 직접 확인 필요.
+
+## 28. 2026-10-22 — GitHub Pages SVG 누락 배포 오류 수정 및 실 URL 검증
+
+### 사용자 실사용 스크린샷으로 확인된 문제
+- 아내 회복 탭에서 밀랍 봉투 이미지 영역이 깨진 이미지 아이콘/빈 박스로 표시되고 봉투 연출이 보이지 않음.
+- 직접 원인: `.github/workflows/pages.yml`의 기존 `Collect only public web files`가 `index.html/design.css/mental.css/mental.js/bridge-client.js/config.js` 파일만 `public-site`에 복사하고 **`assets/mental-letter-{sealed,opened}.svg`를 빠뜨림**. 저장소 존재/문법 검사는 실제 공개 URL 정상 로딩의 증거가 아니며 이전 검증·완료 안내는 불충분했음.
+
+### 이번 수정
+- Pages 배포 workflow에 `mkdir -p public-site/assets` 및 두 SVG를 해당 경로에 복사하는 단계 추가.
+- 배포 전 자동 검증: `node --check public-site/mental.js`; `xml.etree.ElementTree`로 두 SVG 파싱; 두 SVG의 크기·파일 존재·JS 참조 및 index JS/CSS 캐시 버전 확인. 누락 시 배포 실패.
+- 배포 후 자동 검증: `steps.deployment.outputs.page_url` 기준으로 **두 개 공개 SVG URL에 curl HTTP GET**. HTTP 4xx/5xx 실패 처리 및 10회 재시도, 응답 본문의 `<svg` 존재 확인. 파일 부재 시 실행 실패.
+- 최종 workflow 커밋 `c4550f176567c6693eab7c58be416528edaff175`의 GitHub Actions run `39688882317`에서 `Collect public web files and letter artwork`, `Verify artwork paths and integrity before publishing`, `Run actions/deploy-pages@v4`, `Smoke test published envelope artwork` 모두 **success** 확인. GitHub Actions 체크 결과는 파일이 사이트에서 HTTP로 제공됨을 확인하는 것이며, 사용자 삼성 실기기의 CSS 애니메이션 동작을 대신하지는 않음.
+- 서버 Apps Script API 변경 없음, 기존 편지/읽음/아내 회복 점수 및 pending 기록 데이터 변경 없음. 단순 프론트 이미지 파일 배포 복구.
