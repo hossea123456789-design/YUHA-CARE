@@ -607,40 +607,85 @@ function tags(arr,values,kind){
   '<button type="button" class="mental-tag'+(values.includes(id)?' chosen':'')+'" data-mental-tag="'+kind+'" data-tag-id="'+E(id)+'" aria-pressed="'+values.includes(id)+'">'+E(label)+'</button>').join('')+'</div>';
 }
 function husbandLetterHTML(){
- const date=selected,letter=entry(date).husbandLetter||"";
+ const date=selected,item=entry(date),letter=item.husbandLetter||"";
+ const sealed=!!letter&&item.husbandLetterStatus==="sealed";
  const editing=letterEditing&&letterEditDate===date;
  const label=Number(date.slice(5,7))+"월 "+Number(date.slice(8,10))+"일";
+ const pendingState=pending[date]?(letterBackendSupported?"변경사항 저장 중 · 서버 동기화 대기":"기기에 보관 중 · 최신 Apps Script 배포 필요"):
+  cloudReady?"서버 자동 동기화 연결됨":"기기에 저장 · 서버 연결 대기";
  return '<section class="mental-letter-card" id="mentalHusbandLetter" aria-label="남편이 남긴 오늘의 편지">'+
   '<div class="mental-letter-top"><span class="mental-letter-icon" aria-hidden="true">✉</span>'+
   '<div class="mental-letter-head"><span>FROM HUSBAND · TO YOU</span><h3>남편이 남긴 오늘의 한마디</h3>'+
   '<small>'+label+' · 우리의 작은 편지</small></div>'+
-  '<button type="button" class="mental-letter-action" id="mentalLetterToggle">'+(editing?"편지 접기":letter?"수정":"편지 쓰기")+'</button></div>'+
+  '<button type="button" class="mental-letter-action" id="mentalLetterToggle">'+
+   (editing?"취소":letter?"수정":"편지 쓰기")+'</button></div>'+
   (editing?
    '<label class="mental-letter-edit-label" for="mentalLetterInput">전하고 싶은 마음을 편지로 남겨 주세요.</label>'+
-   '<textarea id="mentalLetterInput" maxlength="'+LETTER_MAX+'" rows="5" placeholder="오늘 당신에게 꼭 전하고 싶은 말...">'+E(letter)+'</textarea>'+
-   '<div class="mental-letter-bottom"><span>글을 쓰면 자동으로 저장·동기화됩니다.</span><span id="mentalLetterCount">'+letter.length+'/'+LETTER_MAX+'</span></div>':
-   letter?'<div class="mental-letter-paper"><p>'+E(letter)+'</p><div class="mental-letter-sign">언제나 당신 편인 남편이 ♡</div></div>':
+   '<textarea id="mentalLetterInput" maxlength="'+LETTER_MAX+'" rows="5" placeholder="오늘 당신에게 꼭 전하고 싶은 말...">'+E(letterDraft)+'</textarea>'+
+   '<div class="mental-letter-bottom"><span>입력 완료 후 봉투에 담겨 읽기 전 상태로 저장됩니다.</span><span id="mentalLetterCount">'+letterDraft.length+'/'+LETTER_MAX+'</span></div>'+
+   '<button type="button" class="mental-letter-submit" id="mentalLetterSubmit">✉ 입력 완료 · 편지 봉투 닫기</button>'+
+   '<p class="mental-letter-validation" id="mentalLetterValidation" role="alert"></p>':
+   sealed?
+   '<div class="mental-letter-envelope" aria-label="읽지 않은 편지">'+
+    '<div class="mental-letter-envelope-symbol" aria-hidden="true">💌</div>'+
+    '<strong>아내에게 도착한 편지</strong><p>아직 열어보지 않은 편지가 있어요.</p>'+
+    '<button type="button" id="mentalLetterOpen" class="mental-letter-open">편지 열기 <span aria-hidden="true">♡</span></button>'+
+   '</div>':
+   letter?
+   '<div class="mental-letter-paper"><span class="mental-letter-opened">열어본 편지 · 읽음</span>'+
+    '<p>'+E(letter)+'</p><div class="mental-letter-sign">언제나 당신 편인 남편이 ♡</div></div>':
    '<p class="mental-letter-empty">아직 남겨진 편지가 없어요.<span>짧은 한마디라도 오늘의 마음을 남겨 보세요.</span></p>')+
-  '<div class="mental-letter-status" id="mentalLetterSaveState" aria-live="polite">'+
-  (pending[date]?(letterBackendSupported?"변경사항 기기에 보관 중 · 서버 자동 저장 대기":"편지 전송 대기 · Apps Script 최신 배포 필요"):cloudReady?"서버 자동 동기화 연결됨":"기기에 저장 · 서버 연결 대기")+'</div>'+
+  '<div class="mental-letter-status" id="mentalLetterSaveState" aria-live="polite">'+pendingState+'</div>'+
   '</section>';
 }
 function bindHusbandLetter(){
  const card=screen?.querySelector("#mentalHusbandLetter");if(!card)return;
- card.querySelector("#mentalLetterToggle")?.addEventListener("click",()=>{
-  letterEditing=!(letterEditing&&letterEditDate===selected);
-  letterEditDate=letterEditing?selected:"";
-  card.outerHTML=husbandLetterHTML();
+ const replaceCard=()=>{
+  const current=screen?.querySelector("#mentalHusbandLetter");
+  if(!current)return;
+  current.outerHTML=husbandLetterHTML();
   bindHusbandLetter();
+ };
+ card.querySelector("#mentalLetterToggle")?.addEventListener("click",()=>{
+  if(letterEditing&&letterEditDate===selected){
+   letterEditing=false;letterEditDate="";letterDraft="";
+  }else{
+   letterEditing=true;letterEditDate=selected;letterDraft=entry(selected).husbandLetter||"";
+  }
+  replaceCard();
   if(letterEditing)screen.querySelector("#mentalLetterInput")?.focus({preventScroll:true});
  });
  const input=card.querySelector("#mentalLetterInput");
- if(input)input.addEventListener("input",()=>{
-  const date=selected,text=input.value.slice(0,LETTER_MAX);
-  if(entry(date).husbandLetter!==text)changes(date,item=>{item.husbandLetter=text;},true);
-  const count=card.querySelector("#mentalLetterCount");if(count)count.textContent=text.length+"/"+LETTER_MAX;
-  const state=card.querySelector("#mentalLetterSaveState");
-  if(state)state.textContent=letterBackendSupported?"기기에 저장됨 · 서버 자동 저장 대기":"기기에 저장됨 · 최신 Apps Script 배포 후 서버 전송";
+ if(input){
+  input.addEventListener("input",()=>{
+   letterDraft=input.value.slice(0,LETTER_MAX);
+   const count=card.querySelector("#mentalLetterCount");
+   if(count)count.textContent=letterDraft.length+"/"+LETTER_MAX;
+   const warning=card.querySelector("#mentalLetterValidation");if(warning)warning.textContent="";
+  });
+  card.querySelector("#mentalLetterSubmit")?.addEventListener("click",()=>{
+   const date=selected,text=input.value.slice(0,LETTER_MAX).trim();
+   if(!text){
+    const warning=card.querySelector("#mentalLetterValidation");
+    if(warning)warning.textContent="편지 내용을 입력한 뒤 완료해 주세요.";
+    input.focus();return;
+   }
+   // Commit only on explicit completion, not while composing.
+   changes(date,item=>{
+    item.husbandLetter=text;item.husbandLetterStatus="sealed";item.husbandLetterOpenedAt="";
+   },true,"seal");
+   letterEditing=false;letterEditDate="";letterDraft="";
+   replaceCard();
+  });
+ }
+ card.querySelector("#mentalLetterOpen")?.addEventListener("click",()=>{
+  const date=selected,item=entry(date);
+  if(!item.husbandLetter||item.husbandLetterStatus!=="sealed")return;
+  changes(date,row=>{
+   row.husbandLetterStatus="opened";
+   row.husbandLetterOpenedAt=new Date().toISOString();
+  },true,"open");
+  replaceCard();
  });
 }
 function cloudPanel(){
