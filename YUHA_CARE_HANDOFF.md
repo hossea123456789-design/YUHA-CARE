@@ -612,3 +612,17 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 새 백엔드 지원 판별: `getMentalMonth`의 `schemaVersion:2`. 기존 `schemaVersion:1`은 신설 필드를 서버에서 잘라버려 유실 위험이 있으므로 프론트는 신설 편지의 업로드를 막고 로컬/pending으로 보존하며 '최신 Apps Script 배포 필요'를 명시. 프론트 버전 `mental.js?v=20261021-husband-letter1`, `mental.css?v=20261021-husband-letter1`.
 - 서버 배포 별도 수행: GitHub Actions는 Pages만 자동. 사용자에게 <https://github.com/hossea123456789-design/YUHA-CARE/blob/main/apps-script/Code.gs> 최신 코드로 **실제 Apps Script 교체 후 기존 웹앱 새 버전 재배포**가 필수. 기존 `/exec` 주소 및 Google Sheets 데이터 유지.
 - 회귀: 동일 날짜 다른 기기 아내 점수 수정 + 남편 편지 생성/수정/삭제(빈 내용)에서 기존 회복 기록 보존, 오래된 서버 스키마에서 전송 보류, 재진입 시 PIN/서버 조회 후 새 편지 표시, XSS 엔티티 및 1,000자 제한 점검. 실 서비스/사용자 기록은 테스트로 수정하지 않음.
+
+## 26. 2026-10-21 — 편지 봉투 밀봉 후 열람 상태 동기화
+
+### 신규 UX
+- '아내 회복' 위쪽 편지 카드에서 '편지 쓰기' 또는 '수정' 후 입력은 **draft 상태**로 UI 메모리 `letterDraft`에만 반영. 입력 완료 전에는 `changes()` 호출하지 않고 자동 원격 저장하지 않음. '취소' 시 초안을 버리고 기존 봉투/열림 상태 복원.
+- 하단 **'✉ 입력 완료 · 편지 봉투 닫기'**: 비어 있으면 오류, 작성 완료 시 `changes(date, ..., true, "seal")`로 본문 + `husbandLetterStatus:"sealed"` + `husbandLetterOpenedAt:""`을 로컬/pending 저장하고 봉투/미열람 UI 표시. 봉투 아래 '편지 열기' 클릭으로 `changes(...,true,"open")` 호출, `husbandLetterStatus:"opened"`, `husbandLetterOpenedAt` ISO timestamp 기록. 읽음 후 본문 렌더링.
+- 같은 4자리 PIN을 남편·아내가 공유하므로 누가 편지 열기를 클릭했는지 신원 확인 불가. 현재 UX에서 열린 상태는 버튼 클릭으로 기록하며 아내만 클릭했다는 인증을 주장하지 않는다.
+
+### 스키마·저장·동기화
+- `mental.js`: `empty()/normalize()`에 `husbandLetterStatus` / `husbandLetterOpenedAt`. 구형 본문은 `opened` 처리. pending 메타데이터 `letterAction:"seal"|"open"` 저장/복원하며, 로컬 편집 중에는 서버 전송 없음. `changes()` 기존 debounce 재사용.
+- `apps-script/Code.gs`: `mentalValidateEntry_`가 신규 상태 필드를 유지. `getMentalMonth`의 `schemaVersion:3`; 서버 `syncMentalEntry`가 `letterAction`에 따라 (1) 밀봉 시 기존 서버 row의 다른 필드는 보존하고 편지 필드만 바꿈 (2) 열람 시 서버 본문이 요청 본문과 같은지 확인하고 상태+열람시각만 갱신 (3) 이미 열람 상태면 timestamp 멱등 유지. 타 기기에서 본문을 바꾼 경우 conflict로 대응. 일반 수정의 expectedRevision 검증 유지.
+- 프론트 `letterBackendSupported`는 서버 응답 버전 `>=3`에서만 참. 미지원일 경우 pending 편지 작업을 업로드하거나 완료로 인정하지 않고 로컬에 보존. **실제 Apps Script 프로젝트는 GitHub 자동 배포 대상이 아니므로 사용자가 `apps-script/Code.gs` 최신 파일을 다시 붙여넣고 웹앱 새 버전 배포해야 함.** 기존 `/exec` 주소 유지.
+- UI CSS `.mental-letter-envelope`/ `.mental-letter-open`/`.mental-letter-submit` 등 44px 이상 터치 버튼. `index.html` JS/CSS 캐시 `?v=20261021-letter-envelope2`.
+- 실 사용자 기록과 Google Sheets 값을 테스트 중 수정하지 않음. 검증은 클라이언트/Apps Script 구문 검사, HTML 생성 및 서버 메모리 모의 점수 동시수정 테스트. 실기기 Chrome/Kakao/Apps Script v3 전환 성공 여부는 배포 후 확인 필요.
