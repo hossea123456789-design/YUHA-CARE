@@ -210,3 +210,12 @@
 - 사용자가 '이 기기에서 자동 동기화 유지'를 명시적으로 체크해야만 비공개 접근 암호를 `localStorage` 키 `yuha_mental_sync_device_v1`에 저장. 미체크 상태에서는 `sessionStorage`만 사용. PIN 해제 시 세션/허용된 기기 저장소에서 암호를 읽어 `activate()` 자동 호출하고 날짜별 미동기화 큐를 서버에 전송한다.
 - 로그아웃(비공개 연결 끊기) 및 서버 인증 불일치 시 기억된 암호 삭제. 로컬 기록 및 보류 큐는 삭제하지 않는다. 저장된 암호는 브라우저 접근자/자바스크립트에 노출될 수 있어 공용 기기에서 허용하지 않는 것이 좋다.
 - 캐시 버전 `mental.js?v=20261021-mental-autosync1`, `mental.css?v=20261021-mental-autosync1`. 기존 `getMentalMonth`/`syncMentalEntry` API와 4자리 PIN, 점수 취소 기능 유지. 실제 라이브 동기화 성공은 별도 인증·데이터 확인이 필요하다.
+
+## 16. 2026-10-21 — PIN 로그인 즉시 서버 자동 동기화로 통일
+
+- 사용자 확정 요구: **아내 회복 탭은 들어갈 때마다 기존 4자리 PIN을 입력**한다. PIN 해제된 상태에서 지표·개인시간·태그·메모를 편집하면 다른 육아 탭처럼 자동으로 로컬 저장 및 Google Sheets 서버 동기화해야 하며 추가 연결/인증/저장 버튼이 없어야 한다.
+- `mental.js`: PIN 검증 성공 후 `hydrate();render();activate(enteredPin)`을 호출하여 현재/이전 달 기록을 서버 조회한다. 서버 준비 완료 후 미전송 큐 `pending`을 `syncMentalEntry`로 자동 전송한다. 탭 이탈은 `lock()`으로 기록/서버 PIN 메모리를 지우며 재진입 시 PIN 재요구. 오래된 `sessionStorage`/`localStorage` 서버 암호는 잠금 해제 시 삭제.
+- 독립 서버 연결 UI·서버 암호 입력창·기기 자동 로그인 체크박스 제거. '기록 저장과 개인정보'는 설명/상태만 표시한다. 기존 PIN 키패드 4자리 자동 해제, 점수 재탭 취소, 충돌/재시도 흐름 유지.
+- `apps-script/Code.gs`: `mentalValidateAccess_`가 숫자 PIN 4자리면 별도 `mentalValidatePin_`으로 검증. 서버에서 PIN SHA-256 다이제스트 확인, 틀린 PIN 전역 5회 발생하면 15분 제한. 이전 강한 서버 암호 검증 경로도 구형 클라이언트를 위해 유지한다. 이 서버 변경은 **실제 Apps Script 최신 `Code.gs` 재적용 및 웹앱 재배포가 반드시 필요**하다.
+- 보안 선택 및 한계: 공개 GitHub의 4자리 PIN 해시로 서버 데이터까지 보호하는 것은 공격에 취약하다. 자동 잠금과 서버의 15분 실패 제한만으로 민감 개인정보의 충분한 보호를 보장하지 않는다. 사용자가 PIN-only UX를 명시 요청했으며 보안 상충점을 명확히 안내한다.
+- GitHub Pages 캐시 버전 `mental.js?v=20261021-pin-login-sync1`; 브라우저 실제 PIN 로그인→수정→서버 저장→다른 기기 확인은 신규 Apps Script 백엔드 실제 배포 후 점검 필요.
