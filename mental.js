@@ -8,6 +8,17 @@
 const STORE="yuha_mental_recovery_local_v1";
 const PENDING="yuha_mental_recovery_pending_v1";
 const META="yuha_mental_recovery_meta_v1";
+const SYNC_SESSION="yuha_mental_sync_session_v1";
+// Session-only sync credential: never publish it or persist it to localStorage.
+function readSyncSession(){
+ try{return sessionStorage.getItem(SYNC_SESSION)||"";}catch(_){return "";}
+}
+function rememberSyncSession(secret){
+ try{sessionStorage.setItem(SYNC_SESSION,secret);}catch(_){/* private browsing may block storage */}
+}
+function forgetSyncSession(){
+ try{sessionStorage.removeItem(SYNC_SESSION);}catch(_){}
+}
 const FIELDS=[
  {id:"energy",name:"신체 에너지",short:"에너지",question:"오늘 몸에 사용할 수 있는 에너지가 얼마나 남아 있었나요?",low:"완전 방전",high:"여유가 충분함"},
  {id:"control",name:"삶의 통제감",short:"통제감",question:"오늘 내 다음 행동을 내가 결정할 수 있었나요?",low:"선택권이 없음",high:"내가 선택함"},
@@ -167,6 +178,9 @@ function bindLock(){
    unlocked=true;
    hydrate();
    render();
+   // Restore an already authorized server sync after PIN unlock.
+   const remembered=readSyncSession();
+   if(remembered)activate(remembered);
   }catch(err){
    unlocked=false;
    console.error("[YUHA MENTAL] Unlock failed:",err);
@@ -261,13 +275,16 @@ function activate(pass){
    saveLocal();
    if(--outstanding===0&&!anyFailed){
      cloudBusy=false;cloudReady=true;cloudError="";
+     rememberSyncSession(cloudCode);
      progress("done","비공개 기록 연결 완료");setState(stateText());
      render();scheduleCloud(100);
    }
   },failed);
  });
  function failed(err){if(anyFailed||epoch!==cloudEpoch||!unlocked)return;anyFailed=true;cloudBusy=false;cloudReady=false;
-   progress("error","비공개 기록 연결 실패");setState("연결 실패: "+String(err?.message||err),true);render();}
+   const reason=String(err?.message||err);
+   if(/접근 암호가 올바르지|동기화가 아직 설정되지 않았습니다/.test(reason))forgetSyncSession();
+   progress("error","비공개 기록 연결 실패");setState("연결 실패: "+reason,true);render();}
 }
 function scheduleCloud(delay=1800){
  clearTimeout(syncingTimer);
@@ -539,7 +556,7 @@ function cloudPanel(){
  return '<details class="mental-cloud-details" '+(cloudOpen?'open':'')+' id="mentalCloudDetails"><summary>'+
   '<span>기록 저장과 개인정보</span><small>'+(!cloudReady?'기기에 저장됨':'비공개 서버 연결됨')+'</small></summary>'+
   '<div class="mental-cloud-inner"><p>정서·가족관계 기록은 민감한 개인 정보입니다. 이 기기 저장소는 암호화되어 있지 않으며 이 브라우저를 사용할 수 있는 사람에게 보일 수 있습니다. 공유할지 여부는 기록하는 본인이 결정해 주세요.</p>'+
-  '<p>여러 기기에서 동기화하려면 Apps Script에 별도 비공개 접근 암호 설정과 최신 Code.gs 배포가 필요합니다. 암호는 GitHub에 저장하지 않습니다.</p>'+
+  '<p>여러 기기에서 동기화하려면 Apps Script에 별도 비공개 접근 암호 설정과 최신 Code.gs 배포가 필요합니다. 암호는 GitHub에 저장하지 않습니다. 연결에 성공하면 현재 브라우저 탭에서는 PIN을 다시 풀 때 자동 재연결됩니다.</p>'+
   (cloudReady?'<button type="button" id="mentalCloudDisconnect">비공개 연결 끊기</button>':
   '<div class="mental-cloud-connect"><input type="password" id="mentalCloudPass" autocomplete="off" minlength="12" placeholder="비공개 접근 암호 (12자 이상)" aria-label="비공개 기록 접근 암호"/>'+
   '<button type="button" id="mentalCloudConnect">연결</button></div>')+
@@ -712,7 +729,7 @@ function bind(){
   activate(code);screen.querySelector("#mentalCloudPass").value="";
  });
  screen.querySelector("#mentalCloudDisconnect")?.addEventListener("click",()=>{
-  cloudEpoch++;cloudCode="";cloudReady=false;clearTimeout(syncingTimer);clearTimeout(retryTimer);
+  cloudEpoch++;cloudCode="";cloudReady=false;forgetSyncSession();clearTimeout(syncingTimer);clearTimeout(retryTimer);
   setState("이 기기에만 저장 중");render();
  });
  screen.querySelector("#mentalJumpToday")?.addEventListener("click",event=>{
