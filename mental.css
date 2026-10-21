@@ -1,0 +1,138 @@
+/* Mental Recovery v1 — follows the YUHA sleep heatmap and card language */
+.mental-root{display:flex;flex-direction:column;gap:12px;min-width:0;width:100%}
+.mental-root h3{margin:0;font-size:14px;font-weight:830;letter-spacing:-.2px;color:#324e42}
+.mental-root .panel-head{margin:0}.mental-root .count{background:#e9f1ef;color:#50766a}
+.mental-intro{background:#f5f9f6;border:1px solid #e2ece5;border-radius:14px;padding:13px 14px}
+.mental-intro strong{display:block;font-size:13px;color:#365e4c}.mental-intro p{font-size:11px;color:#7a8d80;line-height:1.65;margin:5px 0 0}
+.mental-top-cards,.mental-core-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.mental-score-card,.mental-core{min-width:0;display:flex;flex-direction:column;gap:4px;border-radius:13px;padding:11px;background:white;border:1px solid #e3ebe6}
+.mental-score-card span,.mental-core span{font-size:10px;font-weight:720;color:#7a8e82}
+.mental-score-card strong{font-size:24px;color:#2e745c;font-weight:880;font-variant-numeric:tabular-nums}
+.mental-score-card small,.mental-core small{font-size:10px;color:#8b9b92;line-height:1.4}
+.mental-core{background:#edf5ee;border-color:#ddeae0;padding:8px 10px}
+.mental-core strong{font-size:17px;color:#326e59;font-weight:860;font-variant-numeric:tabular-nums}
+.mental-actions-row{display:flex;align-items:center;justify-content:space-between;gap:9px}
+.mental-primary-action{display:inline-flex;align-items:center;justify-content:center;min-height:39px;padding:0 16px;border-radius:10px;
+ background:#297963;color:white;font-size:12px;font-weight:830;text-decoration:none;flex-shrink:0}
+.mental-actions-row>span{font-size:10px;line-height:1.5;color:#81958a;text-align:right}
+.mental-root .sleep-card{margin:0;padding:14px 12px;border-radius:15px;min-width:0;overflow:hidden}
+.mental-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:11px}
+.mental-section-head h3{font-size:13px}
+.mental-root .sleep-map-nav{display:flex;gap:4px}
+.mental-root .sleep-map-nav button{min-width:29px;min-height:29px;padding:4px 6px;border-radius:8px;font-size:14px}
+.mental-month-grid{width:min(100%,345px)!important;max-width:345px;margin:0 auto;gap:5px!important}
+.mental-month-grid .sleep-heat-square{height:42px;border-radius:9px}
+.mental-month-grid .sleep-heat-score{font-size:14px;margin-top:5px}
+.mental-month-grid .mental-day.today::after{border-color:#349276}
+.mental-month-grid .mental-day.selected::after{border-color:#325f80}
+.mental-critical{background:#efc9cf!important;border-color:#e9b2bc!important;color:#843c4b!important}
+.mental-low{background:#f4ddc3!important;border-color:#edcca6!important;color:#855c3f!important}
+.mental-watch{background:#f5e5b4!important;border-color:#e8d69d!important;color:#806722!important}
+.mental-stable{background:#d0ebd8!important;border-color:#baddc3!important;color:#33744f!important}
+.mental-good{background:#bcd5f0!important;border-color:#9fbee1!important;color:#315c85!important}
+.mental-empty{background:#f0f3f2!important;border-color:#e3eae6!important;color:#9bac9f!important}
+.mental-legend{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 10px;margin:11px 0 5px}
+.mental-legend span{font-size:9px;color:#84958a;display:inline-flex;gap:4px;align-items:center}
+.mental-legend-dot{display:inline-block;width:9px;height:9px;border-radius:3px}
+.mental-muted{font-size:10px;line-height:1.6;color:#8b9b90;margin:7px 0 0}
+.mental-matrix-wrap{width:100%;overflow-x:auto;scrollbar-width:thin}
+.mental-matrix{display:grid;grid-template-columns:minmax(66px,1.7fr) repeat(7,minmax(29px,1fr));gap:4px;align-items:center;min-width:0}
+.mental-matrix-caption,.mental-matrix-day{font-size:10px;color:#86968d;font-weight:750;text-align:center}
+.mental-matrix-caption{text-align:left}
+.mental-matrix-day{border-radius:6px;padding:3px 0}
+.mental-matrix-day small{display:block;font-size:10px}
+.mental-matrix-day.is-selected{background:#e9f4ec;color:#27765d}
+.mental-matrix-label{font-size:10px;color:#506f5d;font-weight:780;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mental-matrix-cell{border:1px solid;height:32px;min-width:0;padding:0!important;border-radius:7px;font-size:10px;
+ font-weight:790;font-variant-numeric:tabular-nums}
+.mental-matrix-cell.is-selected{outline:2px solid #579879}
+.mental-week-card,.mental-assessment,.mental-effect{background:#f5f9f6;border-radius:11px;padding:12px;border:1px solid #e3ede7}
+.mental-week-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.mental-week-head strong{font-size:12px;color:#3d6650}
+.mental-week-head span{font-size:10px;color:#8da396}
+.mental-week-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;row-gap:8px;column-gap:10px}
+.mental-week-grid span{font-size:11px;color:#809387}
+.mental-week-grid strong{font-size:11px;color:#385c4b;max-width:175px;text-align:right}
+.mental-assessment,.mental-effect{font-size:11px;color:#416f58;line-height:1.6;margin:9px 0}
+.mental-assessment span,.mental-effect small{display:block;font-size:10px;color:#799487;margin-top:3px}
+.mental-insights{display:flex;flex-direction:column;gap:7px;margin-top:9px}
+.mental-insight{padding:11px;background:#faf9f6;border:1px solid #eee7d7;border-radius:10px}
+.mental-insight.good{background:#f1f8f3;border-color:#dce9e0}.mental-insight.note{background:#f0f5f9;border-color:#dfe9f0}
+.mental-insight strong{font-size:11px;color:#4d6b5b}
+.mental-insight p{font-size:10px;color:#7b8e81;margin:5px 0 0;line-height:1.6}
+.mental-chart-card{display:flex;flex-direction:column;gap:9px}
+.mental-graph{padding:9px 10px;border:1px solid #e7eee8;border-radius:12px;background:#fff}
+.mental-graph-title{font-size:11px;font-weight:770;color:#506c60}
+.mental-graph svg{height:76px;width:100%;display:block;margin-top:5px}
+.mental-chart-empty{font-size:10px;color:#9caba0;margin:0;padding:16px 0}
+.mental-two-line{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.mental-two-line .mental-graph svg{height:59px}
+.mental-editor-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid #e5ede7;margin-bottom:11px}
+.mental-editor-head h3{font-size:16px}.mental-editor-head p{font-size:10px;color:#81958a;line-height:1.65;margin:5px 0 0}
+.mental-editor-score{font-size:20px;color:#25795c;font-weight:880;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mental-score-list{display:flex;flex-direction:column;gap:8px}
+.mental-score-row{border:1px solid #e4ece6;border-radius:11px;padding:11px 10px;background:#fcfdfb}
+.mental-score-title{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.mental-score-title strong{font-size:12px;color:#365c49}.mental-score-title output{font-size:13px;color:#29805f;font-weight:850;white-space:nowrap}
+.mental-score-row p{font-size:10px;line-height:1.5;color:#8b9b8f;margin:5px 0 9px}
+.mental-choice-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.mental-choice{min-width:0;min-height:36px;padding:5px 0;border:1px solid #e0e9e2;border-radius:8px;background:white;
+ color:#6e8071;font-size:10px;letter-spacing:-.3px;font-weight:740;white-space:nowrap}
+.mental-choice.active{border-color:#2b8066;background:#2b8066;color:#fff}
+.mental-fine-row{display:flex;justify-content:space-between;align-items:center;gap:5px;margin-top:7px}
+.mental-fine-row>span{flex:1;min-width:0;font-size:9px;color:#94a69a}.mental-fine-row>span:last-child{text-align:right}
+.mental-fine-actions{display:flex;align-items:center;gap:5px}.mental-fine-actions button{height:26px;width:27px;min-height:26px;padding:0;
+ border-radius:7px;background:#ecf5ef;color:#33785b;border:1px solid #d9e7de;font-size:15px;font-weight:800}
+.mental-fine-actions span{font-size:9px;color:#8b9d91}
+.mental-context-details,.mental-cloud-details{margin-top:11px;background:#f9fbf9;border:1px solid #e1eae4;border-radius:11px}
+.mental-context-details summary,.mental-cloud-details summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;
+ padding:12px;font-size:12px;font-weight:800;color:#44654e;list-style:none}
+.mental-context-details summary::-webkit-details-marker,.mental-cloud-details summary::-webkit-details-marker{display:none}
+.mental-context-details summary span,.mental-cloud-details summary small{font-size:10px;color:#889b8c;font-weight:600}
+.mental-context-inner,.mental-cloud-inner{padding:0 11px 13px}
+.mental-minute-label{font-size:11px;color:#53725e;font-weight:760;display:flex;align-items:center;justify-content:space-between;gap:7px}
+.mental-minute-label span{display:flex;align-items:center;gap:6px}
+.mental-minute-label input{width:73px;height:35px;box-sizing:border-box;border:1px solid #d8e6dd;border-radius:8px;
+ background:#fff;padding:4px 6px;text-align:center;color:#3c6250}
+.mental-tags-group{margin-top:14px}.mental-tags-group h4{font-size:12px;color:#50725c;margin:0 0 7px}
+.mental-tags{display:flex;flex-wrap:wrap;gap:5px}
+.mental-tag{border-radius:8px;background:#fff;border:1px solid #e1eae3;padding:7px 9px;font-size:10px;font-weight:720;color:#648071}
+.mental-tag.chosen{background:#e4f2e8;border-color:#afdac1;color:#28795b}
+.mental-memo-label{display:block;font-size:11px;font-weight:780;margin-top:15px;color:#426b55}
+.mental-memo-label textarea{box-sizing:border-box;width:100%;margin-top:7px;padding:10px;border:1px solid #dce7df;
+ border-radius:9px;background:#fff;font:12px/1.5 inherit;min-height:68px;resize:vertical}
+.mental-local-note{display:flex;justify-content:space-between;gap:7px;margin-top:12px;font-size:10px;color:#809487}
+.mental-save-state{color:#318163;font-weight:790;max-width:60%}.mental-save-state[data-error=true]{color:#b34e5b}
+.mental-cloud-details{margin-top:0;background:#fff}.mental-cloud-inner p{font-size:11px;color:#7b8e81;line-height:1.65;margin:0 0 8px}
+.mental-cloud-connect{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.mental-cloud-connect input{min-width:0;padding:8px;border:1px solid #dde8e0;border-radius:8px;font-size:12px}
+.mental-cloud-connect button,.mental-cloud-inner>button{padding:8px 12px;border:0;border-radius:8px;background:#2a795e;color:#fff;font-size:11px;font-weight:750}
+.mental-cloud-small{font-size:10px;color:#99a69a!important;margin-top:9px!important}
+.mental-footer{font-size:10px;color:#91a296;line-height:1.75;margin:0 2px 27px}
+#mentalToday{scroll-margin-top:200px}
+.mental-locked{min-height:50vh;justify-content:center}
+.mental-lock-card{padding:27px 20px!important;max-width:420px;margin:30px auto!important;width:100%;box-sizing:border-box;text-align:center}
+.mental-lock-icon{width:46px;height:46px;background:#e4f1e9;border-radius:14px;display:grid;place-items:center;margin:0 auto 13px;font-size:25px;color:#398568}
+.mental-lock-card h2{font-size:18px;color:#345b47;margin:0 0 7px}.mental-lock-card>p{font-size:11px;color:#899b8d;line-height:1.5;margin:0 0 21px}
+.mental-lock-card form{text-align:left}.mental-lock-card label{font-size:11px;font-weight:780;color:#557667}
+.mental-unlock-line{display:flex;align-items:center;gap:8px;margin-top:7px}
+.mental-unlock-line input{flex:1;min-width:0;height:43px;box-sizing:border-box;padding:9px 12px;
+ background:#f7faf8;border:1px solid #dce8df;border-radius:10px;font-size:19px;letter-spacing:9px;text-align:center}
+.mental-unlock-line button{height:43px;min-width:78px;border-radius:10px;padding:8px 14px;
+ border:0;background:#2b7a61;color:#fff;font-size:12px;font-weight:820}
+.mental-lock-error{display:block;font-size:11px;color:#b24b54;margin-top:8px;min-height:14px}
+.mental-lock-foot{border-top:1px solid #e9efea;font-size:10px;color:#8a998e;line-height:1.65;margin-top:12px;padding-top:12px;text-align:left}
+@media(max-width:420px){
+ .mental-root{gap:10px}.mental-root .sleep-card{padding:13px 10px}
+ .mental-score-card{padding:10px 7px}.mental-score-card strong{font-size:21px}
+ .mental-core{padding:8px 7px}.mental-choice{font-size:9px;letter-spacing:-.6px;min-height:34px}
+ .mental-matrix{grid-template-columns:minmax(63px,1.7fr) repeat(7,minmax(27px,1fr));gap:3px}
+ .mental-matrix-label{font-size:9px}.mental-matrix-cell{height:30px;font-size:9px}
+ .mental-two-line{grid-template-columns:1fr}
+}
+@media(max-width:355px){
+ .mental-matrix{min-width:310px}
+ .mental-choice{font-size:8px;letter-spacing:-.65px}
+ .mental-score-card strong{font-size:19px}
+}
+@media(prefers-reduced-motion:reduce){.mental-choice,.mental-matrix-cell{transition:none!important}}
