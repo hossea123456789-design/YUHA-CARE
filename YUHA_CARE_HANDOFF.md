@@ -84,7 +84,7 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 ### 3.1 GitHub Pages 배포 절차
 1. `main`의 소스 파일을 수정한다. 권장: 관련 파일과 이 MD/README를 한 흐름에서 갱신한다.
 2. `.github/workflows/pages.yml`은 `main` push에 자동 반응한다. `workflow_dispatch`도 선언되어 있다.
-3. 워크플로는 `public-site`를 만든 뒤 **`index.html`, `design.css`, `bridge-client.js`, `config.js`만 복사**해 Pages artifact를 올리고 `actions/deploy-pages@v4`로 배포한다. **Apps Script 코드 및 본 문서는 GitHub 저장소에는 존재하지만 공개 Pages 산출물에는 포함하지 않는다.**
+3. 워크플로는 `public-site`를 만든 뒤 **`index.html`, `design.css`, `mental.js`, `mental.css`, `bridge-client.js`, `config.js`만 복사**해 Pages artifact를 올리고 `actions/deploy-pages@v4`로 배포한다. **Apps Script 코드 및 본 문서는 GitHub 저장소에는 존재하지만 공개 Pages 산출물에는 포함하지 않는다.**
 4. 최신 `main` commit SHA와 최신 Actions run의 `head_sha`가 같은지, 전체 `status=completed` 및 `conclusion=success`인지, `deploy-pages` 단계도 성공인지 확인한다.
 5. 정적 CSS/JS 내용 변경 시 브라우저 캐시로 이전 화면이 남을 수 있다. `index.html`에서 `design.css?v=...` 등 참조의 버전을 갱신하고 새로고침한다.
 6. 실제 GUI가 필요하면 320/360/390px 모바일, 768px 태블릿에서 시각 확인한다. 브라우저/렌더링 테스트가 불가능하면 **문법·배포 검증까지만 됐다고 명시**한다.
@@ -164,7 +164,7 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 ## 5. 체크리스트 UI와 자동 저장
 
 ### 5.1 탭·체크리스트 구성
-- 탭 순서: `daycare` (얼집) → `sleep` (수면 기록) → `outing` (외출) → `daily` (매일 청소) → `weekly` (주말 청소) → `settings` (설정).
+- 탭 순서: `daycare` (얼집) → `sleep` (수면 기록) → `mental` (아내 회복) → `outing` (외출) → `daily` (매일 청소) → `weekly` (주말 청소) → `settings` (설정).
 - 네비게이션: 탭 아이콘+이름, 가로 스와이프, 선택된 탭은 강조. 전환 시 메뉴 안의 **가로 스크롤만** 조정하며 상단 전체가 튀거나 헤더 높이가 달라지면 안 된다.
 - 얼집/외출/매일/주말 탭마다 별도의 진행률. **전체 탭 항목 합계를 상단 하나의 진행률로 쓰지 않는다.**
 - 예: 얼집 13/14개라면 얼집 탭에서 93%; 외출 탭은 외출 항목만 계산. 수면·설정은 체크리스트 진행률 대상이 아니나 **상단 헤더의 물리적 높이는 유지**.
@@ -428,3 +428,61 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 헤더 좌표 실측: **막대 중심·퍼센트 중심·연결됨 배지 중심의 세로 좌표 차이 모두 0px** (320px → y=34px, 360/390px → y=35px, 768px → y=40px). 막대·숫자 사이 여백은 약 3px.
 - 경고: 이 검증은 **UI 정렬과 mock 서버 동작** 검증이다. 실제 Apps Script 연결/Google Sheets 충돌의 무손실을 실증한 것이 아니며, **CHECKLIST_DB의 전체 JSON 쓰기 방식에는 동시 수정 충돌 위험이 남는다**.
 - 문서에 기록된 현행 CSS 캐시 버전: `design.css?v=20261021-safesync-bedtime4`. 페이지의 정적 파일에는 최신 완료된 mock 테스트 코드만 배포; 테스트 데이터는 GitHub에 포함하지 않음.
+
+
+## 17. 2026-10-21 — 아내 회복 (Wife Mental Recovery) 전용 탭
+
+### 변경 목적
+- 사용자가 상세히 제시한 **육아·직장·가사·가족 관계 소진/회복 추적 사양**을 독립 탭으로 구현.
+- 본인의 자기기록에 의한 변화/지속기간 관찰 도구. **배우자 평가·육아능력 평가·심리질환 진단 도구가 아님**.
+- 기존 유하 수면 히트맵의 **월간 7열 날짜 달력, 좌상단 작은 날짜, 중앙 점수, 날짜 선택, 카드/팔레트 체계** 재활용.
+- 새 개인정보(정서·몸 상태·가족 분담 메모)를 체크리스트 및 수면 DB와 완전히 분리한다.
+
+### 추가/변경 파일
+| 파일 | 처리 |
+| --- | --- |
+| `mental.js` | 7개 항목 기록, 선택 Context, 분석/추세/점수, 월·주간 히트맵, PIN UI, 로컬 저장/옵션 서버 동기화 |
+| `mental.css` | 수면 앱 기존 색상/카드/달력 계열을 이어받은 민감기록 전용 스타일 |
+| `index.html` | 탭 순서에 `mental` 추가, 새 파일 참조, 헤더 높이 유지, 이동 시 잠금, 탭 별 렌더링 |
+| `bridge-client.js` | `getMentalMonth`, `syncMentalEntry` 메서드 허용 |
+| `apps-script/Code.gs` | 격리된 `MENTAL_LOG` 서버 DB API 2종, 날짜별 optimistic locking, 비공개 접근 암호 검사 |
+| `.github/workflows/pages.yml` | 공개 배포 artifact에 `mental.js`/`mental.css` 포함 |
+| `WIFE_MENTAL_RECOVERY_SPEC.md` | 전체 기능·점수 공식·UX·보안·데이터·테스트 인수인계 (필수 참고) |
+
+### 핵심 UX
+- 아내 회복 탭은 **사용자 요청의 4자리 PIN 간편 잠금**을 사용하며 탭을 벗어나면 다시 잠긴다. PIN 실제 문자열을 공개 인수인계 문서·설정 파일에 기록하지 않는다. 구현 `mental.js` 내 저장된 PIN **SHA-256 해시**는 진짜 비밀키가 아님.
+- **PIN 잠금은 로컬 기록 암호화가 아니다.** `localStorage`는 암호화되지 않으며 본인 동의 없는 화면 공유와 기록 열람을 피해야 한다.
+- 초기 화면: 4개 요약 카드(오늘 상태, **가중 회복**, 7일 평균, 전주 대비) + 7일 평균의 CONTROL/REST/SELF 3가지 핵심 지표.
+- 1차 히트맵: 기존 수면 달력과 유사한 월별 0~100점 표시/색상. 2차: **7개 개별 지표+TOTAL × 월~일** 주간 미니 히트맵.
+- 날짜를 누르면 당일 기록, 7개 질문은 **5단계 버튼을 이용해 빠른 선택** (필요할 때만 ±0.5점), Context·개인시간·기본욕구·메모는 접힌 영역에서 선택.
+- 주간 요약·추세·원인 Context, 회복 경고 및 긍정 신호를 중립적인 언어로 제공. 월간 점수/회복 핵심/에너지-멘탈 그래프 제공.
+- 미기록일 점수 0 금지, 일부 입력일 미평가. 평가를 위한 기록일이 부족하면 오판 대신 **분석 보류**.
+
+### 점수 공식
+- 일일 멘탈(0~10): `(ENERGY+CONTROL+CAPACITY+TOLERANCE+REST+SELF_ACTION+SELF)/7`.
+- 가중 회복(0~10): `CONTROL×.30+REST×.25+SELF×.25+ENERGY×.10+TOLERANCE×.10`.
+- 예시 [3,2,4,3,4,2,3] → **Mental 3.0점**, **Recovery 2.95점** (컴포넌트 단위 테스트 확인).
+- 빠른 버튼 [2,4,5.5,7,9]에 ±0.5점 조정. 전체 7항목 입력 시에만 총점·가중점수를 계산.
+- 7일 현재·지난주 비교는 각 주 완료 4일 이상 있을 때만, 14일 평균과 연속 경고는 충분한 기록이 있을 때만.
+- 지속 하락, 통제감/에너지/자기상실, 충분한 개인시간에도 낮은 REST, 기본욕구 지연 경고; **긍정 회복 추세도 표시**. 절대점수 기준은 사용자 맞춤형 참고값이지 임상진단 도구가 아니다.
+- 상세 계산·경고·메시지 규칙은 `WIFE_MENTAL_RECOVERY_SPEC.md`에 정리.
+
+### 저장/비공개 접근
+- 기기 로컬: `yuha_mental_recovery_local_v1` 및 `yuha_mental_recovery_pending_v1`. **수정 즉시 기기에 저장**. 기기 사이트 데이터 삭제 시 복구 불가 위험 안내.
+- 서버: 기존 Google Sheets에 `MENTAL_LOG` 별도 시트. A=날짜, B=JSON, C=수정시간. 기존 `CHECKLIST_DB`, `SLEEP_LOG`, `APP_SETTINGS` 값이나 수식은 변경하지 않음.
+- 서버 연동은 **추가 설정을 하지 않는 기본 상태에서는 비활성화**. Apps Script Script Properties에 `YUHA_MENTAL_ACCESS_KEY`라는 12자 이상 난수형 암호를 **비공개로 설정**하고 실제 최신 `Code.gs` 재배포해야만 월별 조회와 저장을 허용한다.
+- 해당 서버 암호는 사용자 요청의 4자리 UI PIN과 **별개**이며 GitHub 코드, 메모리 저장 요청, 프런트엔드 config.js에 포함하지 않는다.
+- 날짜 단위 optimistic concurrency(`expectedRevision`)와 LockService. 서버 충돌 시 원본을 임의로 덮지 않고 로컬 기록은 보존. 추가 충돌 선택 UI 정교화는 후속 검토 대상.
+- **GitHub Pages 배포만으로 새로운 Apps Script 메서드가 라이브 서버에서 사용 가능하진 않음.** 도구로 직접 Apps Script 버전 업데이트를 완료했다는 근거가 없다면 다기기 동기화는 **미활성**으로 정확히 보고한다.
+
+### 인수인계/보안 제약
+- 4자리 PIN은 브라우저에서 해시 검증하므로 **저항력이 약한 간편 잠금이며 공격 방어/암호화 수단이 아님**. 인증이 필요한 다기기 데이터 접근은 서버 암호로 별도 제어.
+- 본인이 원하지 않는 상태로 기록을 강요하거나, 기록을 남편·가족이 자동으로 볼 수 있게 하는 기능을 기본 활성화하지 않는다.
+- 누락된 날 알림·감점·"회복 완료" 표현, 감정/모성애의 의학적 판정 금지.
+- Apps Script 접근 키 관리 기능은 배포·계정 권한·Script Properties 등 사용자 승인 작업이 필요할 수 있으며 실제 완료 여부는 별도 확인.
+- **앞으로 이 기능을 수정할 때는 `YUHA_CARE_HANDOFF.md`와 `WIFE_MENTAL_RECOVERY_SPEC.md` 두 문서를 반드시 함께 갱신**한다.
+
+### 실행 테스트(프로젝트 소스 수준)
+- `mental.js`, `bridge-client.js`, `apps-script/Code.gs`, HTML inline script의 JavaScript 구문 검사 통과.
+- Mental 3.0 / Recovery 2.95 / 전체 만점 10 / 미입력 미집계 / 주간 월요일~일요일 처리 단위 확인.
+- 브라우저 모바일 실제 시각, PIN 해제·재잠금·입력·서버 오류에 대한 구체적인 동작 검증은 Pages 배포 후 별도로 기록(검증되지 않았다면 완료 주장하지 않음).
