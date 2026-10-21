@@ -627,3 +627,15 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - UI CSS `.mental-letter-envelope`/ `.mental-letter-open`/`.mental-letter-submit` 등 44px 이상 터치 버튼. `index.html` JS/CSS 캐시 `?v=20261021-letter-envelope2`.
 - 실 사용자 기록과 Google Sheets 값을 테스트 중 수정하지 않음. 검증은 클라이언트/Apps Script 구문 검사, HTML 생성 및 서버 메모리 모의 점수 동시수정 테스트. 실기기 Chrome/Kakao/Apps Script v3 전환 성공 여부는 배포 후 확인 필요.
 - 빠른 열기 예외: 입력 완료 직후 서버로 sealed 단계가 업로드되기 전에 open 요청이 생기면, 서버 `letterAction:"open"`은 동일 본문이 이미 저장된 경우 읽음만 반영하고, 서버 revision이 요청의 expectedRevision과 같으면 본문과 읽음을 한 번에 원자 저장. 서버 revision이 달라진 타 기기 변경은 conflict 반환. 시뮬레이션 검증 완료.
+
+## 27. 2026-10-22 — 편지 SVG 고급화 및 봉투 열기 애니메이션
+
+### 적용 범위
+- 사용자 요구: 아내 회복 편지의 기존 저품질 💌 이모지 삭제. 인장으로 봉인된 고급 편지지/봉투 비주얼, 개봉 시 과하지 않은 미세 연출을 앱에 **실제 반영**.
+- 신규 텍스트 SVG 자산: `assets/mental-letter-sealed.svg`(정교한 아이보리 종이 재질, 버건디 식물 문양 왁스 인장), `assets/mental-letter-opened.svg`(인장 분리 및 편지지 공개). 장치 픽셀밀도와 무관하게 선명, 외부 서버 이미지 의존 없음. 동일 360×250 viewBox, SVG 종이 패턴·그라디언트·소프트 그림자.
+- `mental.js`: `husbandLetterHTML()`의 sealed 카드에 두 이미지 겹치기, 기존 버튼은 그대로. click 처리에서 이중 클릭 금지 → `is-opening` → 약 620ms 후 로컬 `opened`/열람 시각 업데이트 + 기존 `changes(...,true,"open")` 원격 동기화 + 편지 본문 렌더링. 해당 날짜/본문이 그 사이 변경되거나 다른 탭 잠긴 경우 대기 중 클릭 무시.
+- `mental.css`: 단순 입체감 부여, 밀랍 인장 열기 `mentalWaxSeparation`(0.37초), 열린 봉투 `mentalEnvelopeReveal`(0.6초), 종이 본문 `mentalLetterPaperIn`(0.3초). 과한 스파클/파티클 금지. `prefers-reduced-motion` 동작 및 모바일 카드 너비 유지.
+- `index.html`: JS/CSS 캐시 `20261022-premium-wax1`. Google Apps Script API, `MENTAL_LOG`, PIN 흐름 및 편지 데이터 스키마 변화 없음. 이전 기능에서 실제 Apps Script v3 배포가 완료되어 있다면 이 변경 자체 때문에 재배포할 필요 없음.
+
+### 검증
+- `mental.js` 문법 검사, SVG 경로/파일 실제 존재 확인, sealed/opened 이미지 URL, 읽음 액션 유지, 모션 감소 옵션과 중복 클릭 차단 검증. 실제 기기에서 애니메이션 체감, Chrome·카카오톡 WebView의 로딩은 배포 후 직접 확인 필요.
