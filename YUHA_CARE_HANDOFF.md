@@ -626,3 +626,4 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 프론트 `letterBackendSupported`는 서버 응답 버전 `>=3`에서만 참. 미지원일 경우 pending 편지 작업을 업로드하거나 완료로 인정하지 않고 로컬에 보존. **실제 Apps Script 프로젝트는 GitHub 자동 배포 대상이 아니므로 사용자가 `apps-script/Code.gs` 최신 파일을 다시 붙여넣고 웹앱 새 버전 배포해야 함.** 기존 `/exec` 주소 유지.
 - UI CSS `.mental-letter-envelope`/ `.mental-letter-open`/`.mental-letter-submit` 등 44px 이상 터치 버튼. `index.html` JS/CSS 캐시 `?v=20261021-letter-envelope2`.
 - 실 사용자 기록과 Google Sheets 값을 테스트 중 수정하지 않음. 검증은 클라이언트/Apps Script 구문 검사, HTML 생성 및 서버 메모리 모의 점수 동시수정 테스트. 실기기 Chrome/Kakao/Apps Script v3 전환 성공 여부는 배포 후 확인 필요.
+- 빠른 열기 예외: 입력 완료 직후 서버로 sealed 단계가 업로드되기 전에 open 요청이 생기면, 서버 `letterAction:"open"`은 동일 본문이 이미 저장된 경우 읽음만 반영하고, 서버 revision이 요청의 expectedRevision과 같으면 본문과 읽음을 한 번에 원자 저장. 서버 revision이 달라진 타 기기 변경은 conflict 반환. 시뮬레이션 검증 완료.
