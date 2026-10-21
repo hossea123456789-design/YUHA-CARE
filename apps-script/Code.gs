@@ -695,6 +695,7 @@ function syncMentalEntry(payload) {
   if(!payload||typeof payload!=='object')throw new Error('회복 기록 저장 요청 오류');
   mentalValidateAccess_(payload.passphrase);
   const item=mentalValidateEntry_(payload.entry);
+  const letterOnly=payload.letterOnly===true;
   const expectedRevision=String(payload.expectedRevision||'');
   const lock=LockService.getScriptLock();
   if(!lock.tryLock(5000))return {ok:false,busy:true,message:'다른 기록을 저장 중입니다. 잠시 후 다시 시도해 주세요.'};
@@ -709,16 +710,19 @@ function syncMentalEntry(payload) {
         break;
       }
     }
-    const serialized=JSON.stringify(item);
+    // A husband's letter is a separate logical field: merge only that field
+    // into the most recent server row, never stale local scores or other notes.
+    const merged=letterOnly&&currentEntry?{...currentEntry,husbandLetter:item.husbandLetter}:item;
+    const serialized=JSON.stringify(merged);
     const previous=currentEntry?JSON.stringify(currentEntry):null;
-    if(previous===serialized)return {ok:true,revision:currentRevision,unchanged:true};
-    if(currentRevision!==expectedRevision){
+    if(previous===serialized)return {ok:true,revision:currentRevision,unchanged:true,serverEntry:merged};
+    if(!letterOnly&&currentRevision!==expectedRevision){
       return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
     }
     const updatedAt=new Date().toISOString();
     sh.getRange(rowIndex,1,1,3).setValues([[item.date,serialized,updatedAt]]);
     SpreadsheetApp.flush();
-    return {ok:true,revision:updatedAt};
+    return {ok:true,revision:updatedAt,serverEntry:merged};
   }finally{lock.releaseLock();}
 }
 
