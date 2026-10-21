@@ -321,6 +321,7 @@
     }
   </style>
   <link rel="stylesheet" href="design.css?v=20261021-safesync-bedtime4" />
+  <link rel="stylesheet" href="mental.css?v=20261021-mental1">
 </head>
 
 <body>
@@ -458,10 +459,11 @@
     })();
   </script>
   <script src="config.js?v=20261020-shared1"></script>
-  <script src="bridge-client.js?v=20261020-status3"></script>
+  <script src="bridge-client.js?v=20261021-mental1"></script>
+  <script src="mental.js?v=20261021-mental1"></script>
   <script>
     const CLIENT_CACHE_KEY = "yuha_shared_checklist_client_cache_v1";
-    const tabOrder = ["daycare", "sleep", "outing", "daily", "weekly", "settings"];
+    const tabOrder = ["daycare", "sleep", "mental", "outing", "daily", "weekly", "settings"];
 
     let data = null;
     let currentTab = "daycare";
@@ -855,6 +857,7 @@
     const TAB_ICONS = {
       daycare:'<rect x="3" y="7" width="18" height="14" rx="3"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/><path d="M8 13h8M12 10v6"/>',
       sleep:'<path d="M20 15.1A8.4 8.4 0 0 1 8.9 4 8.5 8.5 0 1 0 20 15.1Z"/><path d="m16 3 .5 1.5L18 5l-1.5.5L16 7l-.5-1.5L14 5l1.5-.5Z"/>',
+      mental:'<path d="M12 21s-9-5.6-9-11.6A5.1 5.1 0 0 1 12 6.3a5.1 5.1 0 0 1 9 3.1C21 15.4 12 21 12 21Z"/><path d="M8 12.2h2l1.2-1.6 1.8 3 1.4-1.4H17"/>',
       outing:'<path d="M5 7h14v13H5z"/><path d="M9 7V5a3 3 0 0 1 6 0v2M5 13h14"/>',
       daily:'<path d="M8 3h8l2 4-2 4H8L6 7Z"/><path d="m9 7 2 2 4-4M5 15h14M5 19h14"/>',
       weekly:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5 2 2 5-5"/>',
@@ -869,13 +872,14 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = "tab-btn" + (tabKey === currentTab ? " active" : "");
-        const label = tabKey === "settings" ? "설정" : (tabKey === "sleep" ? "수면 기록" : data[tabKey].label);
+        const label = tabKey === "settings" ? "설정" : (tabKey === "sleep" ? "수면 기록" : tabKey === "mental" ? "아내 회복" : data[tabKey].label);
         button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + TAB_ICONS[tabKey] +
           '</svg><span class="tab-label"></span>';
         button.querySelector(".tab-label").textContent = label;
         if (tabKey === currentTab) button.setAttribute("aria-current","page");
         button.addEventListener("click", () => {
           if (currentTab === tabKey) return;
+          if(currentTab==="mental" && tabKey!=="mental")window.YuhaMental?.lock();
           currentTab = tabKey;
           render();
           const active = tabs.querySelector(".tab-btn.active");
@@ -1567,7 +1571,7 @@
       const isChecklist=["daycare","outing","daily","weekly"].includes(currentTab);
       if(header) header.classList.toggle("no-checklist-progress", !isChecklist);
       if(!isChecklist) {
-        caption.textContent=currentTab==="sleep"?"수면 기록 · 자동 저장":"설정 · 육아 도구 관리";
+        caption.textContent=currentTab==="sleep"?"수면 기록 · 자동 저장":currentTab==="mental"?"아내 회복 · 비공개 기록":"설정 · 육아 도구 관리";
         return;
       }
       const tabData=data[currentTab];
@@ -1588,7 +1592,7 @@
 
     function render() {
       if (!data) return;
-      document.body.classList.toggle("has-bottom-actions", currentTab !== "settings" && currentTab !== "sleep");
+      document.body.classList.toggle("has-bottom-actions", !["settings","sleep","mental"].includes(currentTab));
       renderTabs();
       updateSummary();
 
@@ -1598,6 +1602,10 @@
       } else if (currentTab === "sleep") {
         document.getElementById("bottomActions").style.display = "none";
         renderSleepTab();
+      } else if (currentTab === "mental") {
+        document.getElementById("bottomActions").style.display = "none";
+        if(window.YuhaMental)window.YuhaMental.render();
+        else document.getElementById("main").innerHTML='<div class="loading">회복 기록 기능을 불러오지 못했습니다. 새로고침해 주세요.</div>';
       } else {
         document.getElementById("bottomActions").style.display = "grid";
         renderChecklistTab();
