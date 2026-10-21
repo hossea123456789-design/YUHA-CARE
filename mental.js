@@ -502,7 +502,7 @@ function insightHTML(){
 function dateEditor(){
  const d=selected,r=entry(d),metric=scoresOf(r),complete=FIELDS.filter(x=>validScore(r.scores[x.id])).length;
  let h='<div class="mental-editor-head"><div><h3>'+Number(d.slice(5,7))+'월 '+Number(d.slice(-2))+'일 기록</h3>'+
-   '<p>본인이 느낀 상태를 기록해 주세요. 아기를 사랑하는 정도나 역할 수행 능력의 평가가 아닙니다.</p></div>'+
+   '<p>본인이 느낀 상태를 기록해 주세요. 아기를 사랑하는 정도나 역할 수행 능력의 평가가 아닙니다. 같은 점수를 다시 누르면 선택이 취소됩니다.</p></div>'+
    '<strong class="mental-editor-score">'+(metric?fixed(metric.mental):complete+'/7')+'</strong></div>';
  h+='<div class="mental-score-list">';
  for(const f of FIELDS){
@@ -669,7 +669,8 @@ function bind(){
  screen.querySelectorAll("[data-mental-date]").forEach(b=>b.addEventListener("click",()=>setSelected(b.dataset.mentalDate)));
  screen.querySelectorAll("[data-mental-score]").forEach(b=>b.addEventListener("click",()=>{
   const field=b.dataset.mentalScore,val=Number(b.dataset.value);
-  changes(selected,item=>{item.scores[field]=val});refreshScores();
+  changes(selected,item=>{item.scores[field]=item.scores[field]===val?null:val;});
+  refreshScores();
  }));
  screen.querySelectorAll("[data-mental-adjust]").forEach(b=>b.addEventListener("click",()=>{
   const k=b.dataset.mentalAdjust,delta=Number(b.dataset.step);
