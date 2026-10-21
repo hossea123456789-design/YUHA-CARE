@@ -723,12 +723,20 @@ function syncMentalEntry(payload) {
       if(letterAction==='open'){
         // Only reveal the same letter that the reader saw; never overwrite
         // a letter edited concurrently from the husband's device.
-        if(!currentEntry || !currentEntry.husbandLetter || currentEntry.husbandLetter!==item.husbandLetter){
+        if(currentEntry?.husbandLetter===item.husbandLetter && currentEntry.husbandLetter){
+          merged={...currentEntry,husbandLetterStatus:'opened',
+            husbandLetterOpenedAt:currentEntry.husbandLetterStatus==='opened'?
+              currentEntry.husbandLetterOpenedAt:(item.husbandLetterOpenedAt||new Date().toISOString())};
+        }else if(currentRevision===expectedRevision){
+          // The sender opened immediately after submitting, before the seal
+          // reached the server. Apply the same letter + read marker atomically.
+          merged={...(currentEntry||item),husbandLetter:item.husbandLetter,
+            husbandLetterStatus:'opened',
+            husbandLetterOpenedAt:item.husbandLetterOpenedAt||new Date().toISOString()};
+        }else{
+          // A different letter was written on another device in the meantime.
           return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
         }
-        merged={...currentEntry,husbandLetterStatus:'opened',
-          husbandLetterOpenedAt:currentEntry.husbandLetterStatus==='opened'?
-            currentEntry.husbandLetterOpenedAt:(item.husbandLetterOpenedAt||new Date().toISOString())};
       }else{
         // Sealing an envelope replaces only letter fields, preserving the
         // most recent recovery scores and memo from the wife's device.
