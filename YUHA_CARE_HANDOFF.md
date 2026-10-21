@@ -486,3 +486,31 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - `mental.js`, `bridge-client.js`, `apps-script/Code.gs`, HTML inline script의 JavaScript 구문 검사 통과.
 - Mental 3.0 / Recovery 2.95 / 전체 만점 10 / 미입력 미집계 / 주간 월요일~일요일 처리 단위 확인.
 - 브라우저 모바일 실제 시각, PIN 해제·재잠금·입력·서버 오류에 대한 구체적인 동작 검증은 Pages 배포 후 별도로 기록(검증되지 않았다면 완료 주장하지 않음).
+
+## 18. 2026-10-21 — 아내 회복 잠금 오류 긴급 수정 및 자동 입력 UX
+
+### 실사용 오류와 재현
+- 사용자 삼성 모바일 브라우저 스크린샷: GitHub Pages의 **HTTPS 자물쇠가 확인**됨에도 PIN 제출 시 **“안전 연결이 필요한 기능입니다. HTTPS로 접속해 주세요.”**라는 안내가 표시되고 탭이 열리지 않음.
+- 기존 `mental.js`의 `bindLock()`에는 PIN 해시 계산부터 `hydrate();render();`까지 하나의 `try/catch`가 있었고, 모든 예외를 HTTPS 오류로 오분류했음.
+- 헤드리스 Chromium 실측으로 원인을 특정: **기록이 없는 주간 히트맵 `weeklyMatrix()`에서 `metric?.mental`이 undefined이고 `fixed()`가 숫자로 가정하여 `undefined.toFixed()` 호출**. 실제 런타임 오류가 잠금 해제 실패로 위장된 것.
+- 별도로 모바일 일부 브라우저의 `crypto.subtle`/TextEncoder API 가용성 문제가 있을 수 있어 해시 검증 보조 로직도 추가. PIN 원본이나 평문 서버 인증값을 새로 노출하지 않음.
+
+### 적용한 수정
+1. `mental.js`: `fixed()`/ `level()`이 null/undefined/NaN을 ‘미기록’으로 안전하게 처리. `weeklyMatrix()`, `refreshOverview()`도 미기록 총점 null로 통일. 빈 히트맵에서 잠금 해제 후 렌더 실패 방지.
+2. `mental.js`: SHA-256 검증은 브라우저 `crypto.subtle`이 가능하면 사용하고, API가 없거나 실패할 때에는 순수 JavaScript SHA-256 계산으로 안전하게 대체. ASCII 숫자 PIN이라 TextEncoder도 필요하지 않음. 비밀번호가 잘못됐을 때만 ‘비밀번호가 다릅니다.’ 메시지를 보이며, 다른 오류는 실제 잠금 해제 오류로 안내.
+3. `mental.js`: 새 탭에 진입하면 **3×4 숫자패드가 즉시 렌더**. 숫자 4자리 입력 즉시 `verify()` 실행. 별도 ‘열기/완료’ 클릭 불필요. 지우기/⌫ 버튼과 5회 실패 시 30초 재입력 제한 유지. 다른 탭 이동 시 잠금 유지.
+4. `mental.css`: 기존 Sleep 카드·색상 시스템에 맞춘 컴팩트 숫자패드, 45~49px 터치 목표, 모바일 320px 반응형.
+5. `index.html`: `mental.js?v=20261021-pinpadfix3`, `mental.css?v=20261021-pinpadfix3`으로 캐시 갱신.
+6. `WIFE_MENTAL_RECOVERY_SPEC.md`: 원인·결정·회귀 테스트를 부록으로 누적.
+
+### 검증 근거
+- 순수 JS SHA-256: 기존 설정 PIN의 다이제스트·표준 `abc`·빈 문자열 벡터 비교 **3개 PASS**.
+- GitHub Pages 빌드 산출물 복사본으로 만든 **실제 Chromium DOM/UI 테스트** (서버 연결은 별도 mock, 실제 Google Sheets 데이터 변경 없음), 320/360/390/768px: 숫자패드 렌더, `crypto.subtle` 없는 환경에서 **4자리 자동 잠금 해제**, 회복 대시보드 표시, 탭 이동 후 재잠금, 화면 가로 넘침 0px, JavaScript 오류 0개.
+- 390px 추가 테스트: 3자리까지는 잠김, 잘못된 4자리 오류 메시지, 정상 PIN 자동 통과, 7개 지표 5.5점 입력 후 일일 평균 5.5·달력 55점, 로컬 저장 후 탭 이탈·재진입 시 값 복원 **PASS**.
+- 실제 삼성 휴대폰 물리기기/실 Apps Script 서버 재배포·민감 DB에 대한 원격 쓰기는 테스트하지 않음. 이번 잠금 UX 변경만을 위해 Apps Script를 다시 배포할 필요는 없음.
+
+### 지속 규칙
+- `mental.js`의 잠금 예외를 광범위한 HTTPS 안내로 덮지 말 것. **PIN 검증·해시 API 오류·잠금 후 대시보드 렌더 오류를 분리**해서 처리해야 디버깅 가능.
+- 회복 히트맵은 미기록일을 0으로 계산하지 않고 null 처리하는 기준을 유지할 것.
+- 사용자 요청에 따라 PIN은 화면 열람용 간편 잠금이지만 **브라우저 localStorage는 암호화되지 않음**. 민감 내용의 다기기 동기화 활성화 여부와 별도 서버 비공개 암호 정책을 혼동하지 말 것.
+- 다음 변경 시 `YUHA_CARE_HANDOFF.md`와 `WIFE_MENTAL_RECOVERY_SPEC.md`를 함께 갱신하고 GitHub Pages 최종 배포 SHA를 확인할 것.
