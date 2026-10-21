@@ -78,7 +78,8 @@ let records={};let pending={};let viewing=iso(new Date()),selected=viewing;
 let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloudError="",cloudSaving=false;
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
 let conflict=null,screen=null,unlocked=false,unlockBusy=false;
-let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0; // per-page throttling; not cryptographic brute-force protection.
+let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0;
+const loadedMentalMonths=new Set(),loadingMentalMonths=new Set(); // per-page throttling; not cryptographic brute-force protection.
 const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
 function sha256Fallback(bytes) {
  // Deterministic SHA-256 for WebViews without SubtleCrypto (PIN is only a UI lock).
@@ -128,6 +129,7 @@ async function sha256(value){
 }
 function lock(){
   cloudEpoch++;
+  loadedMentalMonths.clear();loadingMentalMonths.clear();
   if(unlocked&&Object.keys(pending).length)saveLocal();
   unlocked=false;
   cloudCode="";cloudReady=false;cloudBusy=false;cloudSaving=false;cloudError="";
@@ -257,11 +259,12 @@ function cloudCall(method,args,onSuccess,onFail){
 }
 function activate(pass){
  const epoch=++cloudEpoch;
+ loadedMentalMonths.clear();loadingMentalMonths.clear();
  cloudCode=pass;
  cloudBusy=true;cloudReady=false;cloudError="";
  setState("비공개 서버 연결 중");
  progress("busy","비공개 회복 기록 조회 중");
- const keys=[month,monthKey(shift(selected,-32))];
+ const keys=[month,monthKey(shift(month+"-01",-1))];
  let outstanding=[...new Set(keys)].length,anyFailed=false;
  [...new Set(keys)].forEach(k=>{
   const [y,m]=k.split("-").map(Number);
@@ -272,6 +275,7 @@ function activate(pass){
      if(!pending[date])records[date]=normalize(date,value);
      else if(pending[date].expectedRevision===""&&value.revision)conflict={date,local:entry(date),server:normalize(date,value)};
    }
+   loadedMentalMonths.add(k);
    saveLocal();
    if(--outstanding===0&&!anyFailed){
      cloudBusy=false;cloudReady=true;cloudError="";
@@ -285,6 +289,37 @@ function activate(pass){
    const reason=String(err?.message||err);
    if(/접근 암호가 올바르지|동기화가 아직 설정되지 않았습니다/.test(reason))forgetSyncSession();
    progress("error","비공개 기록 연결 실패");setState("연결 실패: "+reason,true);render();}
+}
+// Load navigated months without overwriting unsynced records.
+function fetchMentalMonthIfNeeded(k){
+ if(!cloudReady||!cloudCode||!unlocked||loadedMentalMonths.has(k)||loadingMentalMonths.has(k))return;
+ if(!/^20\\d{2}-(0[1-9]|1[0-2])$/.test(k))return;
+ const epoch=cloudEpoch;
+ loadingMentalMonths.add(k);
+ const [year,monthNumber]=k.split("-").map(Number);
+ cloudCall("getMentalMonth",[cloudCode,year,monthNumber],result=>{
+  loadingMentalMonths.delete(k);
+  if(epoch!==cloudEpoch||!unlocked||!cloudReady)return;
+  if(!result?.ok){setState("회복 기록의 "+k+"월 조회 실패 · 기기 기록 보관",true);return;}
+  for(const [date,value] of Object.entries(result.records||{})){
+   if(!pending[date])records[date]=normalize(date,value);
+   else if(pending[date].expectedRevision===""&&value.revision)
+    conflict={date,local:entry(date),server:normalize(date,value)};
+  }
+  loadedMentalMonths.add(k);
+  saveLocal();cloudError="";
+  render();scheduleCloud(100);
+ },error=>{
+  loadingMentalMonths.delete(k);
+  if(epoch!==cloudEpoch||!unlocked)return;
+  setState("회복 기록의 "+k+"월 조회 실패 · 기기 기록 보관: "+String(error?.message||error),true);
+ });
+}
+function loadVisibleMentalMonths(){
+ if(!cloudReady||!unlocked)return;
+ const needed=new Set([month,monthKey(shift(month+"-01",-1)),
+  monthKey(shift(selected,-6)),monthKey(shift(selected,6))]);
+ needed.forEach(fetchMentalMonthIfNeeded);
 }
 function scheduleCloud(delay=1800){
  clearTimeout(syncingTimer);
@@ -605,6 +640,7 @@ function render(){
  if(!unlocked){screen.innerHTML=lockMarkup();bindLock();return;}
  screen.innerHTML=view();
  bind();
+ loadVisibleMentalMonths();
 }
 function refreshOverview(){
  if(!screen||!unlocked)return;
@@ -729,7 +765,7 @@ function bind(){
   activate(code);screen.querySelector("#mentalCloudPass").value="";
  });
  screen.querySelector("#mentalCloudDisconnect")?.addEventListener("click",()=>{
-  cloudEpoch++;cloudCode="";cloudReady=false;forgetSyncSession();clearTimeout(syncingTimer);clearTimeout(retryTimer);
+  cloudEpoch++;cloudCode="";cloudReady=false;loadedMentalMonths.clear();loadingMentalMonths.clear();forgetSyncSession();clearTimeout(syncingTimer);clearTimeout(retryTimer);
   setState("이 기기에만 저장 중");render();
  });
  screen.querySelector("#mentalJumpToday")?.addEventListener("click",event=>{
