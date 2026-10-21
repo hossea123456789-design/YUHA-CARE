@@ -689,7 +689,7 @@ function getMentalMonth(passphrase,year,month) {
       records[date]={...mentalValidateEntry_({...item,date}),revision:String(row[2]||'')};
     }catch(err){/* skip malformed data, never overwrite */}
   });
-  return {ok:true,records,year:y,month:m,schemaVersion:1};
+  return {ok:true,records,year:y,month:m,schemaVersion:2};
 }
 function syncMentalEntry(payload) {
   if(!payload||typeof payload!=='object')throw new Error('회복 기록 저장 요청 오류');
