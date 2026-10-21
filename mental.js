@@ -66,7 +66,59 @@ function levelName(v){
 let records={};let pending={};let viewing=iso(new Date()),selected=viewing;
 let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloudError="",cloudSaving=false;
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
-let conflict=null,screen=null;
+let conflict=null,screen=null,unlocked=false,unlockBusy=false;
+let pinFailures=0,pinBlockedUntil=0; // per-page throttling; not cryptographic brute-force protection.
+const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
+async function sha256(value){
+  const bytes=new TextEncoder().encode(value),hash=await crypto.subtle.digest("SHA-256",bytes);
+  return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+function lock(){
+  if(unlocked&&Object.keys(pending).length)saveLocal();
+  unlocked=false;
+  cloudCode="";cloudReady=false;cloudBusy=false;cloudSaving=false;cloudError="";
+  clearTimeout(syncingTimer);clearTimeout(retryTimer);
+  records={};pending={};conflict=null;
+  if(screen)screen.replaceChildren();
+}
+function lockMarkup(){
+ return '<div class="mental-root mental-locked">'+
+   '<section class="sleep-card mental-lock-card">'+
+     '<div class="mental-lock-icon" aria-hidden="true">✳</div>'+
+     '<h2>아내 회복 · 비공개 기록</h2>'+
+     '<p>기록을 확인하려면 4자리 비밀번호를 입력해 주세요.</p>'+
+     '<form id="mentalUnlockForm" autocomplete="off">'+
+       '<label for="mentalPinInput">잠금 비밀번호</label>'+
+       '<div class="mental-unlock-line"><input id="mentalPinInput" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off" placeholder="••••" aria-label="아내 회복 탭 비밀번호" required>'+
+       '<button type="submit" id="mentalUnlockButton">열기</button></div>'+
+       '<span class="mental-lock-error" id="mentalLockError" role="alert" aria-live="polite"></span>'+
+     '</form>'+
+     '<div class="mental-lock-foot">다른 탭으로 이동하면 다시 잠깁니다. 4자리 잠금은 화면 열람용이며 기기 내 기록은 암호화되지 않습니다.</div>'+
+   '</section></div>';
+}
+function bindLock(){
+ const form=screen.querySelector("#mentalUnlockForm"),input=screen.querySelector("#mentalPinInput");
+ form?.addEventListener("submit",async ev=>{
+   ev.preventDefault();
+   if(unlockBusy)return;
+   const error=screen.querySelector("#mentalLockError"),now=Date.now();
+   if(now<pinBlockedUntil){error.textContent="잠시 후 다시 입력해 주세요.";return;}
+   const pin=input.value;
+   if(!/^[0-9]{4}$/.test(pin)){error.textContent="숫자 4자리를 입력해 주세요.";return;}
+   unlockBusy=true;
+   try{
+     const hash=await sha256(pin);
+     if(hash!==PIN_HASH){
+       pinFailures++;
+       if(pinFailures>=5){pinBlockedUntil=Date.now()+30000;pinFailures=0;}
+       error.textContent="비밀번호가 다릅니다.";input.value="";input.focus();return;
+     }
+     pinFailures=0;pinBlockedUntil=0;unlocked=true;hydrate();render();
+   }catch(_){error.textContent="안전 연결이 필요한 기능입니다. HTTPS로 접속해 주세요.";}
+   finally{unlockBusy=false;}
+ });
+}
+
 function storageRead(key,def){
  try{const obj=JSON.parse(localStorage.getItem(key)||"null");return obj&&typeof obj==="object"?obj:def}catch{return def}
 }
@@ -85,7 +137,6 @@ function hydrate(){
    pending[date]={expectedRevision:String(item.expectedRevision||""),entry:normalize(date,item.entry||records[date])};
  }
 }
-hydrate();
 function entry(date){return records[date]||empty(date)}
 function list(start,end){
  return Object.entries(records).filter(([date])=>date>=start&&date<=end)
@@ -443,8 +494,9 @@ function view(){
   '</div>';
 }
 function render(){
- if(!screen)screen=document.getElementById("main");
+ screen=document.getElementById("main");
  if(!screen)return;
+ if(!unlocked){screen.innerHTML=lockMarkup();bindLock();return;}
  screen.innerHTML=view();
  bind();
 }
@@ -553,6 +605,6 @@ function updateIndicators(){
   saveCount.textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"변경 보관 중":"기록 저장됨");
  }
 }
-window.YuhaMental={render,activate,metric:scoresOf,trend,level,fields:FIELDS,
+window.YuhaMental={render,lock,activate,metric:scoresOf,trend,level,fields:FIELDS,
  /* testing helpers have no write privileges beyond local test data */ _preview:{normalize,scoresOf,summary,warningPatterns,weekDays}};
 })();
