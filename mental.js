@@ -105,7 +105,8 @@ function sha256Fallback(bytes) {
  return h.map(x=>x.toString(16).padStart(8,"0")).join("");
 }
 async function sha256(value){
- const bytes=new TextEncoder().encode(value);
+ // The lock accepts ASCII digits only; avoid TextEncoder and SubtleCrypto compatibility requirements.
+ const bytes=Uint8Array.from(String(value),ch=>ch.charCodeAt(0));
  if(typeof crypto!=="undefined"&&crypto&&crypto.subtle&&typeof crypto.subtle.digest==="function"){
   try{
    const hash=await crypto.subtle.digest("SHA-256",bytes);
