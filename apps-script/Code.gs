@@ -576,6 +576,121 @@ function syncSleepChanges(payload) {
 
 // GitHub Pages 화면은 GitHub에서만 관리하며 Code.gs만 DB API를 담당합니다.
 // HtmlService 응답은 Code.gs 안에서 생성하므로 Bridge.html 파일은 필요 없습니다.
+
+// ==========================================================
+// WIFE RECOVERY TRACKER — opt-in, passphrase-protected API.
+// Separate sheet, no modifications to existing checklist/sleep data.
+// Set YUHA_MENTAL_ACCESS_KEY (12+ chars) in Apps Script Script Properties.
+// Never put this value in GitHub Pages, config.js, or a public repository.
+// ==========================================================
+const MENTAL_SHEET_NAME_ = 'MENTAL_LOG';
+const MENTAL_SECRET_PROP_ = 'YUHA_MENTAL_ACCESS_KEY';
+const MENTAL_SCORE_FIELDS_ = ['energy','control','capacity','tolerance','rest','selfAction','self'];
+const MENTAL_CONTEXT_KEYS_ = [
+  'no_personal_time','personal_under30','personal_30to60','personal_60to120','personal_120to240','personal_over240',
+  'care_normal','care_hard','sleep_resistance','meal_stress','outing_tired','behavior_issues','night_wakings',
+  'husband_on_time','husband_overtime','husband_late_overtime','husband_available','husband_unavailable','husband_exhausted',
+  'maternal_help','no_maternal_help','inlaw_schedule','family_contact','family_event',
+  'sleep_deprived','meal_skipped','hungry','physical_discomfort','period','illness','work_stress','work_overtime'
+];
+const MENTAL_OFFDUTY_KEYS_=['home','shopping','cafe','nap','friends_family','exercise','hobby','nothing'];
+const MENTAL_NEED_KEYS_=['toilet','meal','water','shower','hygiene','sleep'];
+function mentalValidateAccess_(passphrase) {
+  const configured=PropertiesService.getScriptProperties().getProperty(MENTAL_SECRET_PROP_);
+  if(!configured || configured.length<12) throw new Error('아내 회복 기록의 비공개 동기화가 아직 설정되지 않았습니다. Apps Script Script Properties에서 접근 암호를 설정해 주세요.');
+  const a=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(passphrase||''),Utilities.Charset.UTF_8);
+  const b=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,configured,Utilities.Charset.UTF_8);
+  if(a.length!==b.length || !a.every((byte,index)=>byte===b[index])) throw new Error('비공개 회복 기록의 접근 암호가 올바르지 않습니다.');
+}
+function mentalValidateDate_(value) {
+  const d=String(value||'');
+  if(!/^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(d)) throw new Error('회복 기록 날짜 형식 오류');
+  const iso=new Date(d+'T12:00:00Z');
+  if(isNaN(iso.getTime()) || iso.toISOString().slice(0,10)!==d)throw new Error('존재하지 않는 회복 기록 날짜');
+  return d;
+}
+function mentalValidateEntry_(item) {
+  if(!item || typeof item!=='object')throw new Error('회복 기록 형식 오류');
+  const date=mentalValidateDate_(item.date);
+  const scores={};
+  if(!item.scores || typeof item.scores!=='object')throw new Error('7개 점수 입력이 필요합니다.');
+  MENTAL_SCORE_FIELDS_.forEach(key=>{
+    const v=item.scores[key];
+    if(v===null || v===undefined || v===''){scores[key]=null;return;}
+    const n=Number(v);
+    if(!Number.isFinite(n) || n<0 || n>10 || Math.round(n*2)!==n*2)throw new Error('점수는 0~10, 0.5점 단위여야 합니다: '+key);
+    scores[key]=n;
+  });
+  const filter=(arr,allowed,max)=>Array.isArray(arr)?[...new Set(arr.filter(x=>typeof x==='string'&&allowed.includes(x)))].slice(0,max):[];
+  const offDutyMinutes=Number(item.offDutyMinutes||0);
+  if(!Number.isInteger(offDutyMinutes)||offDutyMinutes<0||offDutyMinutes>1440)throw new Error('개인시간은 0~1440분 범위여야 합니다.');
+  const memo=String(item.memo||'').slice(0,600);
+  return {date,scores,offDutyMinutes,
+    offDutyType:filter(item.offDutyType,MENTAL_OFFDUTY_KEYS_,8),
+    basicNeedsDelayed:filter(item.basicNeedsDelayed,MENTAL_NEED_KEYS_,6),
+    contexts:filter(item.contexts,MENTAL_CONTEXT_KEYS_,32),
+    memo};
+}
+function mentalSheet_() {
+  const ss=SpreadsheetApp.getActiveSpreadsheet();
+  let sh=ss.getSheetByName(MENTAL_SHEET_NAME_);
+  if(!sh){
+    sh=ss.insertSheet(MENTAL_SHEET_NAME_);
+    sh.getRange(1,1,1,3).setValues([['기준일','비공개 회복 기록 JSON','최종 수정']]);
+    sh.getRange(1,1,1,3).setFontWeight('bold').setBackground('#426a7e').setFontColor('#fff');
+    sh.setFrozenRows(1);
+    sh.setColumnWidths(1,1,130);sh.setColumnWidths(2,1,500);sh.setColumnWidths(3,1,220);
+    sh.getRange('A:A').setNumberFormat('@');
+  }
+  return sh;
+}
+function getMentalMonth(passphrase,year,month) {
+  mentalValidateAccess_(passphrase);
+  const y=Number(year),m=Number(month);
+  if(!Number.isInteger(y)||y<2020||y>2100||!Number.isInteger(m)||m<1||m>12)throw new Error('회복 기록 월 오류');
+  const prefix=y+'-'+String(m).padStart(2,'0')+'-';
+  const sh=mentalSheet_(),last=sh.getLastRow(),records={};
+  if(last>1)sh.getRange(2,1,last-1,3).getValues().forEach(row=>{
+    const date=String(row[0]||'');
+    if(!date.startsWith(prefix))return;
+    try{
+      const item=JSON.parse(String(row[1]||'{}'));
+      records[date]={...mentalValidateEntry_({...item,date}),revision:String(row[2]||'')};
+    }catch(err){/* skip malformed data, never overwrite */}
+  });
+  return {ok:true,records,year:y,month:m,schemaVersion:1};
+}
+function syncMentalEntry(payload) {
+  if(!payload||typeof payload!=='object')throw new Error('회복 기록 저장 요청 오류');
+  mentalValidateAccess_(payload.passphrase);
+  const item=mentalValidateEntry_(payload.entry);
+  const expectedRevision=String(payload.expectedRevision||'');
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(5000))return {ok:false,busy:true,message:'다른 기록을 저장 중입니다. 잠시 후 다시 시도해 주세요.'};
+  try{
+    const sh=mentalSheet_(),last=sh.getLastRow();
+    const rows=last>1?sh.getRange(2,1,last-1,3).getValues():[];
+    let rowIndex=last+1,currentRevision='',currentEntry=null;
+    for(let i=0;i<rows.length;i++){
+      if(String(rows[i][0])===item.date){
+        rowIndex=i+2;currentRevision=String(rows[i][2]||'');
+        try{currentEntry=mentalValidateEntry_(JSON.parse(String(rows[i][1]||'{}')))}catch(_) {}
+        break;
+      }
+    }
+    const serialized=JSON.stringify(item);
+    const previous=currentEntry?JSON.stringify(currentEntry):null;
+    if(previous===serialized)return {ok:true,revision:currentRevision,unchanged:true};
+    if(currentRevision!==expectedRevision){
+      return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
+    }
+    const updatedAt=new Date().toISOString();
+    sh.getRange(rowIndex,1,1,3).setValues([[item.date,serialized,updatedAt]]);
+    SpreadsheetApp.flush();
+    return {ok:true,revision:updatedAt};
+  }finally{lock.releaseLock();}
+}
+
 const YUHA_ALLOWED_ORIGIN_ = 'https://hossea123456789-design.github.io';
 
 function serveYuhaBridge_(e) {
@@ -584,7 +699,7 @@ function serveYuhaBridge_(e) {
   if (origin !== YUHA_ALLOWED_ORIGIN_ || !/^[a-zA-Z0-9_-]{16,128}$/.test(nonce)) {
     return HtmlService.createHtmlOutput('Invalid bridge parameters');
   }
-  const html = "<!DOCTYPE html>\n<html lang=\"ko\">\n<head><base target=\"_top\"><meta charset=\"UTF-8\"><title>유하 DB 연결</title></head>\n<body>\n<script>\n(() => {\n  'use strict';\n  const ORIGIN = __YUHA_TRUSTED_ORIGIN_JSON__;\n  const NONCE = __YUHA_BRIDGE_NONCE_JSON__;\n  const ALLOWED = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges']);\n  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }\n  window.addEventListener('message',event=>{\n    if(event.origin !== ORIGIN) return;\n    const msg=event.data;\n    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;\n    if(typeof msg.id!=='string'||!/^\\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;\n    const args=Array.isArray(msg.args)?msg.args:[];\n    try{\n      google.script.run\n        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))\n        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))\n        [msg.method](...args);\n    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}\n  });\n  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.\n  send({type:'ready'});\n  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});\n})();\n</script>\n</body></html>";
+  const html = "<!DOCTYPE html>\n<html lang=\"ko\">\n<head><base target=\"_top\"><meta charset=\"UTF-8\"><title>유하 DB 연결</title></head>\n<body>\n<script>\n(() => {\n  'use strict';\n  const ORIGIN = __YUHA_TRUSTED_ORIGIN_JSON__;\n  const NONCE = __YUHA_BRIDGE_NONCE_JSON__;\n  const ALLOWED = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges','getMentalMonth','syncMentalEntry']);\n  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }\n  window.addEventListener('message',event=>{\n    if(event.origin !== ORIGIN) return;\n    const msg=event.data;\n    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;\n    if(typeof msg.id!=='string'||!/^\\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;\n    const args=Array.isArray(msg.args)?msg.args:[];\n    try{\n      google.script.run\n        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))\n        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))\n        [msg.method](...args);\n    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}\n  });\n  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.\n  send({type:'ready'});\n  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});\n})();\n</script>\n</body></html>";
   return HtmlService.createHtmlOutput(html
     .replace('__YUHA_TRUSTED_ORIGIN_JSON__', JSON.stringify(origin))
     .replace('__YUHA_BRIDGE_NONCE_JSON__', JSON.stringify(nonce)))
