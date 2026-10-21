@@ -22,7 +22,7 @@ jobs:
       - name: Collect only public web files
         run: |
           mkdir -p public-site
-          cp index.html design.css bridge-client.js config.js public-site/
+          cp index.html design.css mental.css mental.js bridge-client.js config.js public-site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public-site
