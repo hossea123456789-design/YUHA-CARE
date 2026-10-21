@@ -627,7 +627,10 @@ function husbandLetterHTML(){
    '<p class="mental-letter-validation" id="mentalLetterValidation" role="alert"></p>':
    sealed?
    '<div class="mental-letter-envelope" aria-label="읽지 않은 편지">'+
-    '<div class="mental-letter-envelope-symbol" aria-hidden="true">💌</div>'+
+    '<div class="mental-envelope-illustration" aria-hidden="true">'+
+    '<img class="mental-envelope-visual mental-envelope-sealed-art" src="assets/mental-letter-sealed.svg?v=20261022-waxseal1" alt="" draggable="false" decoding="async"/>'+
+    '<img class="mental-envelope-visual mental-envelope-opened-art" src="assets/mental-letter-opened.svg?v=20261022-waxseal1" alt="" draggable="false" decoding="async"/>'+
+    '</div>'+
     '<strong>아내에게 도착한 편지</strong><p>아직 열어보지 않은 편지가 있어요.</p>'+
     '<button type="button" id="mentalLetterOpen" class="mental-letter-open">편지 열기 <span aria-hidden="true">♡</span></button>'+
    '</div>':
@@ -679,13 +682,24 @@ function bindHusbandLetter(){
   });
  }
  card.querySelector("#mentalLetterOpen")?.addEventListener("click",()=>{
-  const date=selected,item=entry(date);
-  if(!item.husbandLetter||item.husbandLetterStatus!=="sealed")return;
-  changes(date,row=>{
-   row.husbandLetterStatus="opened";
-   row.husbandLetterOpenedAt=new Date().toISOString();
-  },true,"open");
-  replaceCard();
+  const date=selected,item=entry(date),letter=item.husbandLetter;
+  const button=card.querySelector("#mentalLetterOpen");
+  if(!letter||item.husbandLetterStatus!=="sealed"||button?.disabled)return;
+  button.disabled=true;
+  const envelope=card.querySelector(".mental-letter-envelope");
+  envelope?.classList.add("is-opening");
+  const finish=()=>{
+   if(!unlocked||selected!==date)return;
+   if(entry(date).husbandLetter!==letter||entry(date).husbandLetterStatus!=="sealed")return;
+   changes(date,row=>{
+    row.husbandLetterStatus="opened";
+    row.husbandLetterOpenedAt=new Date().toISOString();
+   },true,"open");
+   replaceCard();
+   screen?.querySelector(".mental-letter-paper")?.classList.add("mental-letter-revealed");
+  };
+  if(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches)finish();
+  else setTimeout(finish,620);
  });
 }
 function cloudPanel(){
