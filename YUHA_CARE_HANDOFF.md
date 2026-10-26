@@ -685,3 +685,14 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 
 ### 유의사항
 - 이전에 서버에 일부만 저장된 메모는 실제 입력을 복원할 원본이 없다면 재구성이 불가. 개인 기기 localStorage에 이전 초안이 남아 있을 수 있으나 앱이 자동 덮어쓰는 위험이 있으므로 데이터 삭제/캐시 초기화 지시 금지.
+
+## 31. 2026-10-26 — 외부 출처 1,000개 공감 문구 일일 표시
+
+### 사용자 확정 요구 및 선정 원칙
+- 단순 동의어 치환으로 1,000개를 생성하지 않고 **찾아온 실제 공개 자료의 문장**을 앱에 저장. 위로·공감·감정 인정·육아와 병행하는 일상의 부담·자기돌봄·가족 역할·회복을 중심으로 추출.
+- 원자료: `hjkim811/KMI` `kmi.json` (Kim et al. 2025, NAACL, CC BY 4.0). 연구 데이터는 전문가 감수를 거친 **LLM 기반 가상 상담 대화**이며 실제 상담기록·실제 개인에게 한 말이 아님. 후보 therapist 발화(주로 Affirm/General/Complex Reflection/Give Information)를 긍정적 키워드/상황-특수 항목 제외/길이 제한/중복 제거 후 1,000개 선택. 자동 규칙 기반 선별로서 전수 수동 문장 검수는 하지 못했음. 특정 사람의 실제 상태를 단정하거나 치료를 보장하는 표현으로 오인하지 않도록 UI 안내 추가.
+- 라이브러리 `recovery-comfort-1000.js`: JS `window.YuhaCareComfortLibrary`, `quotes` 정확히 1,000개. 각 문장 `id,text,sourceDialogue,category,label`; KMI GitHub와 CC BY 4.0 URL, 변경/발췌 고지 포함.
+- `mental.js`: `dailyComfortHTML()`를 아내 회복 소개 아래/남편 편지 위에 렌더. `Date.now()+9h` 서울 고정 날짜, 고정 시드 xorshift32 Fisher-Yates로 1,000개 순열 섞고 기준일(2026-10-26)부터 날짜 인덱스로 선택. 같은 날짜 같은 문장, 1,000일 무중복 순환, 점수 연동/데이터 추론 없음. 링크·문장 HTML 이스케이프.
+- `mental.css`: 조용한 연녹색 인용 카드와 모바일 가독성, 출처/라이선스 링크. `index.html` `recovery-comfort-1000.js`를 `mental.js` **전에** 로딩, 스크립트/스타일 캐시 키 `20261026-comfort1000`.
+- Pages 워크플로: 새 라이브러리 `public-site/`에 포함, node 구문 검사·문장/중복/출처/HTML 연결 검사, 배포 후 curl URL 검사. 이전 SVG 누락 배포 오류 재발 방지.
+- **민감 정보 주의:** 공감 문구는 공개 데이터이며 사용자별 점수·메모·편지와 무관. 개별 회복 기록을 출처 연구자료 또는 GitHub 문구 파일에 넣지 않음. Apps Script 수정·Sheets migration 불필요.
