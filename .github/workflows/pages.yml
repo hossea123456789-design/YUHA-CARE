@@ -23,12 +23,29 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p public-site/assets
-          cp index.html design.css mental.css mental.js bridge-client.js config.js public-site/
+          cp index.html design.css mental.css mental.js bridge-client.js config.js recovery-comfort-1000.js public-site/
           cp assets/mental-letter-sealed.svg assets/mental-letter-opened.svg public-site/assets/
       - name: Verify artwork paths and integrity before publishing
         run: |
           set -euo pipefail
           node --check public-site/mental.js
+          node --check public-site/recovery-comfort-1000.js
+          node - <<'JS'
+          const fs = require('fs'), vm=require('vm');
+          const src=fs.readFileSync('public-site/recovery-comfort-1000.js','utf8');
+          const ctx={window:{}}; vm.runInNewContext(src,ctx);
+          const lib=ctx.window.YuhaCareComfortLibrary,rows=lib?.quotes;
+          if(!Array.isArray(rows)||rows.length!==1000)throw Error('Expected exactly 1000 sourced empathy lines');
+          if(new Set(rows.map(x=>x.text.replace(/\\s/g,''))).size!==1000)
+            throw Error('Duplicate empathy messages');
+          if(rows.some(x=>!x.sourceDialogue||x.text.length<20||x.text.length>160))
+            throw Error('Bad provenance or abnormal line length');
+          const html=fs.readFileSync('public-site/index.html','utf8');
+          if(!html.includes('src="recovery-comfort-1000.js?'))
+            throw Error('Missing daily empathy quote script in HTML');
+          if(!lib.license||!lib.sourceUrl)throw Error('Missing quote licensing metadata');
+          console.log('PASS 1,000 distinct licensed source passages and HTML wiring');
+          JS
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
@@ -67,3 +84,11 @@ jobs:
             echo "PASS deployed SVG: $url ($(wc -c < "$tmp") bytes)"
             rm -f "$tmp"
           done
+          quoteurl="${base%/}/recovery-comfort-1000.js?deploy=${GITHUB_SHA}"
+          quotetmp="$(mktemp)"
+          curl --fail --silent --show-error --location \
+            --retry 10 --retry-delay 5 --retry-all-errors \
+            --connect-timeout 12 --max-time 20 --output "$quotetmp" "$quoteurl"
+          grep -q 'window.YuhaCareComfortLibrary' "$quotetmp" || { echo "Missing published quote library"; exit 1; }
+          echo "PASS published 1,000-line comfort library ($(wc -c < "$quotetmp") bytes)"
+          rm -f "$quotetmp"
