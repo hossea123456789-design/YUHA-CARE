@@ -100,8 +100,16 @@
 .mental-tag{border-radius:8px;background:#fff;border:1px solid #e1eae3;padding:8px 10px;font-size:11.5px;font-weight:720;color:#648071;white-space:normal;line-height:1.4;overflow-wrap:anywhere;text-align:center;min-height:35px}
 .mental-tag.chosen{background:#e4f2e8;border-color:#afdac1;color:#28795b}
 .mental-memo-label{display:block;font-size:11px;font-weight:780;margin-top:15px;color:#426b55}
-.mental-memo-label textarea{box-sizing:border-box;width:100%;margin-top:7px;padding:10px;border:1px solid #dce7df;
- border-radius:9px;background:#fff;font-family:inherit;font-size:14px;line-height:1.65;color:#32463b;min-height:96px;resize:none;overflow:hidden;overflow-wrap:anywhere;word-break:break-word}
+#mentalMemo{display:block;box-sizing:border-box;width:100%;max-width:100%;height:auto;min-height:115px;margin-top:7px;padding:12px;
+ border:1px solid #dce7df;border-radius:9px;background:#fff;font-family:inherit;font-size:14px;line-height:1.65;color:#32463b;
+ overflow-y:auto;overflow-x:hidden;overflow-wrap:anywhere;word-break:break-word;resize:vertical;-webkit-text-size-adjust:100%}
+.mental-memo-meta{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin:7px 1px 0;flex-wrap:wrap;
+ font-size:10px;line-height:1.55;color:#84988a}
+.mental-memo-meta output{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:760;color:#4d7965}
+.mental-memo-full{margin:10px 0 0;padding:0 11px 8px;border:1px solid #e1eae4;border-radius:9px;background:#fff}
+.mental-memo-full summary{padding:10px 0;color:#396e55;cursor:pointer;font-size:11px;line-height:1.5;font-weight:760;list-style:revert}
+.mental-memo-full-body{padding:11px 10px;margin:0 0 4px;border-radius:8px;background:#f7faf6;color:#344e3d;
+ font-size:13px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;user-select:text;max-height:none;overflow:visible}
 .mental-local-note{display:flex;justify-content:space-between;gap:7px;margin-top:12px;font-size:11px;line-height:1.55;color:#809487;flex-wrap:wrap;overflow-wrap:anywhere}
 .mental-save-state{color:#318163;font-weight:790;max-width:60%}.mental-save-state[data-error=true]{color:#b34e5b}
 .mental-cloud-details{margin-top:0;background:#fff}.mental-cloud-inner p{font-size:11px;color:#7b8e81;line-height:1.65;margin:0 0 8px}
