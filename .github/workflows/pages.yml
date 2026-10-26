@@ -36,7 +36,7 @@ jobs:
           const ctx={window:{}}; vm.runInNewContext(src,ctx);
           const lib=ctx.window.YuhaCareComfortLibrary,rows=lib?.quotes;
           if(!Array.isArray(rows)||rows.length!==1000)throw Error('Expected exactly 1000 sourced empathy lines');
-          if(new Set(rows.map(x=>x.text.replace(/\\s/g,''))).size!==1000)
+          if(new Set(rows.map(x=>x.text.replace(/\s/g,''))).size!==1000)
             throw Error('Duplicate empathy messages');
           if(rows.some(x=>!x.sourceDialogue||x.text.length<20||x.text.length>160))
             throw Error('Bad provenance or abnormal line length');
