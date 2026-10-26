@@ -89,20 +89,20 @@
 .mental-context-details summary,.mental-cloud-details summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;
  padding:12px;font-size:12px;font-weight:800;color:#44654e;list-style:none}
 .mental-context-details summary::-webkit-details-marker,.mental-cloud-details summary::-webkit-details-marker{display:none}
-.mental-context-details summary span,.mental-cloud-details summary small{font-size:10px;color:#889b8c;font-weight:600}
+.mental-context-details summary span,.mental-cloud-details summary small{font-size:11px;color:#889b8c;font-weight:600;white-space:normal;overflow-wrap:anywhere;text-align:right}
 .mental-context-inner,.mental-cloud-inner{padding:0 11px 13px}
-.mental-minute-label{font-size:11px;color:#53725e;font-weight:760;display:flex;align-items:center;justify-content:space-between;gap:7px}
+.mental-minute-label{font-size:12px;color:#53725e;font-weight:760;display:flex;align-items:center;justify-content:space-between;gap:7px;flex-wrap:wrap}
 .mental-minute-label span{display:flex;align-items:center;gap:6px}
 .mental-minute-label input{width:73px;height:35px;box-sizing:border-box;border:1px solid #d8e6dd;border-radius:8px;
  background:#fff;padding:4px 6px;text-align:center;color:#3c6250}
 .mental-tags-group{margin-top:14px}.mental-tags-group h4{font-size:12px;color:#50725c;margin:0 0 7px}
 .mental-tags{display:flex;flex-wrap:wrap;gap:5px}
-.mental-tag{border-radius:8px;background:#fff;border:1px solid #e1eae3;padding:7px 9px;font-size:10px;font-weight:720;color:#648071}
+.mental-tag{border-radius:8px;background:#fff;border:1px solid #e1eae3;padding:8px 10px;font-size:11.5px;font-weight:720;color:#648071;white-space:normal;line-height:1.4;overflow-wrap:anywhere;text-align:center;min-height:35px}
 .mental-tag.chosen{background:#e4f2e8;border-color:#afdac1;color:#28795b}
 .mental-memo-label{display:block;font-size:11px;font-weight:780;margin-top:15px;color:#426b55}
 .mental-memo-label textarea{box-sizing:border-box;width:100%;margin-top:7px;padding:10px;border:1px solid #dce7df;
- border-radius:9px;background:#fff;font:12px/1.5 inherit;min-height:68px;resize:vertical}
-.mental-local-note{display:flex;justify-content:space-between;gap:7px;margin-top:12px;font-size:10px;color:#809487}
+ border-radius:9px;background:#fff;font-family:inherit;font-size:14px;line-height:1.65;color:#32463b;min-height:96px;resize:none;overflow:hidden;overflow-wrap:anywhere;word-break:break-word}
+.mental-local-note{display:flex;justify-content:space-between;gap:7px;margin-top:12px;font-size:11px;line-height:1.55;color:#809487;flex-wrap:wrap;overflow-wrap:anywhere}
 .mental-save-state{color:#318163;font-weight:790;max-width:60%}.mental-save-state[data-error=true]{color:#b34e5b}
 .mental-cloud-details{margin-top:0;background:#fff}.mental-cloud-inner p{font-size:11px;color:#7b8e81;line-height:1.65;margin:0 0 8px}
 .mental-cloud-connect{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
