@@ -612,10 +612,12 @@ function tags(arr,values,kind){
 let COMFORT_SHUFFLE=null;
 function dailyComfortHTML(){
  const lib=window.YuhaCareComfortLibrary;
- if(!lib||!Array.isArray(lib.quotes)||lib.quotes.length!==1000)return "";
+ if(!lib||!Array.isArray(lib.quotes)||lib.quotes.length<1)return "";
  const day=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
  const n=lib.quotes.length;
- if(!COMFORT_SHUFFLE){
+ // Daily date determines the same reviewed line across browsers and devices,
+ // without repeating until the curated set has been exhausted.
+ if(!COMFORT_SHUFFLE||COMFORT_SHUFFLE.length!==n){
   COMFORT_SHUFFLE=Array.from({length:n},(_,i)=>i);
   let seed=0x4a2d7c19;
   for(let i=n-1;i>0;i--){
@@ -627,17 +629,18 @@ function dailyComfortHTML(){
  const base=Math.floor(Date.parse("2026-10-26T00:00:00Z")/86400000);
  const ordinal=Math.floor(Date.parse(day+"T00:00:00Z")/86400000);
  const index=COMFORT_SHUFFLE[((ordinal-base)%n+n)%n],quote=lib.quotes[index];
- if(!quote?.text)return "";
+ if(!quote?.text||quote.reviewed!==true)return "";
+ const citation=lib.sources?.[quote.sourceId];
  const dateLabel=Number(day.slice(5,7))+"월 "+Number(day.slice(8,10))+"일";
  return '<section class="mental-comfort-card" aria-label="오늘의 공감 문장">'+
   '<div class="mental-comfort-heading"><span class="mental-comfort-mark" aria-hidden="true">♡</span>'+
   '<div><span class="mental-comfort-eyebrow">A LITTLE KINDNESS TODAY</span>'+
   '<h3>오늘, 마음에 닿는 한마디</h3></div><small>'+dateLabel+'</small></div>'+
   '<blockquote class="mental-comfort-quote">'+E(quote.text)+'</blockquote>'+
-  '<div class="mental-comfort-bottom"><span>하루에 한 문장 · 1,000개의 공개 문구</span>'+
-  '<span class="mental-comfort-credits"><a href="'+E(lib.sourceUrl)+'" target="_blank" rel="noopener noreferrer">출처 · '+E(lib.source)+'</a>'+
-  '<a href="'+E(lib.licenseUrl)+'" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></span></div>'+
-  '<p class="mental-comfort-disclaimer">가상 상담 연구 자료의 공감 문장에서 선별했습니다. 개인의 상황을 판단하거나 치료를 대신하지 않습니다.</p>'+
+  '<div class="mental-comfort-bottom"><span>하루에 한 문장 · 검수된 '+n+'개 문장</span>'+
+  (citation?'<span class="mental-comfort-credits"><a href="'+E(citation.url)+'" target="_blank" rel="noopener noreferrer">출처 · '+E(citation.name)+'</a>'+
+  '<a href="'+E(citation.licenseUrl)+'" target="_blank" rel="noopener noreferrer">'+E(citation.license)+'</a></span>':'')+'</div>'+
+  '<p class="mental-comfort-disclaimer">공개 자료에서 실제 문장을 선별했습니다. 개인의 감정을 단정하거나 전문적인 도움을 대신하지 않습니다.</p>'+
   '</section>';
 }
 function husbandLetterHTML(){
