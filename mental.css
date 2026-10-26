@@ -119,6 +119,28 @@
 .mental-cloud-remember input{flex-shrink:0;margin:2px 0 0;accent-color:#2a795e}
 .mental-cloud-connect button,.mental-cloud-inner>button{padding:8px 12px;border:0;border-radius:8px;background:#2a795e;color:#fff;font-size:11px;font-weight:750}
 .mental-cloud-small{font-size:10px;color:#99a69a!important;margin-top:9px!important}
+/* Today's sourced empathy phrase — calm, readable and distinct from private letters. */
+.mental-comfort-card{position:relative;min-width:0;overflow:hidden;border-radius:15px;
+ background:linear-gradient(140deg,#f6faf7 0%,#eef7f1 72%,#e8f2ed 100%);
+ border:1px solid #dce9df;padding:17px 17px 13px;
+ box-shadow:0 2px 10px rgba(37,84,56,.04)}
+.mental-comfort-card::after{content:"";position:absolute;right:-37px;bottom:-50px;
+ width:145px;height:145px;border-radius:50%;border:24px solid rgba(126,177,145,.075);pointer-events:none}
+.mental-comfort-heading{position:relative;z-index:1;display:flex;align-items:center;gap:10px}
+.mental-comfort-mark{display:grid;place-items:center;flex:0 0 35px;width:35px;height:35px;border-radius:11px;
+ background:#deede2;color:#52856b;font-size:24px;line-height:1}
+.mental-comfort-heading>div{flex:1;min-width:0}
+.mental-comfort-eyebrow{display:block;font-size:8px;letter-spacing:1.4px;font-weight:850;color:#7e9d88;margin-bottom:3px}
+.mental-root .mental-comfort-heading h3{margin:0;color:#355b48;font-size:14px;line-height:1.4}
+.mental-comfort-heading>small{font-size:10px;color:#829d8d;align-self:flex-start;white-space:nowrap}
+.mental-comfort-quote{position:relative;z-index:1;margin:14px 0 12px;padding:1px 0 1px 13px;
+ border-left:3px solid #85b099;color:#355643;font-size:15px;font-weight:680;letter-spacing:-.24px;
+ line-height:1.9;overflow-wrap:anywhere;word-break:keep-all;white-space:normal}
+.mental-comfort-bottom{display:flex;justify-content:space-between;gap:6px 12px;align-items:center;
+ flex-wrap:wrap;font-size:10px;line-height:1.6;color:#7c9986;position:relative;z-index:1}
+.mental-comfort-bottom a{color:#56816a;text-decoration:underline;text-underline-offset:2px}
+.mental-comfort-disclaimer{position:relative;z-index:1;margin:5px 0 0;color:#8a9b90;font-size:9px;line-height:1.65}
+@media(max-width:380px){.mental-comfort-card{padding:14px 12px 12px}.mental-comfort-quote{font-size:14px;line-height:1.8}}
 /* Daily letter: a warm, separate keepsake above the recovery metrics. */
 .mental-letter-card{position:relative;overflow:hidden;border-radius:16px;padding:17px 16px 14px;
  background:linear-gradient(145deg,#fff8f0 0%,#fffaf5 63%,#fff5ec 100%);
