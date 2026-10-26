@@ -635,7 +635,8 @@ function dailyComfortHTML(){
   '<h3>오늘, 마음에 닿는 한마디</h3></div><small>'+dateLabel+'</small></div>'+
   '<blockquote class="mental-comfort-quote">'+E(quote.text)+'</blockquote>'+
   '<div class="mental-comfort-bottom"><span>하루에 한 문장 · 1,000개의 공개 문구</span>'+
-  '<a href="'+E(lib.sourceUrl)+'" target="_blank" rel="noopener noreferrer">출처 · '+E(lib.source)+'</a></div>'+
+  '<span class="mental-comfort-credits"><a href="'+E(lib.sourceUrl)+'" target="_blank" rel="noopener noreferrer">출처 · '+E(lib.source)+'</a>'+
+  '<a href="'+E(lib.licenseUrl)+'" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></span></div>'+
   '<p class="mental-comfort-disclaimer">가상 상담 연구 자료의 공감 문장에서 선별했습니다. 개인의 상황을 판단하거나 치료를 대신하지 않습니다.</p>'+
   '</section>';
 }
