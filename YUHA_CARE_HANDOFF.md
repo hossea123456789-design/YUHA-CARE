@@ -652,3 +652,19 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 배포 후 자동 검증: `steps.deployment.outputs.page_url` 기준으로 **두 개 공개 SVG URL에 curl HTTP GET**. HTTP 4xx/5xx 실패 처리 및 10회 재시도, 응답 본문의 `<svg` 존재 확인. 파일 부재 시 실행 실패.
 - 최종 workflow 커밋 `c4550f176567c6693eab7c58be416528edaff175`의 GitHub Actions run `39688882317`에서 `Collect public web files and letter artwork`, `Verify artwork paths and integrity before publishing`, `Run actions/deploy-pages@v4`, `Smoke test published envelope artwork` 모두 **success** 확인. GitHub Actions 체크 결과는 파일이 사이트에서 HTTP로 제공됨을 확인하는 것이며, 사용자 삼성 실기기의 CSS 애니메이션 동작을 대신하지는 않음.
 - 서버 Apps Script API 변경 없음, 기존 편지/읽음/아내 회복 점수 및 pending 기록 데이터 변경 없음. 단순 프론트 이미지 파일 배포 복구.
+
+## 29. 2026-10-26 — 아내 회복 메모 전체 글자 표시 및 텍스트 줄바꿈
+
+### 원인/현상
+- 실제 모바일 스크린샷에서 '오늘의 메모' 긴 텍스트 중 일부만 보임. 기존 `mental.js`의 `<textarea rows="2">`와 `mental.css`의 `min-height:68px` 때문에 긴 메모가 내부 스크롤 상태로 보였고, 작은 글꼴(12px) 및 정보 라벨/태그의 줄바꿈 제약이 가독성을 낮춤.
+- 저장/동기화 오류가 아니라 텍스트 입력창의 가시 높이/반응형 스타일 문제. 실제 사용자 텍스트와 서버 데이터를 수정하거나 삭제하지 않음.
+
+### 실제 변경
+- `mental.js`: `fitMemo()`가 `scrollHeight`에 맞춰 메모 textarea 높이를 최소 96px부터 재설정. 렌더 직후, 입력마다, '오늘의 상황' 세부정보를 펼친 직후 프레임에 맞춰 재실행. `rows=3` 및 접근성 라벨 추가. 기존 350ms debounce `changes()` 로컬 자동 저장과 서버 자동 동기화 유지.
+- `mental.css`: 메모 글꼴 14px/line-height 1.65, 줄바꿈 `overflow-wrap:anywhere`, 스크롤 대신 내용에 맞춰 전체 높이 자동 확장. 선택 태그 11.5px 및 자동 줄바꿈, 저장 상태 영역 flex wrap, 개인시간 라벨·세부 제목 줄바꿈 허용.
+- `index.html`: 프론트 캐시 `mental.js?v=20261026-memo-fit1` 및 `mental.css?v=20261026-memo-fit1`.
+- 연관 없는 PIN/서버 API/편지 열람/수면·체크리스트 및 실제 Google Sheets 기록 변경 없음. Apps Script 재배포 불필요.
+
+### 검증
+- JavaScript 및 `index.html` inline 스크립트 문법, 진입·입력·세부정보 열기 시 메모 높이 확장 경로, 162/302px 및 최소 96px 모의 계산, 줄바꿈 CSS, 편지 기존 액션 등 15개 정적/단위 체크 통과.
+- GitHub Pages 배포 워크플로에 JS 구문, SVG 자산 및 실제 공개 URL 확인 기능 있음. 실제 특정 삼성 기기 표시 상태는 사용자 실기기 검증 별개.
