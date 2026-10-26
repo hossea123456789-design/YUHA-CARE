@@ -696,3 +696,21 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - `mental.css`: 조용한 연녹색 인용 카드와 모바일 가독성, 출처/라이선스 링크. `index.html` `recovery-comfort-1000.js`를 `mental.js` **전에** 로딩, 스크립트/스타일 캐시 키 `20261026-comfort1000`.
 - Pages 워크플로: 새 라이브러리 `public-site/`에 포함, node 구문 검사·문장/중복/출처/HTML 연결 검사, 배포 후 curl URL 검사. 이전 SVG 누락 배포 오류 재발 방지.
 - **민감 정보 주의:** 공감 문구는 공개 데이터이며 사용자별 점수·메모·편지와 무관. 개별 회복 기록을 출처 연구자료 또는 GitHub 문구 파일에 넣지 않음. Apps Script 수정·Sheets migration 불필요.
+
+## 32. 2026-10-27 — 상담체 위로 문구 대량 교체: 엄격 승인 59개
+
+### 배경 및 검수 판단
+- 사용자가 '감정을 소중히 여기고 이에 대한 확신을 갖게 되셨음이 마음을 가볍게 만드는 데 도움이 되었군요.' 등을 무의미/부자연스럽다고 지적. 기존 KMI 연구용 *가상 상담 발화* 1,000개 자동 키워드 추출본은 내담자 이전 답변을 전제하는 문구가 있어 '오늘의 위로'에 그대로 사용하기 부적합. 검수 없이 1,000개 전량 배포했던 단계는 되돌림.
+- 목표 1,000개의 품질 확정은 미완료. **실제 승인 및 앱 제공 수는 59개**(KMI CC BY 4.0 원문 26개 + songys/Chatbot_data MIT 원문 33개). 품질 미통과 문구는 1,000개 채우기용으로 보존·노출하지 않는다.
+
+### 기술 변경
+- `recovery-comfort-reviewed.js`: `window.YuhaCareComfortLibrary`에 59개만 포함. 각 `quotes[].reviewed===true`, `sourceId`, KMI `sourceDialogue` 또는 songys CSV `sourceRow`; `sources`별 저자·URL·라이선스 포함. 외부 원문과 문자 그대로 대조해 59/59 일치 확인.
+- `mental.js`의 `dailyComfortHTML()`은 `quotes.length===1000` 요구 삭제, 승인본 실제 개수로 표시. 개별 출처 저자/CC BY/MIT 링크 렌더, 기존 KST 날짜·고정 시드 셔플을 배열 길이에 맞춰 적용. 승인 문구 외 표시 금지. HTML 이스케이프 유지.
+- `index.html`은 `recovery-comfort-reviewed.js?v=20261027-curated59`를 `mental.js?v=20261027-curated59`보다 먼저 로딩.
+- 구형 `recovery-comfort-1000.js`는 메인 저장소에서 삭제; Pages public-site 복사 제외. `assets/recovery-comfort-license.txt`를 함께 배포하여 원본 Songys MIT 사용 허가 전문과 KMI CC BY 링크 공지.
+- `.github/workflows/pages.yml`: 최소 40개 검수 통과, 승인 표식/출처 필드/고유 문자열/문장 길이/라이선스/유명 부적절 원문 재등장 검사, 공개 정적 URL 상태 HTTP GET 검증. 검수 없는 1,000개 자동 복귀 방지.
+- Google Sheets/회복 상태 값/서버 PIN/편지/체크리스트/수면 저장 로직은 전혀 변경하지 않음. Apps Script 재배포 불필요.
+
+### 재검수 및 잔여 이슈
+- 신설 정적 파일의 JS 문법·앱 JS/인라인 스크립트 문법, 실제 원자료(KMI kmi.json 및 songys ChatbotData.csv)와 59개 문자열 대조, 유일성 59개, 라이선스·출처, KST 날짜별 59일 무중복 회전, 지적받은 잘못된 문구 미포함 **모두 통과**. 실제 삼성 디바이스의 화면 표시는 사용자 실기기 확인 별개.
+- 원래 요청한 약 1,000개 완전 승인본은 준비되지 않았으므로 향후 추가 검수 시 기록에 정확한 숫자를 표시하고, 대량 업로드 전 각 문장 독립성/정서적 적합성/출처 확인 필수.
