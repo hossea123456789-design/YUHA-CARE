@@ -596,7 +596,10 @@ function dateEditor(){
    '<div class="mental-tags-group"><h4>개인시간 유형</h4>'+tags(TYPES,r.offDutyType,"type")+'</div>'+
    '<div class="mental-tags-group"><h4>육아 때문에 미룬 기본욕구</h4>'+tags(NEEDS,r.basicNeedsDelayed,"need")+'</div>'+
    CONTEXT_GROUPS.map(([group,options])=>'<div class="mental-tags-group"><h4>'+E(group)+'</h4>'+tags(options,r.contexts,"context")+'</div>').join('')+
-   '<label class="mental-memo-label">오늘의 메모 <textarea maxlength="600" rows="3" id="mentalMemo" aria-label="오늘의 메모" placeholder="자유롭게 기록하고 싶을 때만 작성해 주세요.">'+E(r.memo)+'</textarea></label>'+
+   '<label class="mental-memo-label" for="mentalMemo">오늘의 메모</label>'+
+   '<textarea maxlength="600" rows="4" id="mentalMemo" data-mental-memo-date="'+d+'" aria-label="오늘의 메모" placeholder="자유롭게 기록하고 싶을 때만 작성해 주세요.">'+E(r.memo)+'</textarea>'+
+   '<div class="mental-memo-meta"><span>입력 즉시 기기에 저장 · 서버 자동 동기화</span><output id="mentalMemoCount">'+r.memo.length+' / 600자</output></div>'+
+   '<details class="mental-memo-full" id="mentalMemoFullDetails"><summary>저장된 메모 원문 전체 보기</summary><div id="mentalMemoFullText" class="mental-memo-full-body">'+(r.memo?E(r.memo):"저장된 메모가 없습니다.")+'</div></details>'+
    '</div></details>';
  h+='<div class="mental-local-note"><span class="mental-save-state" id="mentalStatus">'+E(stateText())+'</span>'+
    '<span>'+complete+'/7개 항목 입력 · '+(pending[d]?'변경 보관 중':'기록 저장됨')+'</span></div>';
@@ -749,9 +752,29 @@ function view(){
 function render(){
  screen=document.getElementById("main");
  if(!screen)return;
+ // Keep a focused memo and its caret when asynchronous server data causes rerender.
+ const active=document.activeElement;
+ const editingMemo=Boolean(unlocked&&active?.id==="mentalMemo"&&active.isConnected);
+ const memoDate=editingMemo?active.dataset.mentalMemoDate:"";
+ const caretStart=editingMemo?active.selectionStart:0;
+ const caretEnd=editingMemo?active.selectionEnd:0;
+ const fullMemoOpen=Boolean(screen.querySelector("#mentalMemoFullDetails")?.open);
+ if(editingMemo&&/^20\d{2}-\d{2}-\d{2}$/.test(memoDate)){
+  const text=active.value.slice(0,600);
+  if(entry(memoDate).memo!==text)changes(memoDate,row=>{row.memo=text;});
+ }
  if(!unlocked){screen.innerHTML=lockMarkup();bindLock();return;}
  screen.innerHTML=view();
  bind();
+ const restoredDetails=screen.querySelector("#mentalMemoFullDetails");
+ if(restoredDetails&&fullMemoOpen)restoredDetails.open=true;
+ if(editingMemo&&memoDate===selected){
+  const next=screen.querySelector("#mentalMemo");
+  if(next){
+   try{next.focus({preventScroll:true});}catch(_){next.focus();}
+   try{next.setSelectionRange(caretStart,caretEnd);}catch(_){}
+  }
+ }
  loadVisibleMentalMonths();
 }
 function refreshOverview(){
@@ -869,25 +892,32 @@ function bind(){
  const fitMemo=()=>{
   if(!memo||!memo.isConnected||memo.offsetWidth===0)return;
   memo.style.height="auto";
-  memo.style.height=Math.max(96,memo.scrollHeight+2)+"px";
+  memo.style.height=Math.max(115,Math.ceil(memo.scrollHeight)+4)+"px";
+ };
+ const persistMemo=()=>{
+  if(!memo||!memo.isConnected)return;
+  const memoDate=memo.dataset.mentalMemoDate;
+  if(!/^20\d{2}-\d{2}-\d{2}$/.test(memoDate))return;
+  const text=memo.value.slice(0,600);
+  const count=screen.querySelector("#mentalMemoCount");
+  if(count)count.textContent=text.length+" / 600자";
+  const original=screen.querySelector("#mentalMemoFullText");
+  if(original)original.textContent=text||"저장된 메모가 없습니다.";
+  if(entry(memoDate).memo!==text)changes(memoDate,r=>{r.memo=text;});
+  fitMemo();
  };
  if(memo){
   fitMemo();
-  let timer=null;
-  memo.addEventListener("input",()=>{
-   fitMemo();
-   clearTimeout(timer);
-   timer=setTimeout(()=>{changes(selected,r=>{r.memo=memo.value.slice(0,600)});},350);
-  });
-  memo.addEventListener("blur",()=>{
-   clearTimeout(timer);
-   if(entry(selected).memo!==memo.value)changes(selected,r=>{r.memo=memo.value.slice(0,600)});
-  });
+  memo.addEventListener("focus",fitMemo);
+  // Device save is synchronous; only the remote sync is debounced.
+  memo.addEventListener("input",persistMemo);
+  memo.addEventListener("compositionend",persistMemo);
+  memo.addEventListener("blur",persistMemo);
  }
  const contexts=screen.querySelector("#mentalContextDetails");
  if(contexts)contexts.addEventListener("toggle",()=>{
   contextsOpen=contexts.open;
-  if(contexts.open)requestAnimationFrame(fitMemo);
+  if(contexts.open)requestAnimationFrame(()=>{fitMemo();requestAnimationFrame(fitMemo);});
  });
  const cloud=screen.querySelector("#mentalCloudDetails");
  if(cloud)cloud.addEventListener("toggle",()=>{cloudOpen=cloud.open});
