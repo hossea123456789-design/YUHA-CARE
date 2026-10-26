@@ -23,28 +23,35 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p public-site/assets
-          cp index.html design.css mental.css mental.js bridge-client.js config.js recovery-comfort-1000.js public-site/
-          cp assets/mental-letter-sealed.svg assets/mental-letter-opened.svg public-site/assets/
+          cp index.html design.css mental.css mental.js bridge-client.js config.js recovery-comfort-reviewed.js public-site/
+          cp assets/mental-letter-sealed.svg assets/mental-letter-opened.svg assets/recovery-comfort-license.txt public-site/assets/
       - name: Verify artwork paths and integrity before publishing
         run: |
           set -euo pipefail
           node --check public-site/mental.js
-          node --check public-site/recovery-comfort-1000.js
+          node --check public-site/recovery-comfort-reviewed.js
           node - <<'JS'
           const fs = require('fs'), vm=require('vm');
-          const src=fs.readFileSync('public-site/recovery-comfort-1000.js','utf8');
+          const src=fs.readFileSync('public-site/recovery-comfort-reviewed.js','utf8');
           const ctx={window:{}}; vm.runInNewContext(src,ctx);
           const lib=ctx.window.YuhaCareComfortLibrary,rows=lib?.quotes;
-          if(!Array.isArray(rows)||rows.length!==1000)throw Error('Expected exactly 1000 sourced empathy lines');
-          if(new Set(rows.map(x=>x.text.replace(/\s/g,''))).size!==1000)
+          if(!Array.isArray(rows)||rows.length<40)throw Error('Insufficient manually reviewed empathy lines');
+          if(new Set(rows.map(x=>x.text.replace(/\s/g,''))).size!==rows.length)
             throw Error('Duplicate empathy messages');
-          if(rows.some(x=>!x.sourceDialogue||x.text.length<20||x.text.length>160))
-            throw Error('Bad provenance or abnormal line length');
+          if(rows.some(x=>x.reviewed!==true||!lib.sources?.[x.sourceId]||!x.text||x.text.length<18||x.text.length>170))
+            throw Error('Unreviewed line, missing source, or abnormal length');
+          if(rows.some(x=>(x.sourceId==='kmi'&&!x.sourceDialogue)||(x.sourceId==='songys'&&!x.sourceRow)))
+            throw Error('Incomplete source provenance');
+          const qualityGate=/(감정을 소중히 여기고 이에 대한 확신|엄마의 화를 직접적으로|트라우마|수업 시간에 혼자 앉아|상담사|내담자)/;
+          if(rows.some(x=>qualityGate.test(x.text)))
+            throw Error('Previously rejected counseling text returned to published set');
+          if(!fs.existsSync('public-site/assets/recovery-comfort-license.txt'))
+            throw Error('Full source license notice missing from public package');
           const html=fs.readFileSync('public-site/index.html','utf8');
-          if(!html.includes('src="recovery-comfort-1000.js?'))
+          if(!html.includes('src="recovery-comfort-reviewed.js?'))
             throw Error('Missing daily empathy quote script in HTML');
-          if(!lib.license||!lib.sourceUrl)throw Error('Missing quote licensing metadata');
-          console.log('PASS 1,000 distinct licensed source passages and HTML wiring');
+          if(!lib.sources?.kmi?.licenseUrl||!lib.sources?.songys?.licenseUrl)throw Error('Missing multi-source licensing');
+          console.log('PASS '+rows.length+' reviewed, licensed, distinct source passages and HTML wiring');
           JS
           python3 - <<'PY'
           from pathlib import Path
@@ -84,11 +91,11 @@ jobs:
             echo "PASS deployed SVG: $url ($(wc -c < "$tmp") bytes)"
             rm -f "$tmp"
           done
-          quoteurl="${base%/}/recovery-comfort-1000.js?deploy=${GITHUB_SHA}"
+          quoteurl="${base%/}/recovery-comfort-reviewed.js?deploy=${GITHUB_SHA}"
           quotetmp="$(mktemp)"
           curl --fail --silent --show-error --location \
             --retry 10 --retry-delay 5 --retry-all-errors \
             --connect-timeout 12 --max-time 20 --output "$quotetmp" "$quoteurl"
           grep -q 'window.YuhaCareComfortLibrary' "$quotetmp" || { echo "Missing published quote library"; exit 1; }
-          echo "PASS published 1,000-line comfort library ($(wc -c < "$quotetmp") bytes)"
+          echo "PASS published reviewed comfort library ($(wc -c < "$quotetmp") bytes)"
           rm -f "$quotetmp"
