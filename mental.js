@@ -629,7 +629,7 @@ function dailyComfortHTML(){
  const base=Math.floor(Date.parse("2026-10-26T00:00:00Z")/86400000);
  const ordinal=Math.floor(Date.parse(day+"T00:00:00Z")/86400000);
  const index=COMFORT_SHUFFLE[((ordinal-base)%n+n)%n],quote=lib.quotes[index];
- if(!quote?.text||quote.reviewed!==true)return "";
+ if(!quote?.text||quote.screened!==true)return "";
  const citation=lib.sources?.[quote.sourceId];
  const dateLabel=Number(day.slice(5,7))+"월 "+Number(day.slice(8,10))+"일";
  return '<section class="mental-comfort-card" aria-label="오늘의 공감 문장">'+
@@ -637,10 +637,10 @@ function dailyComfortHTML(){
   '<div><span class="mental-comfort-eyebrow">A LITTLE KINDNESS TODAY</span>'+
   '<h3>오늘, 마음에 닿는 한마디</h3></div><small>'+dateLabel+'</small></div>'+
   '<blockquote class="mental-comfort-quote">'+E(quote.text)+'</blockquote>'+
-  '<div class="mental-comfort-bottom"><span>하루에 한 문장 · 검수된 '+n+'개 문장</span>'+
+  '<div class="mental-comfort-bottom"><span>하루에 한 문장 · 출처 확인된 '+n+'개 문장</span>'+
   (citation?'<span class="mental-comfort-credits"><a href="'+E(citation.url)+'" target="_blank" rel="noopener noreferrer">출처 · '+E(citation.name)+'</a>'+
   '<a href="'+E(citation.licenseUrl)+'" target="_blank" rel="noopener noreferrer">'+E(citation.license)+'</a></span>':'')+'</div>'+
-  '<p class="mental-comfort-disclaimer">공개 자료에서 실제 문장을 선별했습니다. 개인의 감정을 단정하거나 전문적인 도움을 대신하지 않습니다.</p>'+
+  '<p class="mental-comfort-disclaimer">공개 자료에서 발췌한 1,000개를 주제·표현 기준으로 선별했습니다. 전문가가 전수를 검수한 문장은 아니며, 오늘 마음에 맞지 않으면 가볍게 지나가셔도 됩니다.</p>'+
   '</section>';
 }
 function husbandLetterHTML(){
