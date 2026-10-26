@@ -609,6 +609,36 @@ function tags(arr,values,kind){
  return '<div class="mental-tags">'+arr.map(([id,label])=>
   '<button type="button" class="mental-tag'+(values.includes(id)?' chosen':'')+'" data-mental-tag="'+kind+'" data-tag-id="'+E(id)+'" aria-pressed="'+values.includes(id)+'">'+E(label)+'</button>').join('')+'</div>';
 }
+let COMFORT_SHUFFLE=null;
+function dailyComfortHTML(){
+ const lib=window.YuhaCareComfortLibrary;
+ if(!lib||!Array.isArray(lib.quotes)||lib.quotes.length!==1000)return "";
+ const day=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+ const n=lib.quotes.length;
+ if(!COMFORT_SHUFFLE){
+  COMFORT_SHUFFLE=Array.from({length:n},(_,i)=>i);
+  let seed=0x4a2d7c19;
+  for(let i=n-1;i>0;i--){
+   seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;
+   const j=(seed>>>0)%(i+1);
+   [COMFORT_SHUFFLE[i],COMFORT_SHUFFLE[j]]=[COMFORT_SHUFFLE[j],COMFORT_SHUFFLE[i]];
+  }
+ }
+ const base=Math.floor(Date.parse("2026-10-26T00:00:00Z")/86400000);
+ const ordinal=Math.floor(Date.parse(day+"T00:00:00Z")/86400000);
+ const index=COMFORT_SHUFFLE[((ordinal-base)%n+n)%n],quote=lib.quotes[index];
+ if(!quote?.text)return "";
+ const dateLabel=Number(day.slice(5,7))+"월 "+Number(day.slice(8,10))+"일";
+ return '<section class="mental-comfort-card" aria-label="오늘의 공감 문장">'+
+  '<div class="mental-comfort-heading"><span class="mental-comfort-mark" aria-hidden="true">♡</span>'+
+  '<div><span class="mental-comfort-eyebrow">A LITTLE KINDNESS TODAY</span>'+
+  '<h3>오늘, 마음에 닿는 한마디</h3></div><small>'+dateLabel+'</small></div>'+
+  '<blockquote class="mental-comfort-quote">'+E(quote.text)+'</blockquote>'+
+  '<div class="mental-comfort-bottom"><span>하루에 한 문장 · 1,000개의 공개 문구</span>'+
+  '<a href="'+E(lib.sourceUrl)+'" target="_blank" rel="noopener noreferrer">출처 · '+E(lib.source)+'</a></div>'+
+  '<p class="mental-comfort-disclaimer">가상 상담 연구 자료의 공감 문장에서 선별했습니다. 개인의 상황을 판단하거나 치료를 대신하지 않습니다.</p>'+
+  '</section>';
+}
 function husbandLetterHTML(){
  const date=selected,item=entry(date),letter=item.husbandLetter||"";
  const sealed=!!letter&&item.husbandLetterStatus==="sealed";
@@ -720,6 +750,7 @@ function view(){
   '<span class="count">Wife Mental Recovery · 개인 기록</span></div></div>'+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
+  dailyComfortHTML()+
   husbandLetterHTML()+
   mainSummary()+
   '<div class="mental-actions-row"><a href="#mentalToday" class="mental-primary-action" id="mentalJumpToday">오늘 기록</a>'+
