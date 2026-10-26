@@ -596,7 +596,7 @@ function dateEditor(){
    '<div class="mental-tags-group"><h4>개인시간 유형</h4>'+tags(TYPES,r.offDutyType,"type")+'</div>'+
    '<div class="mental-tags-group"><h4>육아 때문에 미룬 기본욕구</h4>'+tags(NEEDS,r.basicNeedsDelayed,"need")+'</div>'+
    CONTEXT_GROUPS.map(([group,options])=>'<div class="mental-tags-group"><h4>'+E(group)+'</h4>'+tags(options,r.contexts,"context")+'</div>').join('')+
-   '<label class="mental-memo-label">오늘의 메모 <textarea maxlength="600" rows="2" id="mentalMemo" placeholder="자유롭게 기록하고 싶을 때만 작성해 주세요.">'+E(r.memo)+'</textarea></label>'+
+   '<label class="mental-memo-label">오늘의 메모 <textarea maxlength="600" rows="3" id="mentalMemo" aria-label="오늘의 메모" placeholder="자유롭게 기록하고 싶을 때만 작성해 주세요.">'+E(r.memo)+'</textarea></label>'+
    '</div></details>';
  h+='<div class="mental-local-note"><span class="mental-save-state" id="mentalStatus">'+E(stateText())+'</span>'+
    '<span>'+complete+'/7개 항목 입력 · '+(pending[d]?'변경 보관 중':'기록 저장됨')+'</span></div>';
@@ -866,13 +866,29 @@ function bind(){
   minutes.value=entry(selected).offDutyMinutes;
  });}
  const memo=screen.querySelector("#mentalMemo");
- if(memo){let timer=null;memo.addEventListener("input",()=>{clearTimeout(timer);timer=setTimeout(()=>{
-    changes(selected,r=>{r.memo=memo.value.slice(0,600)});
-  },350);});memo.addEventListener("blur",()=>{clearTimeout(timer);
+ const fitMemo=()=>{
+  if(!memo||!memo.isConnected||memo.offsetWidth===0)return;
+  memo.style.height="auto";
+  memo.style.height=Math.max(96,memo.scrollHeight+2)+"px";
+ };
+ if(memo){
+  fitMemo();
+  let timer=null;
+  memo.addEventListener("input",()=>{
+   fitMemo();
+   clearTimeout(timer);
+   timer=setTimeout(()=>{changes(selected,r=>{r.memo=memo.value.slice(0,600)});},350);
+  });
+  memo.addEventListener("blur",()=>{
+   clearTimeout(timer);
    if(entry(selected).memo!==memo.value)changes(selected,r=>{r.memo=memo.value.slice(0,600)});
-  });}
+  });
+ }
  const contexts=screen.querySelector("#mentalContextDetails");
- if(contexts)contexts.addEventListener("toggle",()=>{contextsOpen=contexts.open});
+ if(contexts)contexts.addEventListener("toggle",()=>{
+  contextsOpen=contexts.open;
+  if(contexts.open)requestAnimationFrame(fitMemo);
+ });
  const cloud=screen.querySelector("#mentalCloudDetails");
  if(cloud)cloud.addEventListener("toggle",()=>{cloudOpen=cloud.open});
  screen.querySelector("#mentalJumpToday")?.addEventListener("click",event=>{
