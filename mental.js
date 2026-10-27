@@ -10,6 +10,7 @@ const PENDING="yuha_mental_recovery_pending_v1";
 const META="yuha_mental_recovery_meta_v1";
 const HISTORY="yuha_mental_recovery_safety_snapshots_v1";
 const locallyProtectedDates=new Set();
+const protectedServerRows={};
 const diag=()=>window.YuhaMentalDiagnostics;
 function traceMental(type,detail){try{diag()?.emit(type,detail||{});}catch(_){}}
 function diagMeta(){return diag()?.metadata()||{};}
@@ -274,10 +275,12 @@ function mergeCloudMonth(incoming){
    if(localIsRicher(records[date],server)){
     traceMental('CLOUD_LOCAL_DIVERGENCE',{date,complete:numberFilled(records[date]),serverComplete:numberFilled(server),reason:'protected_local'});
     locallyProtectedDates.add(date);
+    protectedServerRows[date]=server;
     continue; // Never erase richer local records with empty/stale cloud rows.
    }
    traceMental('CLOUD_READ_MERGED',{date,complete:numberFilled(server),reason:'accepted_server'});
    records[date]=server;locallyProtectedDates.delete(date);
+   delete protectedServerRows[date];
   }else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&server.revision){
    conflict={date,local:entry(date),server};
    traceMental('CLOUD_REVISION_CONFLICT',{date,reason:'server_exists_and_local_pending'});
@@ -314,7 +317,7 @@ function changes(date,fn,letterOnly=false,letterAction=""){
  if(!localOk)setState("기기 저장 실패 · 저장 공간을 확인해 주세요",true);
  else setState(cloudReady?"기기 저장 완료 · 비공개 동기화 대기":"이 기기에 저장됨");
  scheduleCloud();
- if(screen&&unlocked)refreshOverview();
+ if(screen&&unlocked){refreshOverview();refreshSyncSafety();}
 }
 function status(text,error){
  const el=document.getElementById("mentalStatus");if(!el)return;
@@ -859,6 +862,66 @@ function bindHusbandLetter(){
   else setTimeout(finish,620);
  });
 }
+function syncSafetyHTML(){
+ const n=Object.keys(pending).length,protectedCount=locallyProtectedDates.size;
+ if(!n&&!protectedCount&&cloudReady)return '';
+ const status=n?
+  '서버 전송 또는 검증 대기 '+n+'건. 다른 기기에서 아직 보이지 않을 수 있습니다.':
+  protectedCount?'서버와 다른 기기 원본 '+protectedCount+'일 발견. 자동 덮어쓰기를 차단했습니다.':
+  '서버 연결이 확인되지 않았습니다. 현재 입력한 내용은 이 기기에만 남을 수 있습니다.';
+ const canRecover=locallyProtectedDates.has(selected)&&!pending[selected]&&
+  numberFilled(entry(selected))>0&&numberFilled(protectedServerRows[selected])===0;
+ return '<section class="mental-safety-banner" id="mentalSyncSafety" aria-live="polite"><p><strong>기기 간 저장 확인:</strong> '+E(status)+'</p>'+
+  (canRecover?'<button type="button" id="mentalRecoverDate">이 날짜의 기기 원본을 서버에 반영</button>':'')+
+  (protectedCount?'<p>원본 백업을 먼저 권장합니다. 다른 기기의 기록을 자동으로 덮지 않습니다.</p>':'')+
+  '</section>';
+}
+function refreshSyncSafety(){
+ if(!screen||!unlocked)return;
+ const el=screen.querySelector('#mentalSyncSafety'),markup=syncSafetyHTML();
+ if(!el&&!markup)return;
+ if(el&&!markup){el.remove();return;}
+ if(el){el.outerHTML=markup;}else{
+  const intro=screen.querySelector('.mental-intro');
+  intro?.insertAdjacentHTML('afterend',markup);
+ }
+ bindSyncSafety();
+}
+function reconcileProtectedDate(date){
+ const server=protectedServerRows[date],local=records[date];
+ if(!server||!local||pending[date])return;
+ // Only fill a fully empty score set. Existing server scores must never be overwritten.
+ if(numberFilled(server)!==0 || numberFilled(local)===0){
+  setState('서버에 기존 점수가 있습니다 · 수동 비교가 필요합니다',true);return;
+ }
+ if(server.memo&&local.memo&&server.memo!==local.memo){
+  setState('서버와 기기 메모가 다릅니다 · 수동 비교가 필요합니다',true);return;
+ }
+ const accepted=window.confirm('이 휴대폰의 '+date+' 회복 점수를 서버에 복구합니다.\n기존 서버의 남편 편지와 다른 비어 있지 않은 필드는 보존합니다.\n서버 버전이 달라졌으면 저장을 중단합니다. 먼저 기기 원본 백업을 권장합니다. 계속하시겠습니까?');
+ if(!accepted)return;
+ archiveMental('before-manual-recovery');
+ const merged=normalize(date,{...server,
+  scores:Object.fromEntries(FIELDS.map(f=>[f.id,validScore(local.scores[f.id])?local.scores[f.id]:server.scores[f.id]])),
+  memo:server.memo||local.memo,
+  offDutyMinutes:server.offDutyMinutes||local.offDutyMinutes,
+  offDutyType:[...new Set([...(server.offDutyType||[]),...(local.offDutyType||[])])],
+  basicNeedsDelayed:[...new Set([...(server.basicNeedsDelayed||[]),...(local.basicNeedsDelayed||[])])],
+  contexts:[...new Set([...(server.contexts||[]),...(local.contexts||[])])],
+  husbandLetter:server.husbandLetter||local.husbandLetter,
+  husbandLetterStatus:server.husbandLetter?server.husbandLetterStatus:local.husbandLetterStatus,
+  husbandLetterOpenedAt:server.husbandLetter?server.husbandLetterOpenedAt:local.husbandLetterOpenedAt,
+  revision:String(server.revision||'')});
+ records[date]=merged;
+ pending[date]={entry:normalize(date,merged),expectedRevision:String(server.revision||''),
+   letterOnly:false,letterAction:''};
+ const stored=saveLocal();
+ traceMental('LOCAL_RECOVERY_SUBMITTED',{date,complete:numberFilled(merged),serverComplete:numberFilled(server),storageOk:stored});
+ if(!stored){setState('기기 저장 실패 · 복구를 전송하지 않습니다',true);return;}
+ setState('원본 보존 후 서버 복구 전송 대기');refreshSyncSafety();scheduleCloud(100);
+}
+function bindSyncSafety(){
+ screen?.querySelector('#mentalRecoverDate')?.addEventListener('click',()=>reconcileProtectedDate(selected));
+}
 function diagnosticPanel(){
  const d=diagMeta(),id=diag()?.getDeviceId()||'unknown',selectedRole=diag()?.role()||'unassigned';
  const roles=[['unassigned','기기 구분 미지정'],['wife','아내 사용 기기'],['husband','남편 사용 기기'],['shared','공용/기타']];
@@ -914,6 +977,7 @@ function view(){
   '<span class="count">Wife Mental Recovery · 개인 기록</span></div></div>'+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
+  syncSafetyHTML()+
   dailyComfortHTML()+
   husbandLetterHTML()+
   mainSummary()+
@@ -1040,6 +1104,7 @@ function setSelected(d){
 }
 function bind(){
  bindHusbandLetter();
+ bindSyncSafety();
  bindDiagnostics();
  screen.querySelector("#mentalExportBackup")?.addEventListener("click",exportMentalBackup);
  screen.querySelectorAll("[data-month-step]").forEach(b=>b.addEventListener("click",()=>{
@@ -1129,6 +1194,7 @@ function bind(){
 }
 function updateIndicators(){
  if(!screen)return;
+ refreshSyncSafety();
  status(stateText(),Boolean(cloudError)||!storageOkay);
  const saveCount=screen.querySelector(".mental-local-note>span:last-child");
  if(saveCount&&screen.querySelector(".mental-editor-score")){
