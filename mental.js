@@ -918,6 +918,13 @@ function bindIdentityNotice(){
  * Resolution requires an explicit per-field decision and backend archive ACK. */
 function registerConflict(date,local,server,revision,reason){
  if(!pending[date])return false;
+ // A resolution was prepared for a now-stale server revision; reopen the true
+ // original device version for manual comparison, not the previous merged draft.
+ if(pending[date].resolution){
+  const preserved=normalize(date,pending[date].resolution.originalLocal||local);
+  pending[date].entry=preserved;
+  records[date]=preserved;
+ }
  const l=normalize(date,local),r=normalize(date,server);
  const record={date,local:l,server:r,revision:String(revision||""),phase:"review"};
  conflicts[date]=record;
