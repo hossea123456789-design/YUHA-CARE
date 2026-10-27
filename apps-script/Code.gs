@@ -694,7 +694,8 @@ function mentalAuditSheet_(){
  return sh;
 }
 function mentalAuditText_(v,max){
- return String(v===undefined||v===null?'':v).replace(/[\r\n\t]/g,' ').slice(0,max||80);
+ const text=String(v===undefined||v===null?'':v).replace(/[\r\n\t]/g,' ').slice(0,max||80);
+ return /^[=+@]/.test(text)?"'"+text:text;
 }
 function mentalAuditDevice_(input){
  const d=input&&typeof input==='object'?input:{};
