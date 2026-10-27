@@ -781,9 +781,33 @@ function getMentalMonth(passphrase,year,month,device) {
   });
   const dates=Object.values(records);
   const complete=dates.filter(x=>MENTAL_SCORE_FIELDS_.every(f=>x.scores[f]!==null)).length;
-  mentalWriteAudit_('SERVER_MONTH_READ',device,prefix.slice(0,7),'days='+dates.length+' complete='+complete,'schema=4');
-  return {ok:true,records,year:y,month:m,schemaVersion:4};
+  mentalWriteAudit_('SERVER_MONTH_READ',device,prefix.slice(0,7),'days='+dates.length+' complete='+complete,'schema=5');
+  return {ok:true,records,year:y,month:m,schemaVersion:5};
 }
+
+// Each user-confirmed overwrite archives BOTH full originals in the SAME private workbook.
+// Called only while holding the script lock; fail closed if the archive cannot be written.
+function mentalArchiveResolvedConflict_(date,currentRevision,serverEntry,localOriginal,merged,device){
+ const name='MENTAL_CONFLICT_ARCHIVE',ss=SpreadsheetApp.getActiveSpreadsheet();
+ let sh=ss.getSheetByName(name);
+ if(!sh){
+  sh=ss.insertSheet(name);
+  sh.getRange(1,1,1,8).setValues([[
+   '보존시각 UTC','대상 날짜','서버 원본 revision','익명 기기 ID',
+   '서버 원본 JSON','기기 원본 JSON','선택 후 병합본 JSON','선택 동작'
+  ]]);
+  sh.setFrozenRows(1);sh.getRange('A1:H1').setFontWeight('bold');
+ }
+ const safeDevice=mentalAuditDevice_(device);
+ const local=mentalValidateEntry_({...localOriginal,date});
+ const original=serverEntry?mentalValidateEntry_({...serverEntry,date}):null;
+ const now=new Date().toISOString();
+ sh.appendRow([now,date,currentRevision,safeDevice.deviceId,
+  JSON.stringify(original),JSON.stringify(local),JSON.stringify(merged),'user-confirmed-merge']);
+ SpreadsheetApp.flush();
+ return now;
+}
+
 function syncMentalEntry(payload) {
   if(!payload||typeof payload!=='object')throw new Error('회복 기록 저장 요청 오류');
   mentalValidateAccess_(payload.passphrase);
@@ -793,6 +817,7 @@ function syncMentalEntry(payload) {
   const letterOnly=payload.letterOnly===true;
   const letterAction=['seal','open'].includes(payload.letterAction)?payload.letterAction:'';
   const expectedRevision=String(payload.expectedRevision||'');
+  const resolution=payload.resolution&&typeof payload.resolution==='object'?payload.resolution:null;
   const lock=LockService.getScriptLock();
   if(!lock.tryLock(5000)){
     mentalWriteAudit_('SERVER_SAVE_BUSY',diag,item.date,'locked','filled='+filled);
@@ -842,6 +867,14 @@ function syncMentalEntry(payload) {
     }
     const serialized=JSON.stringify(merged);
     const previous=currentEntry?JSON.stringify(currentEntry):null;
+    if(resolution && (
+      resolution.confirmed!==true || letterOnly ||
+      String(resolution.serverRevision||'')!==currentRevision ||
+      expectedRevision!==currentRevision ||
+      !resolution.originalLocal || resolution.originalLocal.date!==item.date
+    )){mentalWriteAudit_('SERVER_RESOLUTION_STALE',diag,item.date,'rejected','revision_changed_or_invalid',true);
+      return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
+    }
     if(previous===serialized){
       mentalWriteAudit_('SERVER_SAVE_UNCHANGED',diag,item.date,'unchanged','filled='+filled+' letterOnly='+letterOnly,true);
       return {ok:true,revision:currentRevision,unchanged:true,serverEntry:merged};
@@ -850,11 +883,18 @@ function syncMentalEntry(payload) {
       mentalWriteAudit_('SERVER_SAVE_CONFLICT',diag,item.date,'conflict','filled='+filled,true);
       return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
     }
+    let archiveKey='';
+    if(resolution){
+      archiveKey=mentalArchiveResolvedConflict_(item.date,currentRevision,currentEntry,
+        resolution.originalLocal,merged,diag);
+      mentalWriteAudit_('SERVER_CONFLICT_ARCHIVED',diag,item.date,'archived','both_originals_preserved',true);
+    }
     const updatedAt=new Date().toISOString();
     sh.getRange(rowIndex,1,1,3).setValues([[item.date,serialized,updatedAt]]);
     SpreadsheetApp.flush();
     mentalWriteAudit_('SERVER_SAVE_ACK',diag,item.date,'saved','filled='+filled+' letterOnly='+letterOnly+' memoLength='+item.memo.length,true);
-    return {ok:true,revision:updatedAt,serverEntry:merged};
+    return {ok:true,revision:updatedAt,serverEntry:merged,
+      conflictArchived:resolution?Boolean(archiveKey):false};
   }finally{lock.releaseLock();}
 }
 
