@@ -9,6 +9,11 @@ const STORE="yuha_mental_recovery_local_v1";
 const PENDING="yuha_mental_recovery_pending_v1";
 const META="yuha_mental_recovery_meta_v1";
 const HISTORY="yuha_mental_recovery_safety_snapshots_v1";
+const CONFLICT_STORE="yuha_mental_recovery_conflicts_v1";
+const CONFLICT_HISTORY="yuha_mental_recovery_conflict_snapshots_v1";
+const conflicts={};
+const conflictChoices={};
+let conflictArchiveSupported=false;
 const locallyProtectedDates=new Set();
 const protectedServerRows={};
 const diag=()=>window.YuhaMentalDiagnostics;
@@ -96,7 +101,7 @@ function levelName(v){
 let records={};let pending={};let viewing=iso(new Date()),selected=viewing;
 let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloudError="",cloudSaving=false;
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
-let conflict=null,screen=null,unlocked=false,unlockBusy=false;
+let screen=null,unlocked=false,unlockBusy=false;
 let letterEditing=false,letterEditDate="",letterDraft="",letterBackendSupported=false;
 let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0;
 const loadedMentalMonths=new Set(),loadingMentalMonths=new Set(); // per-page throttling; not cryptographic brute-force protection.
@@ -156,7 +161,9 @@ function lock(){
   cloudCode="";cloudReady=false;cloudBusy=false;cloudSaving=false;cloudError="";
   letterBackendSupported=false;
   clearTimeout(syncingTimer);clearTimeout(retryTimer);
-  records={};pending={};conflict=null;
+  records={};pending={};
+  Object.keys(conflicts).forEach(key=>delete conflicts[key]);
+  Object.keys(conflictChoices).forEach(key=>delete conflictChoices[key]);
   letterEditing=false;letterEditDate="";letterDraft="";
   if(screen)screen.replaceChildren();
 }
@@ -245,6 +252,7 @@ function saveLocal(){
   archiveMental("before-local-save");
   localStorage.setItem(STORE,JSON.stringify(records));
   localStorage.setItem(PENDING,JSON.stringify(pending));
+  localStorage.setItem(CONFLICT_STORE,JSON.stringify(conflicts));
   storageOkay=true;return true;
  }catch(e){storageOkay=false;traceMental('LOCAL_STORAGE_FAILURE',{code:e?.name||'unknown'});console.error("[YUHA MENTAL] Local persistence failed",e);return false}
 }
@@ -253,8 +261,20 @@ function hydrate(){
  for(const [date,item] of Object.entries(all))if(/^20\d{2}-\d{2}-\d{2}$/.test(date))records[date]=normalize(date,item);
  const p=storageRead(PENDING,{});
  for(const [date,item] of Object.entries(p))if(records[date]&&item&&typeof item==="object"){
-   pending[date]={expectedRevision:String(item.expectedRevision||""),entry:normalize(date,item.entry||records[date]),letterOnly:item.letterOnly===true,letterAction:["seal","open"].includes(item.letterAction)?item.letterAction:""};
+   pending[date]={expectedRevision:String(item.expectedRevision||""),entry:normalize(date,item.entry||records[date]),
+    letterOnly:item.letterOnly===true,letterAction:["seal","open"].includes(item.letterAction)?item.letterAction:"",
+    resolution:item.resolution?.confirmed===true?{confirmed:true,
+      serverRevision:String(item.resolution.serverRevision||""),
+      originalLocal:normalize(date,item.resolution.originalLocal||item.entry)}:null};
  }
+ const stored=storageRead(CONFLICT_STORE,{});
+ for(const [date,c] of Object.entries(stored))if(pending[date]&&c?.server){
+  conflicts[date]={date,local:normalize(date,c.local||pending[date].entry),
+   server:normalize(date,c.server),revision:String(c.revision||""),
+   phase:pending[date].resolution?"resolving":"review"};
+ }
+ for(const [date,item] of Object.entries(pending))
+  if(item.resolution&&!conflicts[date])item.resolution=null;
 }
 function entry(date){return records[date]||empty(date)}
 function localIsRicher(a,b){
@@ -282,8 +302,7 @@ function mergeCloudMonth(incoming){
    records[date]=server;locallyProtectedDates.delete(date);
    delete protectedServerRows[date];
   }else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&server.revision){
-   conflict={date,local:entry(date),server};
-   traceMental('CLOUD_REVISION_CONFLICT',{date,reason:'server_exists_and_local_pending'});
+   registerConflict(date,pending[date].entry,server,server.revision,'initial_revision_mismatch');
   }
  }
 }
@@ -291,7 +310,8 @@ function exportMentalBackup(){
  if(!unlocked)return;
  try{
   const obj={kind:"yuha-mental-private-backup",exportedAt:new Date().toISOString(),
-   records:storageRead(STORE,{}),pending:storageRead(PENDING,{}),snapshots:storageRead(HISTORY,[])};
+   records:storageRead(STORE,{}),pending:storageRead(PENDING,{}),snapshots:storageRead(HISTORY,[]),
+   conflicts:storageRead(CONFLICT_STORE,{}),conflictSnapshots:storageRead(CONFLICT_HISTORY,[])};
   const url=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:"application/json"}));
   const a=document.createElement("a");
   a.href=url;a.download="yuha-mental-private-backup-"+iso(new Date())+".json";
@@ -309,7 +329,11 @@ function changes(date,fn,letterOnly=false,letterAction=""){
  records[date]=obj;
  // Letter-only writes never overwrite a spouse's concurrent recovery scores.
  const safeLetterOnly=letterOnly&&(!existing||existing.letterOnly===true);
- pending[date]={entry:normalize(date,obj),expectedRevision:obj.revision||"",letterOnly:safeLetterOnly,letterAction:safeLetterOnly?letterAction:""};
+ pending[date]={entry:normalize(date,obj),
+  expectedRevision:existing?.expectedRevision??obj.revision??"",
+  letterOnly:safeLetterOnly,letterAction:safeLetterOnly?letterAction:"",
+  resolution:null};
+ if(conflicts[date])conflicts[date].phase="review";
  const localOk=saveLocal();
  traceMental(letterOnly?'LETTER_LOCAL_WRITE':(before.memo!==obj.memo?'MEMO_LOCAL_WRITE':'ENTRY_LOCAL_WRITE'),
   {date,complete:numberFilled(obj),memoLength:obj.memo.length,letterLength:obj.husbandLetter.length,
@@ -354,6 +378,7 @@ function activate(pass){
    if(!result?.ok){failed(new Error("조회 실패"));return;}
    if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
    diag()?.setBackendSupport(Number(result.schemaVersion)>=4);
+   conflictArchiveSupported=Number(result.schemaVersion)>=5;
    traceMental('CLOUD_MONTH_SUCCESS',{month:k,requestId:req.requestId,serverCount:Object.keys(result.records||{}).length,schema:Number(result.schemaVersion)});
    mergeCloudMonth(result.records);
    loadedMentalMonths.add(k);
@@ -386,6 +411,7 @@ function fetchMentalMonthIfNeeded(k){
   if(!result?.ok){setState("회복 기록의 "+k+"월 조회 실패 · 기기 기록 보관",true);return;}
   if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
   diag()?.setBackendSupport(Number(result.schemaVersion)>=4);
+   conflictArchiveSupported=Number(result.schemaVersion)>=5;
   traceMental('CLOUD_MONTH_SUCCESS',{month:k,requestId:req.requestId,serverCount:Object.keys(result.records||{}).length,schema:Number(result.schemaVersion)});
   mergeCloudMonth(result.records);
   loadedMentalMonths.add(k);
@@ -419,13 +445,13 @@ function sameRemoteData(requested,remote,letterOnly){
  return true;
 }
 function syncNext(){
- if(!cloudReady||!cloudCode||cloudSaving)return;
+ if(!cloudReady||!cloudCode||cloudSaving||!storageOkay)return;
  const dates=Object.keys(pending).sort();
  if(!dates.length)return;
- const date=dates.find(d=>(conflict?.date!==d) &&
+ const date=dates.find(d=>(!conflicts[d]||Boolean(pending[d].resolution)) &&
   (letterBackendSupported||(!pending[d].letterOnly&&!pending[d].entry.husbandLetter)));
  if(!date){
-  if(conflict)setState('기록 충돌 · 기기 원본은 보관 중 · 원본 백업 및 비교 필요',true);
+  if(Object.keys(conflicts).length)setState('기록 충돌 · 비교 후 원본을 선택하고 저장해 주세요',true);
   else setState('편지 전송 대기 · 최신 Apps Script Code.gs 배포 필요 · 기기 기록 보관',true);
   return;
  }
@@ -444,12 +470,13 @@ function syncNext(){
   clearTimeout(retryTimer);retryTimer=setTimeout(syncNext,delay);
  }
  cloudCall('syncMentalEntry',[{passphrase:cloudCode,entry:p.entry,expectedRevision:p.expectedRevision,
-   letterOnly:p.letterOnly===true,letterAction:p.letterAction||'',diagnostics:req}],result=>{
+   letterOnly:p.letterOnly===true,letterAction:p.letterAction||'',diagnostics:req,
+   ...(p.resolution?{resolution:p.resolution}:{})}],result=>{
   if(epoch!==cloudEpoch||!unlocked)return;
   if(result?.conflict){
    cloudSaving=false;
-   conflict={date,local:normalize(date,p.entry),server:normalize(date,result.serverEntry||{}),
-     revision:String(result.serverRevision||'')};
+   registerConflict(date,p.resolution?.originalLocal||pending[date]?.entry||p.entry,
+     result.serverEntry||{},String(result.serverRevision||''),'revision_mismatch');
    traceMental('CLOUD_SAVE_CONFLICT',{date,requestId:req.requestId,complete:numberFilled(p.entry),
      serverComplete:numberFilled(result.serverEntry),reason:'revision_mismatch'});
    progress('error','다른 기기 기록과 충돌');
@@ -457,6 +484,9 @@ function syncNext(){
    render();scheduleCloud(200);return;
   }
   if(!result?.ok){retry('server_rejected',5000);return;}
+  if(p.resolution&&!result.conflictArchived){
+   retry('conflict_archive_not_confirmed');return;
+  }
   traceMental('CLOUD_SAVE_ACK',{date,requestId:req.requestId,revision:String(result.revision||'')});
   // A write ACK is not proof of visibility to the other device.
   const key=monthKey(date),[year,monthNumber]=key.split('-').map(Number),check=diagMeta();
@@ -486,10 +516,18 @@ function syncNext(){
      locallyProtectedDates.delete(date);
     }
     delete pending[date];
+    if(conflicts[date]){
+     traceMental('CONFLICT_RESOLUTION_VERIFIED',{date,requestId:check.requestId,reason:'archived_and_readback_ok'});
+     delete conflicts[date];delete conflictChoices[date];
+    }
    }else if(pending[date]){
     // Edits made while syncing are not acknowledged by the old write.
     pending[date].expectedRevision=String(server.revision||'');
     pending[date].entry.revision=String(server.revision||'');
+    if(pending[date].resolution){
+     pending[date].resolution=null;
+     if(conflicts[date])conflicts[date].phase='review';
+    }
     traceMental('CLOUD_CHANGED_DURING_SAVE',{date,reason:'new_edits_preserved'});
    }
    cloudSaving=false;
@@ -876,10 +914,11 @@ function bindIdentityNotice(){
  });
 }
 function syncSafetyHTML(){
- const n=Object.keys(pending).length,protectedCount=locallyProtectedDates.size;
- if(!n&&!protectedCount&&cloudReady)return '';
- const status=n?
-  '서버 전송 또는 검증 대기 '+n+'건. 다른 기기에서 아직 보이지 않을 수 있습니다.':
+ const n=Object.keys(pending).length,protectedCount=locallyProtectedDates.size,conflictCount=Object.keys(conflicts).length;
+ if(!n&&!protectedCount&&!conflictCount&&cloudReady)return '';
+ const status=conflictCount?
+  '기록 충돌 '+conflictCount+'건. 자동 덮어쓰기는 차단됐으며 아래에서 각 원본을 비교해야 합니다.':
+  n?'서버 전송 또는 검증 대기 '+n+'건. 다른 기기에서 아직 보이지 않을 수 있습니다.':
   protectedCount?'서버와 다른 기기 원본 '+protectedCount+'일 발견. 자동 덮어쓰기를 차단했습니다.':
   '서버 연결이 확인되지 않았습니다. 현재 입력한 내용은 이 기기에만 남을 수 있습니다.';
  const canRecover=locallyProtectedDates.has(selected)&&!pending[selected]&&
@@ -993,6 +1032,7 @@ function view(){
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
   identityNoticeHTML()+
   syncSafetyHTML()+
+  conflictPanelHTML()+
   dailyComfortHTML()+
   husbandLetterHTML()+
   mainSummary()+
@@ -1119,6 +1159,7 @@ function setSelected(d){
 }
 function bind(){
  bindHusbandLetter();
+ bindConflictPanel();
  bindIdentityNotice();
  bindSyncSafety();
  bindDiagnostics();
