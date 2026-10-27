@@ -680,7 +680,70 @@ function mentalSheet_() {
   }
   return sh;
 }
-function getMentalMonth(passphrase,year,month) {
+// Privacy-minimized diagnostic audit: no score values, memo, letter, PIN, full UA or IP.
+const MENTAL_AUDIT_SHEET_='MENTAL_AUDIT_LOG';
+function mentalAuditSheet_(){
+ const ss=SpreadsheetApp.getActiveSpreadsheet();
+ let sh=ss.getSheetByName(MENTAL_AUDIT_SHEET_);
+ if(!sh){
+  sh=ss.insertSheet(MENTAL_AUDIT_SHEET_);
+  sh.getRange(1,1,1,13).setValues([['서버시각 UTC','이벤트','익명 기기ID','기기 역할(자가지정)','OS','브라우저','접속형태','화면크기','접속 출처','요청ID','대상일/월','결과/건수','상세(원문 제외)']]);
+  sh.setFrozenRows(1);
+  sh.getRange('A1:M1').setFontWeight('bold');
+ }
+ return sh;
+}
+function mentalAuditText_(v,max){
+ return String(v===undefined||v===null?'':v).replace(/[\r\n\t]/g,' ').slice(0,max||80);
+}
+function mentalAuditDevice_(input){
+ const d=input&&typeof input==='object'?input:{};
+ const role=['wife','husband','shared','unassigned'].includes(d.role)?d.role:'unassigned';
+ return {deviceId:/^[a-f0-9]{24}$/.test(String(d.deviceId||''))?d.deviceId:'unknown',
+  role,os:mentalAuditText_(d.os,24),browser:mentalAuditText_(d.browser,32),
+  webview:mentalAuditText_(d.webview,18),viewport:mentalAuditText_(d.viewport,24),
+  origin:mentalAuditText_(d.origin,110),requestId:mentalAuditText_(d.requestId,32)};
+}
+function mentalWriteAudit_(type,device,target,result,detail){
+ try{
+  const d=mentalAuditDevice_(device);
+  // Event details are strictly metadata, never submit raw app records.
+  mentalAuditSheet_().appendRow([new Date().toISOString(),mentalAuditText_(type,55),
+   d.deviceId,d.role,d.os,d.browser,d.webview,d.viewport,d.origin,d.requestId,
+   mentalAuditText_(target,20),mentalAuditText_(result,45),mentalAuditText_(detail,200)]);
+ }catch(e){console.error('[MENTAL_AUDIT] append failed: '+String(e&&e.message||e));}
+}
+function reportMentalClientEvents(payload){
+ if(!payload||typeof payload!=='object')throw new Error('진단 로그 요청 형식 오류');
+ mentalValidateAccess_(payload.passphrase);
+ const batch=Array.isArray(payload.events)?payload.events.slice(0,35):[];
+ const basic=mentalAuditDevice_(payload.device);
+ let accepted=0;
+ for(const row of batch){
+  if(!row||typeof row!=='object'||!/^[A-Z][A-Z0-9_]{1,39}$/.test(String(row.type||'')))continue;
+  const device={...basic,requestId:mentalAuditText_(row.id,32)};
+  const keys=['complete','serverComplete','localCount','serverCount','pendingCount','memoLength','letterLength','storageOk','mismatched','result','phase','code','reason','schema','revision'];
+  const meta={};
+  keys.forEach(k=>{
+   const v=row[k];
+   if(typeof v==='boolean'||typeof v==='number'&&Number.isFinite(v))meta[k]=v;
+   else if(typeof v==='string')meta[k]=mentalAuditText_(v,48);
+  });
+  mentalWriteAudit_('CLIENT_'+row.type,device,row.date||row.month||'',row.time||'',JSON.stringify(meta));
+  accepted++;
+ }
+ return {ok:true,accepted};
+}
+function getMentalAuditLog(passphrase,limit){
+ mentalValidateAccess_(passphrase);
+ const sh=mentalAuditSheet_(),last=sh.getLastRow(),n=Math.max(1,Math.min(100,Number(limit)||70));
+ const rows=last<2?[]:sh.getRange(Math.max(2,last-n+1),1,Math.min(n,last-1),13).getDisplayValues();
+ return {ok:true,rows:rows.map(r=>({time:r[0],event:r[1],deviceId:r[2],
+  role:r[3],os:r[4],browser:r[5],webview:r[6],viewport:r[7],
+  origin:r[8],requestId:r[9],target:r[10],result:r[11],detail:r[12]})).reverse()};
+}
+
+function getMentalMonth(passphrase,year,month,device) {
   mentalValidateAccess_(passphrase);
   const y=Number(year),m=Number(month);
   if(!Number.isInteger(y)||y<2020||y>2100||!Number.isInteger(m)||m<1||m>12)throw new Error('회복 기록 월 오류');
@@ -694,17 +757,25 @@ function getMentalMonth(passphrase,year,month) {
       records[date]={...mentalValidateEntry_({...item,date}),revision:String(row[2]||'')};
     }catch(err){/* skip malformed data, never overwrite */}
   });
-  return {ok:true,records,year:y,month:m,schemaVersion:3};
+  const dates=Object.values(records);
+  const complete=dates.filter(x=>MENTAL_SCORE_FIELDS_.every(f=>x.scores[f]!==null)).length;
+  mentalWriteAudit_('SERVER_MONTH_READ',device,prefix.slice(0,7),'days='+dates.length+' complete='+complete,'schema=4');
+  return {ok:true,records,year:y,month:m,schemaVersion:4};
 }
 function syncMentalEntry(payload) {
   if(!payload||typeof payload!=='object')throw new Error('회복 기록 저장 요청 오류');
   mentalValidateAccess_(payload.passphrase);
   const item=mentalValidateEntry_(payload.entry);
+  const diag=payload.diagnostics||{};
+  const filled=MENTAL_SCORE_FIELDS_.filter(f=>item.scores[f]!==null).length;
   const letterOnly=payload.letterOnly===true;
   const letterAction=['seal','open'].includes(payload.letterAction)?payload.letterAction:'';
   const expectedRevision=String(payload.expectedRevision||'');
   const lock=LockService.getScriptLock();
-  if(!lock.tryLock(5000))return {ok:false,busy:true,message:'다른 기록을 저장 중입니다. 잠시 후 다시 시도해 주세요.'};
+  if(!lock.tryLock(5000)){
+    mentalWriteAudit_('SERVER_SAVE_BUSY',diag,item.date,'locked','filled='+filled);
+    return {ok:false,busy:true,message:'다른 기록을 저장 중입니다. 잠시 후 다시 시도해 주세요.'};
+  }
   try{
     const sh=mentalSheet_(),last=sh.getLastRow();
     const rows=last>1?sh.getRange(2,1,last-1,3).getValues():[];
@@ -735,6 +806,7 @@ function syncMentalEntry(payload) {
             husbandLetterOpenedAt:item.husbandLetterOpenedAt||new Date().toISOString()};
         }else{
           // A different letter was written on another device in the meantime.
+          mentalWriteAudit_('SERVER_LETTER_CONFLICT',diag,item.date,'conflict','filled='+filled);
           return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
         }
       }else{
@@ -748,13 +820,18 @@ function syncMentalEntry(payload) {
     }
     const serialized=JSON.stringify(merged);
     const previous=currentEntry?JSON.stringify(currentEntry):null;
-    if(previous===serialized)return {ok:true,revision:currentRevision,unchanged:true,serverEntry:merged};
+    if(previous===serialized){
+      mentalWriteAudit_('SERVER_SAVE_UNCHANGED',diag,item.date,'unchanged','filled='+filled+' letterOnly='+letterOnly);
+      return {ok:true,revision:currentRevision,unchanged:true,serverEntry:merged};
+    }
     if(!letterOnly&&currentRevision!==expectedRevision){
+      mentalWriteAudit_('SERVER_SAVE_CONFLICT',diag,item.date,'conflict','filled='+filled);
       return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
     }
     const updatedAt=new Date().toISOString();
     sh.getRange(rowIndex,1,1,3).setValues([[item.date,serialized,updatedAt]]);
     SpreadsheetApp.flush();
+    mentalWriteAudit_('SERVER_SAVE_ACK',diag,item.date,'saved','filled='+filled+' letterOnly='+letterOnly+' memoLength='+item.memo.length);
     return {ok:true,revision:updatedAt,serverEntry:merged};
   }finally{lock.releaseLock();}
 }
@@ -767,7 +844,7 @@ function serveYuhaBridge_(e) {
   if (origin !== YUHA_ALLOWED_ORIGIN_ || !/^[a-zA-Z0-9_-]{16,128}$/.test(nonce)) {
     return HtmlService.createHtmlOutput('Invalid bridge parameters');
   }
-  const html = "<!DOCTYPE html>\n<html lang=\"ko\">\n<head><base target=\"_top\"><meta charset=\"UTF-8\"><title>유하 DB 연결</title></head>\n<body>\n<script>\n(() => {\n  'use strict';\n  const ORIGIN = __YUHA_TRUSTED_ORIGIN_JSON__;\n  const NONCE = __YUHA_BRIDGE_NONCE_JSON__;\n  const ALLOWED = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges','getMentalMonth','syncMentalEntry']);\n  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }\n  window.addEventListener('message',event=>{\n    if(event.origin !== ORIGIN) return;\n    const msg=event.data;\n    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;\n    if(typeof msg.id!=='string'||!/^\\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;\n    const args=Array.isArray(msg.args)?msg.args:[];\n    try{\n      google.script.run\n        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))\n        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))\n        [msg.method](...args);\n    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}\n  });\n  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.\n  send({type:'ready'});\n  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});\n})();\n</script>\n</body></html>";
+  const html = "<!DOCTYPE html>\n<html lang=\"ko\">\n<head><base target=\"_top\"><meta charset=\"UTF-8\"><title>유하 DB 연결</title></head>\n<body>\n<script>\n(() => {\n  'use strict';\n  const ORIGIN = __YUHA_TRUSTED_ORIGIN_JSON__;\n  const NONCE = __YUHA_BRIDGE_NONCE_JSON__;\n  const ALLOWED = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges','getMentalMonth','syncMentalEntry','reportMentalClientEvents','getMentalAuditLog']);\n  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }\n  window.addEventListener('message',event=>{\n    if(event.origin !== ORIGIN) return;\n    const msg=event.data;\n    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;\n    if(typeof msg.id!=='string'||!/^\\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;\n    const args=Array.isArray(msg.args)?msg.args:[];\n    try{\n      google.script.run\n        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))\n        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))\n        [msg.method](...args);\n    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}\n  });\n  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.\n  send({type:'ready'});\n  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});\n})();\n</script>\n</body></html>";
   return HtmlService.createHtmlOutput(html
     .replace('__YUHA_TRUSTED_ORIGIN_JSON__', JSON.stringify(origin))
     .replace('__YUHA_BRIDGE_NONCE_JSON__', JSON.stringify(nonce)))
