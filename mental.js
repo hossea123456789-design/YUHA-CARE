@@ -498,7 +498,10 @@ function syncNext(){
  },()=>retry('save_rpc_failed'));
 }
 window.addEventListener("online",()=>{if(cloudReady)scheduleCloud(300);});
-window.addEventListener("pagehide",saveLocal);
+window.addEventListener("pagehide",()=>{
+ traceMental('APP_PAGEHIDE',{pendingCount:Object.keys(pending).length,localCount:Object.keys(records).length});
+ if(unlocked)saveLocal();
+});
 function trend(end=iso(new Date())){
  const weekStart=shift(end,-6),prevStart=shift(end,-13),prevEnd=shift(end,-7);
  const cur=list(weekStart,end).filter(x=>x.metric),prior=list(prevStart,prevEnd).filter(x=>x.metric);
@@ -856,11 +859,51 @@ function bindHusbandLetter(){
   else setTimeout(finish,620);
  });
 }
+function diagnosticPanel(){
+ const d=diagMeta(),id=diag()?.getDeviceId()||'unknown',selectedRole=diag()?.role()||'unassigned';
+ const roles=[['unassigned','기기 구분 미지정'],['wife','아내 사용 기기'],['husband','남편 사용 기기'],['shared','공용/기타']];
+ const opts=roles.map(([v,label])=>'<option value="'+v+'"'+(selectedRole===v?' selected':'')+'>'+label+'</option>').join('');
+ return '<section class="mental-diagnostics">'+
+  '<h4>기기별 저장 진단 로그</h4>'+
+  '<p>각 휴대폰에서 한 번씩 기기 구분을 선택해 주세요. 같은 브라우저에서 재접속하면 동일한 익명 기기 ID를 사용합니다. 카카오톡 앱 안과 Chrome은 별도의 기기로 기록됩니다.</p>'+
+  '<label for="mentalDeviceRole">이 기기 사용자</label><select id="mentalDeviceRole">'+opts+'</select>'+
+  '<p class="mental-muted">익명 ID '+E(id.slice(0,12))+' · '+E(d.os)+' / '+E(d.browser)+' / '+E(d.webview)+' · '+E(d.viewport)+'</p>'+
+  '<p class="mental-muted">서버 로그: '+(diag()?.isSupported()?'연결 가능':'Apps Script 진단 API 배포 확인 필요')+
+  ' · 비밀번호, 점수 값, 메모·편지 원문, IP는 수집하지 않습니다.</p>'+
+  '<div class="mental-diagnostic-actions"><button type="button" id="mentalDiagRead">서버 접속·저장 로그 조회</button>'+
+  '<button type="button" id="mentalDiagExport">이 기기 진단 로그 내보내기</button></div>'+
+  '<pre id="mentalDiagResult" aria-live="polite">로그에는 접속·조회·기기 저장·서버 저장·재조회 검증·충돌·실패의 시각과 요청 ID가 남습니다.</pre>'+
+  '</section>';
+}
+function bindDiagnostics(){
+ const role=screen?.querySelector('#mentalDeviceRole');
+ role?.addEventListener('change',()=>{
+  diag()?.setRole(role.value);
+  diag()?.flush(cloudCode);
+ });
+ screen?.querySelector('#mentalDiagExport')?.addEventListener('click',()=>diag()?.exportLocal());
+ screen?.querySelector('#mentalDiagRead')?.addEventListener('click',()=>{
+  const box=screen?.querySelector('#mentalDiagResult');
+  if(!box)return;
+  box.textContent='서버 로그를 조회하고 있습니다.';
+  traceMental('AUDIT_VIEW_REQUEST',{pendingCount:Object.keys(pending).length});
+  diag()?.getServer(cloudCode,result=>{
+   const node=screen?.querySelector('#mentalDiagResult');if(!node)return;
+   if(!result?.ok){node.textContent='서버 로그 조회 오류';return;}
+   const rows=Array.isArray(result.rows)?result.rows:[];
+   node.textContent=rows.length?rows.map(x=>
+    [x.time,x.role,(x.deviceId||'').slice(0,12),x.os,x.browser,x.webview,x.event,x.target,x.result,x.detail]
+    .filter(Boolean).join(' | ')).join('\n'):'아직 서버 로그가 없습니다.';
+  },error=>{const node=screen?.querySelector('#mentalDiagResult');if(node)
+   node.textContent='서버 로그 조회 실패: '+String(error?.message||error).slice(0,120);});
+ });
+}
 function cloudPanel(){
  return '<details class="mental-cloud-details" '+(cloudOpen?'open':'')+' id="mentalCloudDetails"><summary>'+
   '<span>기록 저장과 개인정보</span><small>'+(cloudReady?'서버 자동 동기화':'서버 연결 확인 중')+'</small></summary>'+
   '<div class="mental-cloud-inner"><p>아내 회복 탭에 들어올 때마다 4자리 PIN으로 로그인합니다. 인증 후 별도의 연결이나 저장 버튼 없이 서버 기록을 조회하고 입력한 수정 사항을 자동으로 저장합니다.</p>'+
   '<p>오프라인이거나 서버 오류가 나면 기기에 변경사항을 보관하고, 다음 PIN 로그인 때 서버 동기화를 재시도합니다. 4자리 PIN은 강한 보안 수단이 아니므로 원본 Google Sheets의 공유 권한을 제한해 주세요.</p>'+
+  diagnosticPanel()+
   '</div></details>';
 }
 function view(){
@@ -997,6 +1040,7 @@ function setSelected(d){
 }
 function bind(){
  bindHusbandLetter();
+ bindDiagnostics();
  screen.querySelector("#mentalExportBackup")?.addEventListener("click",exportMentalBackup);
  screen.querySelectorAll("[data-month-step]").forEach(b=>b.addEventListener("click",()=>{
   const step=Number(b.dataset.monthStep);
