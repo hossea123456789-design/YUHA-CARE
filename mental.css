@@ -12,9 +12,9 @@
 .mental-score-card small,.mental-core small{font-size:10px;color:#8b9b92;line-height:1.4}
 .mental-core{background:#edf5ee;border-color:#ddeae0;padding:8px 10px}
 .mental-core strong{font-size:17px;color:#326e59;font-weight:860;font-variant-numeric:tabular-nums}
-.mental-actions-row{display:flex;align-items:center;justify-content:space-between;gap:9px}
+.mental-actions-row{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
 .mental-primary-action{display:inline-flex;align-items:center;justify-content:center;min-height:39px;padding:0 16px;border-radius:10px;
- background:#297963;color:white;font-size:12px;font-weight:830;text-decoration:none;flex-shrink:0}
+ background:#297963;color:white;font-size:12px;font-weight:830;text-decoration:none;flex-shrink:0;border:0;cursor:pointer;font-family:inherit}
 .mental-actions-row>span{font-size:10px;line-height:1.5;color:#81958a;text-align:right}
 .mental-root .sleep-card{margin:0;padding:14px 12px;border-radius:15px;min-width:0;overflow:hidden}
 .mental-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:11px}
