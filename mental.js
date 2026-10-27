@@ -10,6 +10,11 @@ const PENDING="yuha_mental_recovery_pending_v1";
 const META="yuha_mental_recovery_meta_v1";
 const HISTORY="yuha_mental_recovery_safety_snapshots_v1";
 const locallyProtectedDates=new Set();
+const diag=()=>window.YuhaMentalDiagnostics;
+function traceMental(type,detail){try{diag()?.emit(type,detail||{});}catch(_){}}
+function diagMeta(){return diag()?.metadata()||{};}
+function numberFilled(item){return FIELDS.filter(f=>validScore(item?.scores?.[f.id])).length;}
+
 function archiveMental(reason){
  try{
   const raw=localStorage.getItem(STORE);
@@ -196,6 +201,7 @@ function bindLock(){
    pinFailures=0;pinBlockedUntil=0;
    unlocked=true;
    hydrate();
+   traceMental('APP_PIN_UNLOCK',{localCount:Object.keys(records).length,pendingCount:Object.keys(pending).length,storageOk:storageOkay});
    render();
    // Use the same entered PIN for this tab's API session, never save the PIN.
    const enteredPin=digits;
@@ -239,7 +245,7 @@ function saveLocal(){
   localStorage.setItem(STORE,JSON.stringify(records));
   localStorage.setItem(PENDING,JSON.stringify(pending));
   storageOkay=true;return true;
- }catch(e){storageOkay=false;console.error("[YUHA MENTAL] Local persistence failed",e);return false}
+ }catch(e){storageOkay=false;traceMental('LOCAL_STORAGE_FAILURE',{code:e?.name||'unknown'});console.error("[YUHA MENTAL] Local persistence failed",e);return false}
 }
 function hydrate(){
  const all=storageRead(STORE,{});
@@ -266,12 +272,16 @@ function mergeCloudMonth(incoming){
   const server=normalize(date,value);
   if(!pending[date]){
    if(localIsRicher(records[date],server)){
+    traceMental('CLOUD_LOCAL_DIVERGENCE',{date,complete:numberFilled(records[date]),serverComplete:numberFilled(server),reason:'protected_local'});
     locallyProtectedDates.add(date);
     continue; // Never erase richer local records with empty/stale cloud rows.
    }
+   traceMental('CLOUD_READ_MERGED',{date,complete:numberFilled(server),reason:'accepted_server'});
    records[date]=server;locallyProtectedDates.delete(date);
-  }else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&server.revision)
+  }else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&server.revision){
    conflict={date,local:entry(date),server};
+   traceMental('CLOUD_REVISION_CONFLICT',{date,reason:'server_exists_and_local_pending'});
+  }
  }
 }
 function exportMentalBackup(){
@@ -292,12 +302,16 @@ function list(start,end){
    .map(([date,v])=>({date,row:v,metric:scoresOf(v)})).sort((a,b)=>a.date.localeCompare(b.date));
 }
 function changes(date,fn,letterOnly=false,letterAction=""){
- const existing=pending[date],obj=normalize(date,entry(date));fn(obj);
+ const existing=pending[date],before=entry(date),obj=normalize(date,before);fn(obj);
  records[date]=obj;
  // Letter-only writes never overwrite a spouse's concurrent recovery scores.
  const safeLetterOnly=letterOnly&&(!existing||existing.letterOnly===true);
  pending[date]={entry:normalize(date,obj),expectedRevision:obj.revision||"",letterOnly:safeLetterOnly,letterAction:safeLetterOnly?letterAction:""};
- if(!saveLocal())setState("기기 저장 실패 · 저장 공간을 확인해 주세요",true);
+ const localOk=saveLocal();
+ traceMental(letterOnly?'LETTER_LOCAL_WRITE':(before.memo!==obj.memo?'MEMO_LOCAL_WRITE':'ENTRY_LOCAL_WRITE'),
+  {date,complete:numberFilled(obj),memoLength:obj.memo.length,letterLength:obj.husbandLetter.length,
+   pendingCount:Object.keys(pending).length,storageOk:localOk});
+ if(!localOk)setState("기기 저장 실패 · 저장 공간을 확인해 주세요",true);
  else setState(cloudReady?"기기 저장 완료 · 비공개 동기화 대기":"이 기기에 저장됨");
  scheduleCloud();
  if(screen&&unlocked)refreshOverview();
@@ -318,6 +332,7 @@ function cloudCall(method,args,onSuccess,onFail){
 }
 function activate(pass){
  if(!pass)return;
+ traceMental('CLOUD_SESSION_START',{localCount:Object.keys(records).length,pendingCount:Object.keys(pending).length});
  letterBackendSupported=false;
  const epoch=++cloudEpoch;
  loadedMentalMonths.clear();loadingMentalMonths.clear();
@@ -329,10 +344,14 @@ function activate(pass){
  let outstanding=[...new Set(keys)].length,anyFailed=false;
  [...new Set(keys)].forEach(k=>{
   const [y,m]=k.split("-").map(Number);
-  cloudCall("getMentalMonth",[cloudCode,y,m],result=>{
+  const req=diagMeta();
+  traceMental('CLOUD_MONTH_REQUEST',{month:k,requestId:req.requestId});
+  cloudCall("getMentalMonth",[cloudCode,y,m,req],result=>{
    if(epoch!==cloudEpoch || !unlocked)return;
    if(!result?.ok){failed(new Error("조회 실패"));return;}
    if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
+   diag()?.setBackendSupport(Number(result.schemaVersion)>=4);
+   traceMental('CLOUD_MONTH_SUCCESS',{month:k,requestId:req.requestId,serverCount:Object.keys(result.records||{}).length,schema:Number(result.schemaVersion)});
    mergeCloudMonth(result.records);
    loadedMentalMonths.add(k);
    saveLocal();
@@ -340,12 +359,13 @@ function activate(pass){
      cloudBusy=false;cloudReady=true;cloudError="";
      progress("done","회복 기록 자동 동기화 연결 완료");
      setState(stateText());
-     render();scheduleCloud(100);
+     render();scheduleCloud(100);diag()?.flush(cloudCode);
    }
   },failed);
  });
  function failed(err){if(anyFailed||epoch!==cloudEpoch||!unlocked)return;anyFailed=true;cloudBusy=false;cloudReady=false;
    const reason=String(err?.message||err);
+   traceMental('CLOUD_CONNECT_ERROR',{code:reason.slice(0,65),pendingCount:Object.keys(pending).length});
    progress("error","비공개 기록 연결 실패");setState("연결 실패: "+reason,true);render();}
 }
 // Load navigated months without overwriting unsynced records.
@@ -355,15 +375,19 @@ function fetchMentalMonthIfNeeded(k){
  const epoch=cloudEpoch;
  loadingMentalMonths.add(k);
  const [year,monthNumber]=k.split("-").map(Number);
- cloudCall("getMentalMonth",[cloudCode,year,monthNumber],result=>{
+ const req=diagMeta();
+ traceMental('CLOUD_MONTH_REQUEST',{month:k,requestId:req.requestId,reason:'navigated'});
+ cloudCall("getMentalMonth",[cloudCode,year,monthNumber,req],result=>{
   loadingMentalMonths.delete(k);
   if(epoch!==cloudEpoch||!unlocked||!cloudReady)return;
   if(!result?.ok){setState("회복 기록의 "+k+"월 조회 실패 · 기기 기록 보관",true);return;}
   if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
+  diag()?.setBackendSupport(Number(result.schemaVersion)>=4);
+  traceMental('CLOUD_MONTH_SUCCESS',{month:k,requestId:req.requestId,serverCount:Object.keys(result.records||{}).length,schema:Number(result.schemaVersion)});
   mergeCloudMonth(result.records);
   loadedMentalMonths.add(k);
   saveLocal();cloudError="";
-  render();scheduleCloud(100);
+  render();scheduleCloud(100);diag()?.flush(cloudCode);
  },error=>{
   loadingMentalMonths.delete(k);
   if(epoch!==cloudEpoch||!unlocked)return;
