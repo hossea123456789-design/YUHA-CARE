@@ -23,12 +23,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p public-site/assets
-          cp index.html design.css mental.css mental.js bridge-client.js config.js recovery-comfort-reviewed.js public-site/
+          cp index.html design.css mental.css mental.js mental-diagnostics.js bridge-client.js config.js recovery-comfort-reviewed.js public-site/
           cp assets/mental-letter-sealed.svg assets/mental-letter-opened.svg assets/recovery-comfort-license.txt public-site/assets/
       - name: Verify artwork paths and integrity before publishing
         run: |
           set -euo pipefail
           node --check public-site/mental.js
+          node --check public-site/mental-diagnostics.js
+          node --check public-site/bridge-client.js
           node --check public-site/recovery-comfort-reviewed.js
           node - <<'JS'
           const fs = require('fs'), vm=require('vm');
