@@ -704,35 +704,56 @@ function mentalAuditDevice_(input){
   webview:mentalAuditText_(d.webview,18),viewport:mentalAuditText_(d.viewport,24),
   origin:mentalAuditText_(d.origin,110),requestId:mentalAuditText_(d.requestId,32)};
 }
-function mentalWriteAudit_(type,device,target,result,detail){
+function mentalWriteAudit_(type,device,target,result,detail,alreadyLocked){
+ const lock=alreadyLocked?null:LockService.getScriptLock();
+ let acquired=Boolean(alreadyLocked);
  try{
+  if(lock){if(!lock.tryLock(4000))return;acquired=true;}
   const d=mentalAuditDevice_(device);
   // Event details are strictly metadata, never submit raw app records.
   mentalAuditSheet_().appendRow([new Date().toISOString(),mentalAuditText_(type,55),
    d.deviceId,d.role,d.os,d.browser,d.webview,d.viewport,d.origin,d.requestId,
    mentalAuditText_(target,20),mentalAuditText_(result,45),mentalAuditText_(detail,200)]);
  }catch(e){console.error('[MENTAL_AUDIT] append failed: '+String(e&&e.message||e));}
+ finally{if(lock&&acquired)lock.releaseLock();}
 }
 function reportMentalClientEvents(payload){
  if(!payload||typeof payload!=='object')throw new Error('진단 로그 요청 형식 오류');
  mentalValidateAccess_(payload.passphrase);
  const batch=Array.isArray(payload.events)?payload.events.slice(0,35):[];
  const basic=mentalAuditDevice_(payload.device);
- let accepted=0;
- for(const row of batch){
-  if(!row||typeof row!=='object'||!/^[A-Z][A-Z0-9_]{1,39}$/.test(String(row.type||'')))continue;
-  const device={...basic,requestId:mentalAuditText_(row.id,32)};
-  const keys=['complete','serverComplete','localCount','serverCount','pendingCount','memoLength','letterLength','storageOk','mismatched','result','phase','code','reason','schema','revision'];
-  const meta={};
-  keys.forEach(k=>{
-   const v=row[k];
-   if(typeof v==='boolean'||typeof v==='number'&&Number.isFinite(v))meta[k]=v;
-   else if(typeof v==='string')meta[k]=mentalAuditText_(v,48);
-  });
-  mentalWriteAudit_('CLIENT_'+row.type,device,row.date||row.month||'',row.time||'',JSON.stringify(meta));
-  accepted++;
- }
- return {ok:true,accepted};
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(5000))return {ok:false,busy:true,accepted:0};
+ try{
+  const sh=mentalAuditSheet_(),last=sh.getLastRow();
+  const previous=last>=2?sh.getRange(Math.max(2,last-499),10,Math.min(500,last-1),1).getDisplayValues().flat():[];
+  const ids=new Set(previous);
+  const rows=[];
+  for(const row of batch){
+   if(!row||typeof row!=='object'||!/^[A-Z][A-Z0-9_]{1,39}$/.test(String(row.type||'')))continue;
+   const id=mentalAuditText_(row.id,32);
+   if(!/^[a-f0-9]{24}$/.test(id))continue;
+   if(ids.has(id))continue;
+   ids.add(id);
+   const keys=['complete','serverComplete','localCount','serverCount','pendingCount','memoLength','letterLength','storageOk','mismatched','result','phase','code','reason','schema','revision','line'];
+   const meta={};
+   keys.forEach(k=>{
+    const v=row[k];
+    if(typeof v==='boolean'||typeof v==='number'&&Number.isFinite(v))meta[k]=v;
+    else if(typeof v==='string')meta[k]=mentalAuditText_(v,48);
+   });
+   rows.push([new Date().toISOString(),'CLIENT_'+row.type,basic.deviceId,
+    ['wife','husband','shared','unassigned'].includes(row.role)?row.role:basic.role,
+    basic.os,basic.browser,basic.webview,basic.viewport,basic.origin,id,
+    mentalAuditText_(row.date||row.month||'',20),
+    mentalAuditText_(row.time||'',45),JSON.stringify(meta).slice(0,200)]);
+  }
+  if(rows.length){
+   sh.getRange(last+1,1,rows.length,13).setValues(rows);
+   SpreadsheetApp.flush();
+  }
+  return {ok:true,accepted:batch.length,inserted:rows.length};
+ }finally{lock.releaseLock();}
 }
 function getMentalAuditLog(passphrase,limit){
  mentalValidateAccess_(passphrase);
@@ -806,7 +827,7 @@ function syncMentalEntry(payload) {
             husbandLetterOpenedAt:item.husbandLetterOpenedAt||new Date().toISOString()};
         }else{
           // A different letter was written on another device in the meantime.
-          mentalWriteAudit_('SERVER_LETTER_CONFLICT',diag,item.date,'conflict','filled='+filled);
+          mentalWriteAudit_('SERVER_LETTER_CONFLICT',diag,item.date,'conflict','filled='+filled,true);
           return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
         }
       }else{
@@ -821,17 +842,17 @@ function syncMentalEntry(payload) {
     const serialized=JSON.stringify(merged);
     const previous=currentEntry?JSON.stringify(currentEntry):null;
     if(previous===serialized){
-      mentalWriteAudit_('SERVER_SAVE_UNCHANGED',diag,item.date,'unchanged','filled='+filled+' letterOnly='+letterOnly);
+      mentalWriteAudit_('SERVER_SAVE_UNCHANGED',diag,item.date,'unchanged','filled='+filled+' letterOnly='+letterOnly,true);
       return {ok:true,revision:currentRevision,unchanged:true,serverEntry:merged};
     }
     if(!letterOnly&&currentRevision!==expectedRevision){
-      mentalWriteAudit_('SERVER_SAVE_CONFLICT',diag,item.date,'conflict','filled='+filled);
+      mentalWriteAudit_('SERVER_SAVE_CONFLICT',diag,item.date,'conflict','filled='+filled,true);
       return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
     }
     const updatedAt=new Date().toISOString();
     sh.getRange(rowIndex,1,1,3).setValues([[item.date,serialized,updatedAt]]);
     SpreadsheetApp.flush();
-    mentalWriteAudit_('SERVER_SAVE_ACK',diag,item.date,'saved','filled='+filled+' letterOnly='+letterOnly+' memoLength='+item.memo.length);
+    mentalWriteAudit_('SERVER_SAVE_ACK',diag,item.date,'saved','filled='+filled+' letterOnly='+letterOnly+' memoLength='+item.memo.length,true);
     return {ok:true,revision:updatedAt,serverEntry:merged};
   }finally{lock.releaseLock();}
 }
