@@ -26,7 +26,7 @@ function environment(){
  return {os,browser,webview,viewport:String(window.innerWidth||0)+'x'+String(window.innerHeight||0),
    origin:location.origin,online:navigator.onLine!==false};
 }
-const permitted=['date','month','requestId','revision','serverRevision','count','localCount','serverCount','complete','serverComplete','pendingCount','memoLength','letterLength','reason','result','phase','code','storageOk','mismatched','schema'];
+const permitted=['date','month','requestId','revision','serverRevision','count','localCount','serverCount','complete','serverComplete','pendingCount','memoLength','letterLength','reason','result','phase','code','storageOk','mismatched','schema','line'];
 function metadata(){return {deviceId,role:role(),version:VERSION,...environment(),requestId:uid()};}
 function load(){
  try{const x=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(x)?x.filter(v=>v&&typeof v==='object').slice(-500):[];}catch(_){return [];}
@@ -89,5 +89,26 @@ function exportLocal(){
  document.body.appendChild(a);a.click();a.remove();
  setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
+// Capture connection transitions and script failures without message bodies or URL parameters.
+let lastStatus='',lastStatusAt=0;
+window.addEventListener('yuha-db-status',event=>{
+ const state=String(event?.detail?.state||'').slice(0,30);
+ if(!/^(connected|connecting|error|offline)$/.test(state))return;
+ const now=Date.now();
+ if(state===lastStatus&&now-lastStatusAt<15000)return;
+ lastStatus=state;lastStatusAt=now;
+ emit('BRIDGE_STATUS',{reason:state});
+});
+window.addEventListener('error',event=>{
+ const file=String(event.filename||'').split('?')[0].split('/').pop();
+ emit('BROWSER_SCRIPT_ERROR',{code:String(event.error?.name||'Error').slice(0,28),
+  reason:/^[a-z0-9_.-]{1,55}$/i.test(file)?file:'unknown',line:Number(event.lineno)||0});
+});
+document.addEventListener('visibilitychange',()=>{
+ emit(document.hidden?'APP_BACKGROUND':'APP_FOREGROUND',{pendingCount:entries.filter(x=>!x.sent).length});
+});
+window.addEventListener('offline',()=>emit('NETWORK_OFFLINE',{reason:'navigator_offline'}));
+window.addEventListener('online',()=>emit('NETWORK_ONLINE',{reason:'navigator_online'}));
+emit('APP_SCRIPT_LOADED',{code:VERSION});
 window.YuhaMentalDiagnostics={emit,metadata,flush,getServer,setBackendSupport,exportLocal,setRole,role,getRecent:()=>entries.slice(-50),getDeviceId:()=>deviceId,isSupported:()=>supported};
 })();
