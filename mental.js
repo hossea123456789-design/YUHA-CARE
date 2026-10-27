@@ -8,6 +8,20 @@
 const STORE="yuha_mental_recovery_local_v1";
 const PENDING="yuha_mental_recovery_pending_v1";
 const META="yuha_mental_recovery_meta_v1";
+const HISTORY="yuha_mental_recovery_safety_snapshots_v1";
+const locallyProtectedDates=new Set();
+function archiveMental(reason){
+ try{
+  const raw=localStorage.getItem(STORE);
+  if(!raw||raw==="{}")return;
+  const id=new Date().toISOString().slice(0,10)+"-"+reason;
+  let copies=JSON.parse(localStorage.getItem(HISTORY)||"[]");
+  if(!Array.isArray(copies))copies=[];
+  if(copies.some(x=>x.id===id))return;
+  copies.push({id,records:raw,pending:localStorage.getItem(PENDING)||"{}"});
+  localStorage.setItem(HISTORY,JSON.stringify(copies.slice(-45)));
+ }catch(e){console.warn("[YUHA MENTAL] Backup snapshot failed",e);}
+}
 // Legacy server passwords are cleared; PIN unlock authorizes the current tab only.
 function clearLegacySyncCredentials(){
  try{sessionStorage.removeItem("yuha_mental_sync_session_v1");}catch(_){}
@@ -131,6 +145,7 @@ function lock(){
   cloudEpoch++;
   loadedMentalMonths.clear();loadingMentalMonths.clear();
   if(unlocked&&Object.keys(pending).length)saveLocal();
+  locallyProtectedDates.clear();
   unlocked=false;
   cloudCode="";cloudReady=false;cloudBusy=false;cloudSaving=false;cloudError="";
   letterBackendSupported=false;
@@ -220,6 +235,7 @@ function storageRead(key,def){
 }
 function saveLocal(){
  try{
+  archiveMental("before-local-save");
   localStorage.setItem(STORE,JSON.stringify(records));
   localStorage.setItem(PENDING,JSON.stringify(pending));
   storageOkay=true;return true;
@@ -234,6 +250,43 @@ function hydrate(){
  }
 }
 function entry(date){return records[date]||empty(date)}
+function localIsRicher(a,b){
+ if(!a)return false;
+ const count=x=>FIELDS.filter(f=>validScore(x?.scores?.[f.id])).length;
+ if(count(a)>count(b))return true;
+ if(count(a)&&count(b)&&FIELDS.some(f=>validScore(a.scores[f.id])&&validScore(b.scores[f.id])&&a.scores[f.id]!==b.scores[f.id]))return true;
+ if(a.memo&&a.memo!==b.memo)return true;
+ if(a.husbandLetter&&!b.husbandLetter)return true;
+ if(a.offDutyMinutes>0&&!b.offDutyMinutes)return true;
+ return ["contexts","offDutyType","basicNeedsDelayed"].some(key=>a[key]?.some(v=>!b[key]?.includes(v)));
+}
+function mergeCloudMonth(incoming){
+ archiveMental("before-cloud-read");
+ for(const [date,value] of Object.entries(incoming||{})){
+  const server=normalize(date,value);
+  if(!pending[date]){
+   if(localIsRicher(records[date],server)){
+    locallyProtectedDates.add(date);
+    continue; // Never erase richer local records with empty/stale cloud rows.
+   }
+   records[date]=server;locallyProtectedDates.delete(date);
+  }else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&server.revision)
+   conflict={date,local:entry(date),server};
+ }
+}
+function exportMentalBackup(){
+ if(!unlocked)return;
+ try{
+  const obj={kind:"yuha-mental-private-backup",exportedAt:new Date().toISOString(),
+   records:storageRead(STORE,{}),pending:storageRead(PENDING,{}),snapshots:storageRead(HISTORY,[])};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:"application/json"}));
+  const a=document.createElement("a");
+  a.href=url;a.download="yuha-mental-private-backup-"+iso(new Date())+".json";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+  setState("기기 원본 백업 생성됨 · 민감정보 파일 보관 주의");
+ }catch(err){setState("기기 원본 백업 실패: "+String(err?.message||err),true);}
+}
 function list(start,end){
  return Object.entries(records).filter(([date])=>date>=start&&date<=end)
    .map(([date,v])=>({date,row:v,metric:scoresOf(v)})).sort((a,b)=>a.date.localeCompare(b.date));
@@ -255,7 +308,7 @@ function status(text,error){
 }
 function setState(text,error=false){cloudError=error?text:"";status(text,error)}
 function stateText(){return !storageOkay?"기기 저장 실패 · 저장 공간 확인":cloudBusy?"비공개 서버 연결 중":cloudSaving?"비공개 동기화 중":
- cloudError||(!cloudCode?"서버 연결 준비 중":cloudReady?"자동 동기화 연결됨":"자동 동기화 연결 대기");}
+ cloudError||(locallyProtectedDates.size?"기기·서버 내용 불일치 "+locallyProtectedDates.size+"일 · 원본 백업 권장":(!cloudCode?"서버 연결 준비 중":cloudReady?"서버 연결됨 · 기록별 저장상태 확인":"자동 동기화 연결 대기"));}
 function progress(state,msg){
  if(typeof window.showAppProgress==="function")window.showAppProgress("mental-save",msg,state);
 }
@@ -280,10 +333,7 @@ function activate(pass){
    if(epoch!==cloudEpoch || !unlocked)return;
    if(!result?.ok){failed(new Error("조회 실패"));return;}
    if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
-   for(const [date,value] of Object.entries(result.records||{})){
-     if(!pending[date])records[date]=normalize(date,value);
-     else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&value.revision)conflict={date,local:entry(date),server:normalize(date,value)};
-   }
+   mergeCloudMonth(result.records);
    loadedMentalMonths.add(k);
    saveLocal();
    if(--outstanding===0&&!anyFailed){
@@ -310,11 +360,7 @@ function fetchMentalMonthIfNeeded(k){
   if(epoch!==cloudEpoch||!unlocked||!cloudReady)return;
   if(!result?.ok){setState("회복 기록의 "+k+"월 조회 실패 · 기기 기록 보관",true);return;}
   if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
-  for(const [date,value] of Object.entries(result.records||{})){
-   if(!pending[date])records[date]=normalize(date,value);
-   else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&value.revision)
-    conflict={date,local:entry(date),server:normalize(date,value)};
-  }
+  mergeCloudMonth(result.records);
   loadedMentalMonths.add(k);
   saveLocal();cloudError="";
   render();scheduleCloud(100);
@@ -602,7 +648,7 @@ function dateEditor(){
    '<details class="mental-memo-full" id="mentalMemoFullDetails"><summary>저장된 메모 원문 전체 보기</summary><div id="mentalMemoFullText" class="mental-memo-full-body">'+(r.memo?E(r.memo):"저장된 메모가 없습니다.")+'</div></details>'+
    '</div></details>';
  h+='<div class="mental-local-note"><span class="mental-save-state" id="mentalStatus">'+E(stateText())+'</span>'+
-   '<span>'+complete+'/7개 항목 입력 · '+(pending[d]?'변경 보관 중':'기록 저장됨')+'</span></div>';
+   '<span>'+complete+'/7개 항목 입력 · '+(pending[d]?'서버 전송 대기':locallyProtectedDates.has(d)?'기기 기록 보호 중':cloudReady&&loadedMentalMonths.has(monthKey(d))?'서버 조회됨':'기기 기록')+'</span></div>';
  return h;
 }
 function tags(arr,values,kind){
@@ -758,6 +804,7 @@ function view(){
   husbandLetterHTML()+
   mainSummary()+
   '<div class="mental-actions-row"><a href="#mentalToday" class="mental-primary-action" id="mentalJumpToday">오늘 기록</a>'+
+  '<button type="button" class="mental-primary-action" id="mentalExportBackup">기기 원본 백업</button>'+
   '<span>'+E(warning)+'</span></div>'+
   '<section class="sleep-card mental-month-card"><div class="mental-section-head"><h3>'+y+'년 '+m+'월 · 상태 히트맵</h3>'+
     '<div class="sleep-map-nav"><button type="button" data-month-step="-1" aria-label="이전 달">‹</button>'+
@@ -866,7 +913,7 @@ function refreshScores(){
  const completed=FIELDS.filter(f=>validScore(row.scores[f.id])).length;
  const metric=scoresOf(row);
  screen.querySelector(".mental-editor-score").textContent=metric?fixed(metric.mental):completed+"/7";
- screen.querySelector(".mental-local-note>span:last-child").textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"변경 보관 중":"기록 저장됨");
+ screen.querySelector(".mental-local-note>span:last-child").textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"서버 전송 대기":locallyProtectedDates.has(selected)?"기기 기록 보호 중":cloudReady&&loadedMentalMonths.has(monthKey(selected))?"서버 조회됨":"기기 기록");
  refreshOverview();
  status(stateText(),!storageOkay);
 }
@@ -879,6 +926,7 @@ function setSelected(d){
 }
 function bind(){
  bindHusbandLetter();
+ screen.querySelector("#mentalExportBackup")?.addEventListener("click",exportMentalBackup);
  screen.querySelectorAll("[data-month-step]").forEach(b=>b.addEventListener("click",()=>{
   const step=Number(b.dataset.monthStep);
   letterEditing=false;letterEditDate="";letterDraft="";
@@ -970,7 +1018,7 @@ function updateIndicators(){
  const saveCount=screen.querySelector(".mental-local-note>span:last-child");
  if(saveCount&&screen.querySelector(".mental-editor-score")){
   const completed=FIELDS.filter(f=>validScore(entry(selected).scores[f.id])).length;
-  saveCount.textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"변경 보관 중":"기록 저장됨");
+  saveCount.textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"서버 전송 대기":locallyProtectedDates.has(selected)?"기기 기록 보호 중":cloudReady&&loadedMentalMonths.has(monthKey(selected))?"서버 조회됨":"기기 기록");
  }
  const letterState=screen.querySelector("#mentalLetterSaveState");
  if(letterState)letterState.textContent=pending[selected]?
