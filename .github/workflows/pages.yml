@@ -109,3 +109,10 @@ jobs:
           grep -q 'window.YuhaCareComfortLibrary' "$quotetmp" || { echo "Missing published quote library"; exit 1; }
           echo "PASS published reviewed comfort library ($(wc -c < "$quotetmp") bytes)"
           rm -f "$quotetmp"
+          diagurl="${base%/}/mental-diagnostics.js?deploy=${GITHUB_SHA}"
+          diagtmp="$(mktemp)"
+          curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \
+            --connect-timeout 12 --max-time 20 --output "$diagtmp" "$diagurl"
+          grep -q 'window.YuhaMentalDiagnostics' "$diagtmp" || { echo "Missing published device diagnostics"; exit 1; }
+          echo "PASS published device diagnostic script ($(wc -c < "$diagtmp") bytes)"
+          rm -f "$diagtmp"
