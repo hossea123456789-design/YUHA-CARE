@@ -299,3 +299,16 @@
 @media(prefers-reduced-motion:reduce){
  .mental-lock-card .mental-pin-key:active{transform:none}
 }
+
+/* Device-aware diagnostics; no raw recovery answers appear in audit UI. */
+.mental-diagnostics{margin-top:14px;padding:14px;border:1px solid var(--line,#dde7e9);border-radius:12px;background:rgba(124,151,166,.06);min-width:0}
+.mental-diagnostics h4{font-size:14px;margin:0 0 8px}
+.mental-diagnostics p{line-height:1.65;font-size:12px;margin:6px 0 12px;overflow-wrap:anywhere}
+.mental-diagnostics label{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+.mental-diagnostics select{width:100%;max-width:280px;min-height:44px;padding:8px;border-radius:9px;border:1px solid #b5c9cd;background:var(--panel,#fff);color:inherit;font-size:14px}
+.mental-diagnostic-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.mental-diagnostic-actions button{min-height:44px;padding:8px 12px;border-radius:9px;border:1px solid #adc4c6;background:var(--panel,#fff);color:inherit;font-weight:600;font-size:12px;cursor:pointer}
+#mentalDiagResult{white-space:pre-wrap;overflow:auto;overflow-wrap:anywhere;max-height:300px;padding:10px;font-size:11px;line-height:1.55;border-radius:9px;background:rgba(128,139,147,.12);margin:0}
+.mental-safety-banner{margin:14px 0;padding:12px;border:1px solid #d9a78f;border-radius:12px;background:rgba(216,147,104,.08);font-size:13px;line-height:1.6}
+.mental-safety-banner p{margin:0 0 8px}
+.mental-safety-banner button{min-height:44px;padding:8px 12px;border-radius:9px;border:1px solid #a77c67;background:var(--panel,#fff);color:inherit;font-weight:600}
