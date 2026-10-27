@@ -876,8 +876,12 @@ function syncMentalEntry(payload) {
       return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
     }
     if(previous===serialized){
+      let archiveKey='';
+      if(resolution)archiveKey=mentalArchiveResolvedConflict_(item.date,currentRevision,currentEntry,
+        resolution.originalLocal,merged,diag);
       mentalWriteAudit_('SERVER_SAVE_UNCHANGED',diag,item.date,'unchanged','filled='+filled+' letterOnly='+letterOnly,true);
-      return {ok:true,revision:currentRevision,unchanged:true,serverEntry:merged};
+      return {ok:true,revision:currentRevision,unchanged:true,serverEntry:merged,
+        conflictArchived:resolution?Boolean(archiveKey):false};
     }
     if(!letterOnly&&currentRevision!==expectedRevision){
       mentalWriteAudit_('SERVER_SAVE_CONFLICT',diag,item.date,'conflict','filled='+filled,true);
