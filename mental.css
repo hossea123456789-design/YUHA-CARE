@@ -312,3 +312,23 @@
 .mental-safety-banner{margin:14px 0;padding:12px;border:1px solid #d9a78f;border-radius:12px;background:rgba(216,147,104,.08);font-size:13px;line-height:1.6}
 .mental-safety-banner p{margin:0 0 8px}
 .mental-safety-banner button{min-height:44px;padding:8px 12px;border-radius:9px;border:1px solid #a77c67;background:var(--panel,#fff);color:inherit;font-weight:600}
+
+/* Explicit, consent-driven conflict comparison; touch friendly at 320px. */
+.mental-conflict-panel{padding:14px;border:1px solid #d78c69;background:#fff8f3;border-radius:13px;min-width:0}
+.mental-conflict-panel>h3{font-size:16px;color:#7e3f22;margin:0 0 7px}
+.mental-conflict-panel>p,.mental-conflict-date>p{font-size:12px;line-height:1.65;color:#674e42;overflow-wrap:anywhere}
+.mental-conflict-date{margin-top:12px;padding:12px;background:#fff;border:1px solid #ead8cd;border-radius:11px}
+.mental-conflict-date h4{font-size:14px;color:#7e3f22;margin:0 0 8px;overflow-wrap:anywhere}
+.mental-conflict-field{padding:10px 0;border-top:1px solid #efe2d9;min-width:0}
+.mental-conflict-field>strong{font-size:13px}
+.mental-conflict-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:7px 0 9px;min-width:0}
+.mental-conflict-compare>div{min-width:0;background:#f8f8f8;border-radius:8px;padding:8px}
+.mental-conflict-compare small{font-size:11px;font-weight:750;color:#82634f}
+.mental-conflict-compare p{font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto;margin:5px 0 0;user-select:text}
+.mental-conflict-field label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:650}
+.mental-conflict-field select{min-height:44px;min-width:125px;max-width:65%;background:#fff;padding:6px;border:1px solid #d0aa92;border-radius:8px;color:#45362f}
+.mental-conflict-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.mental-conflict-actions button{min-height:44px;padding:9px 12px;border:1px solid #af8063;border-radius:9px;color:#5c3824;background:#fff;font-size:12px;font-weight:750;cursor:pointer}
+.mental-conflict-actions button:disabled{opacity:.5;cursor:default;background:#f1f1f1}
+.mental-conflict-wait{padding:7px 8px;background:#fff1e8;border-radius:7px;line-height:1.6}
+@media(max-width:355px){.mental-conflict-compare{gap:5px}.mental-conflict-compare>div{padding:6px}.mental-conflict-compare p{font-size:11px}.mental-conflict-field label{flex-wrap:wrap}.mental-conflict-field select{max-width:100%;width:100%}}
