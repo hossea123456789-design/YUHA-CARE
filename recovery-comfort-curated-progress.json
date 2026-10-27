@@ -1,11 +1,11 @@
 {
-  "version": "2026-10-27-curated-progress-v1",
+  "version": "2026-10-27-curated-progress-v2",
   "target": 1000,
-  "count": 79,
-  "remaining": 921,
+  "count": 89,
+  "remaining": 911,
   "counts": {
     "preservedOriginalReviewed": 59,
-    "newlySelectedSourceQuotes": 20
+    "newlySelectedSourceQuotes": 30
   },
   "selection": "원래 검수된 59개를 보존하고 신규 원문 수집분을 추가. 기존 941개 screened 후보는 검수 완료로 계산하지 않음.",
   "status": "IN_PROGRESS_NOT_YET_LIVE",
@@ -862,6 +862,116 @@
       "sourceTurn": 18,
       "reviewed": true,
       "collectionBatch": "batch-002"
+    },
+    {
+      "id": "kmi-17-4",
+      "text": "계속되는 생각으로 마음의 여유를 찾기 어려웠겠어요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 17,
+      "sourceTurn": 4,
+      "category": "반추·휴식 부족",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
+    },
+    {
+      "id": "kmi-17-10",
+      "text": "업무와 가정에서의 역할 충족에 대한 압박감이 스트레스로 다가오고 있네요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 17,
+      "sourceTurn": 10,
+      "category": "직장·가정 역할 압박",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
+    },
+    {
+      "id": "kmi-24-10",
+      "text": "깊은 잠을 자지 못하는 문제가 계속되면서 많이 지치셨겠어요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 24,
+      "sourceTurn": 10,
+      "category": "수면 부족·피로",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
+    },
+    {
+      "id": "kmi-72-4",
+      "text": "소소한 일상의 활동에서 더 이상 기쁨을 느끼지 못하고 의미를 찾기 어려워하시는군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 72,
+      "sourceTurn": 4,
+      "category": "일상의 즐거움 상실",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
+    },
+    {
+      "id": "kmi-88-10",
+      "text": "일상생활에서 자기 돌봄에 필요한 에너지마저 소진되어 가고 있는 상태인 것 같군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 88,
+      "sourceTurn": 10,
+      "category": "자기돌봄 에너지 소진",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
+    },
+    {
+      "id": "kmi-113-2",
+      "text": "감정의 무게를 혼자 짊어지고 계시는 상황이군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 113,
+      "sourceTurn": 2,
+      "category": "감정 홀로 감당",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
+    },
+    {
+      "id": "kmi-104-2",
+      "text": "일상의 무게를 조금이라도 더 가볍게 만들고 싶은 욕구가 있군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 104,
+      "sourceTurn": 2,
+      "category": "일상 부담 완화",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
+    },
+    {
+      "id": "kmi-10-2",
+      "text": "몸과 마음이 힘들다고 느끼면 확실히 일상 생활에도 영향이 있겠네요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 10,
+      "sourceTurn": 2,
+      "category": "몸과 마음의 피로",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
+    },
+    {
+      "id": "kmi-91-8",
+      "text": "수면에까지 영향을 미칠 정도로 스트레스가 누적되고 있군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 91,
+      "sourceTurn": 8,
+      "category": "수면에 영향을 주는 스트레스",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
+    },
+    {
+      "id": "kmi-98-14",
+      "text": "조금씩 나아지길 바라는 마음은 변화를 향한 중요한 첫걸음입니다.",
+      "sourceId": "kmi",
+      "sourceDialogue": 98,
+      "sourceTurn": 14,
+      "category": "정서적 회복에 대한 바람",
+      "reviewed": true,
+      "collectionBatch": "batch-003",
+      "reviewerNote": "원문과 주변 대화 문맥 확인; 육아·직장 병행과 소진 상황에 단독 노출 가능"
     }
   ]
 }
