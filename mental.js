@@ -913,6 +913,165 @@ function bindIdentityNotice(){
   screen?.querySelector('#mentalDeviceRole')?.focus({preventScroll:true});
  });
 }
+
+/* Conflict protection: neither original is discarded or uploaded to diagnostics.
+ * Resolution requires an explicit per-field decision and backend archive ACK. */
+function registerConflict(date,local,server,revision,reason){
+ if(!pending[date])return false;
+ const l=normalize(date,local),r=normalize(date,server);
+ const record={date,local:l,server:r,revision:String(revision||""),phase:"review"};
+ conflicts[date]=record;
+ pending[date].resolution=null;
+ delete conflictChoices[date];
+ let archived=false;
+ try{
+  const old=storageRead(CONFLICT_HISTORY,[]);
+  const history=Array.isArray(old)?old:[];
+  const signature=date+"|"+record.revision+"|"+JSON.stringify(l);
+  if(!history.some(x=>x.signature===signature)){
+   history.push({signature,createdAt:new Date().toISOString(),date,reason,local:l,server:r});
+   localStorage.setItem(CONFLICT_HISTORY,JSON.stringify(history.slice(-35)));
+  }
+  archived=saveLocal();
+ }catch(e){storageOkay=false;console.error("[YUHA MENTAL] Conflict archive failed",e);}
+ traceMental(archived?"CONFLICT_ORIGINALS_BACKED_UP":"CONFLICT_BACKUP_FAILED",
+  {date,complete:numberFilled(l),serverComplete:numberFilled(r),storageOk:archived,reason});
+ if(!archived)setState("기기 원본 백업 실패 · 충돌 해결 중단",true);
+ return archived;
+}
+const CONFLICT_FIELDS=[
+ ...FIELDS.map(f=>({key:"score."+f.id,title:f.name})),
+ {key:"memo",title:"오늘의 메모"},
+ {key:"offDutyMinutes",title:"개인시간(분)"},
+ {key:"offDutyType",title:"개인시간 유형"},
+ {key:"basicNeedsDelayed",title:"미룬 기본욕구"},
+ {key:"contexts",title:"오늘의 상황"},
+ {key:"letter",title:"남편의 편지·봉인·열람 상태"}
+];
+function conflictValue(item,key){
+ if(key.startsWith("score."))return item.scores[key.slice(6)];
+ if(key==="letter")return [item.husbandLetter,item.husbandLetterStatus,item.husbandLetterOpenedAt];
+ return item[key];
+}
+function conflictDisplay(value,key){
+ if(key==="letter"){
+  const v=Array.isArray(value)?value:[];
+  return "내용: "+(v[0]||"미작성")+" / "+(v[1]||"상태 없음")+(v[2]?" / 열람시각 "+v[2]:"");
+ }
+ if(Array.isArray(value))return value.length?value.join(", "):"없음";
+ if(value===null||value===""||value===undefined)return "없음";
+ return String(value);
+}
+function differingFields(local,server){
+ return CONFLICT_FIELDS.filter(f=>JSON.stringify(conflictValue(local,f.key))!==
+  JSON.stringify(conflictValue(server,f.key)));
+}
+function conflictPanelHTML(){
+ const dates=Object.keys(conflicts).sort();
+ if(!dates.length)return "";
+ return '<section class="mental-conflict-panel" id="mentalConflictPanel"><h3>서버·기기 기록 충돌 해결</h3>'+
+  '<p>현재 서버값과 이 기기의 미전송 기록을 비교합니다. 두 원본은 그대로 유지됩니다. 차이가 있는 항목마다 어떤 값을 사용할지 직접 선택해야 합니다.</p>'+
+  dates.map(date=>{
+   const c=conflicts[date],l=pending[date]?.resolution?.originalLocal||pending[date]?.entry||c.local;
+   const differing=differingFields(l,c.server);
+   const choices=conflictChoices[date]||{};
+   const rows=differing.map(f=>{
+    const a=conflictDisplay(conflictValue(l,f.key),f.key);
+    const b=conflictDisplay(conflictValue(c.server,f.key),f.key);
+    const selected=choices[f.key]||"";
+    return '<div class="mental-conflict-field"><strong>'+E(f.title)+'</strong>'+
+     '<div class="mental-conflict-compare"><div><small>기기 원본</small><p>'+E(a)+'</p></div>'+
+     '<div><small>서버 원본</small><p>'+E(b)+'</p></div></div>'+
+     '<label>반영할 값 <select data-conflict-choice="'+E(f.key)+'" data-conflict-date="'+E(date)+'" '+
+     (c.phase==="resolving"?'disabled':'')+'>'+
+     '<option value="">직접 선택</option>'+
+     '<option value="local"'+(selected==="local"?' selected':'')+'>기기 원본</option>'+
+     '<option value="server"'+(selected==="server"?' selected':'')+'>서버 원본</option>'+
+     '</select></label></div>';
+   }).join("");
+   const remaining=differing.filter(f=>!["local","server"].includes(choices[f.key])).length;
+   return '<article class="mental-conflict-date"><h4>'+E(date)+' · '+differing.length+'개 항목 차이</h4>'+
+    '<p>기기 원본 '+numberFilled(l)+'/7개 입력 · 서버 원본 '+numberFilled(c.server)+'/7개 입력. '+
+    '원본 JSON 백업 후 선택값을 적용합니다.</p>'+
+    (c.phase==="resolving"?'<p class="mental-conflict-wait">서버의 원본 보관·저장 재조회 결과를 확인 중입니다.</p>':
+     rows+'<p>미선택 항목: '+remaining+'개</p>')+
+    '<div class="mental-conflict-actions"><button type="button" data-conflict-backup="'+E(date)+'">양쪽 원본 백업</button>'+
+    (c.phase==="resolving"?'': '<button type="button" data-conflict-resolve="'+E(date)+'" '+
+      (!conflictArchiveSupported||remaining?'disabled':'')+'>선택한 값으로 안전하게 저장</button>')+'</div>'+
+    (!conflictArchiveSupported?'<p class="mental-conflict-wait">원본 보관 API(v5) 운영 배포 전에는 덮어쓰기를 차단합니다.</p>':'')+
+    '</article>';
+  }).join("")+'</section>';
+}
+function exportConflictBackup(date){
+ const c=conflicts[date];if(!c||!unlocked)return;
+ try{
+  const obj={kind:"yuha-mental-conflict-private-backup",createdAt:new Date().toISOString(),
+   date,serverRevision:c.revision,server:c.server,
+   local:pending[date]?.resolution?.originalLocal||pending[date]?.entry||c.local,
+   localSnapshots:storageRead(CONFLICT_HISTORY,[]).filter(x=>x.date===date)};
+  const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="yuha-conflict-"+date+".json";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+  traceMental("CONFLICT_BACKUP_EXPORTED",{date,reason:"user_download"});
+ }catch(e){setState("원본 파일 내보내기 실패",true);}
+}
+function resolveConflict(date){
+ const c=conflicts[date],p=pending[date];
+ if(!unlocked||!cloudReady||!cloudCode||!storageOkay||!conflictArchiveSupported||
+   !c||!p||p.resolution||cloudSaving)return;
+ const original=normalize(date,p.entry),diff=differingFields(original,c.server),
+   choices=conflictChoices[date]||{};
+ if(diff.some(f=>!["local","server"].includes(choices[f.key]))){
+  setState("차이가 있는 모든 항목의 반영 값을 선택해 주세요",true);return;
+ }
+ const merged=normalize(date,c.server);
+ for(const f of diff)if(choices[f.key]==="local"){
+  if(f.key.startsWith("score."))merged.scores[f.key.slice(6)]=original.scores[f.key.slice(6)];
+  else if(f.key==="letter"){
+   merged.husbandLetter=original.husbandLetter;
+   merged.husbandLetterStatus=original.husbandLetterStatus;
+   merged.husbandLetterOpenedAt=original.husbandLetterOpenedAt;
+  }else merged[f.key]=Array.isArray(original[f.key])?[...original[f.key]]:original[f.key];
+ }
+ merged.revision=c.revision;
+ if(!window.confirm(date+"의 서로 다른 "+diff.length+"개 항목을 선택한 값으로 반영합니다.\n서버·기기 원본 전체를 비공개 원본 보관 시트에 기록하고, 서버 버전이 바뀌었으면 저장하지 않습니다. 계속하시겠습니까?"))return;
+ // Durable local pre-merge snapshot must succeed before any remote overwrite.
+ if(!registerConflictBeforeResolution(date,original,c))return;
+ pending[date]={entry:merged,expectedRevision:c.revision,letterOnly:false,letterAction:"",
+  resolution:{confirmed:true,serverRevision:c.revision,originalLocal:original}};
+ records[date]=merged;c.phase="resolving";
+ const persisted=saveLocal();
+ traceMental("CONFLICT_RESOLUTION_SELECTED",{date,complete:numberFilled(merged),
+   serverComplete:numberFilled(c.server),storageOk:persisted,reason:"per_field_choice"});
+ if(!persisted){c.phase="review";return;}
+ render();scheduleCloud(100);
+}
+function registerConflictBeforeResolution(date,original,c){
+ try{
+  const old=storageRead(CONFLICT_HISTORY,[]);
+  const history=Array.isArray(old)?old:[];
+  history.push({signature:"resolve-"+date+"-"+new Date().toISOString(),
+   createdAt:new Date().toISOString(),date,reason:"before-user-confirmed-resolution",
+   local:original,server:c.server});
+  localStorage.setItem(CONFLICT_HISTORY,JSON.stringify(history.slice(-35)));
+  return true;
+ }catch(e){storageOkay=false;setState("충돌 원본 백업 실패 · 저장 중단",true);return false;}
+}
+function bindConflictPanel(){
+ screen?.querySelectorAll("[data-conflict-choice]").forEach(sel=>sel.addEventListener("change",()=>{
+  const date=sel.dataset.conflictDate;
+  (conflictChoices[date]||(conflictChoices[date]={}))[sel.dataset.conflictChoice]=sel.value;
+  const existing=screen?.querySelector("#mentalConflictPanel");
+  if(existing){existing.outerHTML=conflictPanelHTML();bindConflictPanel();}
+ }));
+ screen?.querySelectorAll("[data-conflict-backup]").forEach(b=>
+  b.addEventListener("click",()=>exportConflictBackup(b.dataset.conflictBackup)));
+ screen?.querySelectorAll("[data-conflict-resolve]").forEach(b=>
+  b.addEventListener("click",()=>resolveConflict(b.dataset.conflictResolve)));
+}
+
 function syncSafetyHTML(){
  const n=Object.keys(pending).length,protectedCount=locallyProtectedDates.size,conflictCount=Object.keys(conflicts).length;
  if(!n&&!protectedCount&&!conflictCount&&cloudReady)return '';
