@@ -792,3 +792,9 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - **필수 미완료 운영 작업:** 기존 Google Sheet에 연결된 Apps Script의 실제 Code.gs를 GitHub 최신 버전으로 교체하고 배포 관리에서 기존 웹앱을 새 버전으로 배포. 기존 /exec URL과 원본 시트는 절대 교체/삭제하지 않는다.
 - 서버 응답 schemaVersion 4 확인, 서버 MENTAL_AUDIT_LOG 실제 생성, 아내·남편 휴대폰의 역할 설정과 동일 날짜 저장/재조회 교차 검증은 별개. GitHub Pages 성공만으로 서버 로그 활성화나 실제 두 기기 데이터 일치를 주장하지 않는다.
 - 보안 주의: 공개 JS의 4자리 PIN 해시는 비밀번호 수준의 서버 보안을 제공하지 않는다. 서버 접근 정책과 원본 시트 공유를 강화하는 별도 작업이 필요하다.
+
+
+### 2026-10-28 최종 CI/배포 확인
+- 감사 로그/보호 코드 포함 소스 커밋 d2c0b78877adfb018639e268bed354de30db34ba에 대한 Pages Actions run 40549943188: status completed, conclusion success, head_sha가 소스 커밋과 일치함. deploy-pages 단계 및 공개 mental-diagnostics.js 파일 HTTP 스모크 테스트 성공.
+- 자동 합성 데이터 테스트: 브라우저 ID/역할 유지 및 원문 비기록, 진단 큐 서버 ACK, 비어 있는 서버 조회로부터 로컬 기록 보존, 서버 재조회 revision 불일치 시 pending 유지, 편지 저장 검증 뒤 아내 점수 유지 통과. 문법 검사 mental.js/mental-diagnostics.js/bridge-client.js/Code.gs 통과.
+- 실제 Apps Script 배포 및 운영 MENTAL_AUDIT_LOG 생성, 아내·남편 실기기 2대의 동기화/로그 교차 검증은 미완료. 성공으로 오인 금지. 사용자의 실기록은 테스트 목적으로 변경하지 않음.
