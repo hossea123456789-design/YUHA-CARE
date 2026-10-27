@@ -31,6 +31,7 @@ jobs:
           node --check public-site/mental.js
           node --check public-site/mental-diagnostics.js
           node --check public-site/bridge-client.js
+          node tests/mental-diagnostics.test.js
           cp apps-script/Code.gs /tmp/yuha-apps-script-check.js
           node --check /tmp/yuha-apps-script-check.js
           grep -q 'mental-diagnostics.js?v=' public-site/index.html
