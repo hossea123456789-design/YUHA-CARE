@@ -1,0 +1,100 @@
+{
+  "batch": 2,
+  "from": 11,
+  "to": 20,
+  "count": 10,
+  "source": "https://github.com/hjkim811/KMI/blob/main/kmi.json",
+  "license": "CC BY 4.0",
+  "quotes": [
+    {
+      "id": "kmi-361-6",
+      "text": "자신만의 시간을 통해 휴식을 얻고 싶은 욕구가 강하시군요.",
+      "category": "개인 시간·휴식",
+      "sourceId": "kmi",
+      "sourceDialogue": 361,
+      "sourceTurn": 6,
+      "reviewed": true
+    },
+    {
+      "id": "kmi-361-12",
+      "text": "타인의 기대에 맞추려는 부담감 속에서 자신을 잃어가고 있다고 느끼시는군요.",
+      "category": "자아 정체성",
+      "sourceId": "kmi",
+      "sourceDialogue": 361,
+      "sourceTurn": 12,
+      "reviewed": true
+    },
+    {
+      "id": "kmi-367-12",
+      "text": "지속적인 노력에도 불구하고 감정적으로 피로함을 느끼고 계시군요.",
+      "category": "정서적 피로",
+      "sourceId": "kmi",
+      "sourceDialogue": 367,
+      "sourceTurn": 12,
+      "reviewed": true
+    },
+    {
+      "id": "kmi-329-4",
+      "text": "그 기대에 맞추기 위해 스스로에게 너무 큰 부담을 지우고 계시는군요.",
+      "category": "자기 기대·부담",
+      "sourceId": "kmi",
+      "sourceDialogue": 329,
+      "sourceTurn": 4,
+      "reviewed": true
+    },
+    {
+      "id": "kmi-61-12",
+      "text": "일상과 일에서 자신감을 회복하고자 하는 마음이 인상적입니다.",
+      "category": "일·회복",
+      "sourceId": "kmi",
+      "sourceDialogue": 61,
+      "sourceTurn": 12,
+      "reviewed": true
+    },
+    {
+      "id": "kmi-17-20",
+      "text": "자신을 혹독하게 다루지 않으려는 노력이 중요하게 여겨지고 있군요.",
+      "category": "자책 완화",
+      "sourceId": "kmi",
+      "sourceDialogue": 17,
+      "sourceTurn": 20,
+      "reviewed": true
+    },
+    {
+      "id": "kmi-25-10",
+      "text": "여러 방법을 시도해보시면서 아이를 위한 최선의 방법을 찾기 위해 노력하고 계시네요.",
+      "category": "양육 노력",
+      "sourceId": "kmi",
+      "sourceDialogue": 25,
+      "sourceTurn": 10,
+      "reviewed": true
+    },
+    {
+      "id": "kmi-25-12",
+      "text": "아이를 위한 방법을 찾기 위해 열린 마음으로 다양한 시도를 하고 계시네요.",
+      "category": "양육 노력",
+      "sourceId": "kmi",
+      "sourceDialogue": 25,
+      "sourceTurn": 12,
+      "reviewed": true
+    },
+    {
+      "id": "kmi-194-8",
+      "text": "일찍 잠자리에 들어 아침을 여유롭게 시작하고 싶어 하시는군요.",
+      "category": "피로·휴식",
+      "sourceId": "kmi",
+      "sourceDialogue": 194,
+      "sourceTurn": 8,
+      "reviewed": true
+    },
+    {
+      "id": "kmi-1000-18",
+      "text": "진짜 감정을 표현하고 이해받고자 하는 노력이 중요한 과정임을 인식하셨군요.",
+      "category": "감정 표현",
+      "sourceId": "kmi",
+      "sourceDialogue": 1000,
+      "sourceTurn": 18,
+      "reviewed": true
+    }
+  ]
+}
