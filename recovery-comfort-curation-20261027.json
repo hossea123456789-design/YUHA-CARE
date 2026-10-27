@@ -1,0 +1,126 @@
+{
+  "project": "YUHA-CARE",
+  "target": 1000,
+  "selectionPolicy": "Pre-existing Korean source sentences only. Wife: parenting toddler, HR work, weekend family duties, delayed basic needs, personal exhaustion, unmet self-time, rest guilt. Reject directive, unrelated, shame-inducing or context-mismatched words.",
+  "source": {
+    "kmi": {
+      "url": "https://github.com/hjkim811/KMI/blob/main/kmi.json",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
+    }
+  },
+  "completedCount": 10,
+  "reviewedQuoteCount": 10,
+  "quotes": [
+    {
+      "id": "kmi-194-2",
+      "text": "일상의 반복과 피로함에 대해 고민이 많으신 것 같네요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 194,
+      "sourceTurn": 2,
+      "category": "반복 일상·피로",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "kmi-127-2",
+      "text": "일상에서 누적되는 스트레스가 마음을 무겁게 하고 있는군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 127,
+      "sourceTurn": 2,
+      "category": "누적 스트레스",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "kmi-423-18",
+      "text": "그 감정을 나누지 못함으로써 내면에 쌓이는 것이 큰 부담으로 다가오고 있군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 423,
+      "sourceTurn": 18,
+      "category": "감정 억압",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "kmi-30-10",
+      "text": "혼자 해결하려 하시는 부담감이 크셨을 텐데요, 그 과정에서 스스로에게 많은 것을 요구하셨네요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 30,
+      "sourceTurn": 10,
+      "category": "홀로 감당하는 책임",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "kmi-471-12",
+      "text": "답답함 속에서도 더 나를 이해하려는 노력을 계속하고자 하시는군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 471,
+      "sourceTurn": 12,
+      "category": "자기 정체성",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "kmi-964-4",
+      "text": "혼자만의 시간과 공간을 갖지 못해 스트레스를 받고 계시는군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 964,
+      "sourceTurn": 4,
+      "category": "독립된 휴식 공간",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "kmi-423-20",
+      "text": "이제 그 쌓인 부담감을 덜고 싶으신 마음이 크신 것 같군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 423,
+      "sourceTurn": 20,
+      "category": "정서적 부담 내려놓기",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "kmi-249-8",
+      "text": "그렇군요, 다른 사람들의 고민에 공감해주는 과정에서 본인도 같은 수준의 이해를 받기를 원하셨던 거네요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 249,
+      "sourceTurn": 8,
+      "category": "공감과 이해에 대한 욕구",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "kmi-191-6",
+      "text": "스트레스를 관리하는 자신만의 방법을 아직 찾지 못하신 상황이시군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 191,
+      "sourceTurn": 6,
+      "category": "육아·직장 스트레스",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "kmi-194-30",
+      "text": "지치지 않는 하루와 더 많은 에너지를 얻고 싶으시군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 194,
+      "sourceTurn": 30,
+      "category": "기력·회복 욕구",
+      "reviewed": true,
+      "editorialReview": "context-and-standalone-manual-review",
+      "license": "CC BY 4.0"
+    }
+  ]
+}
