@@ -405,50 +405,97 @@ function scheduleCloud(delay=1800){
  if(!cloudReady||!cloudCode||!Object.keys(pending).length||cloudBusy||cloudSaving)return;
  syncingTimer=setTimeout(syncNext,delay);
 }
+function sameRemoteData(requested,remote,letterOnly){
+ const local=normalize(requested.date,requested),server=normalize(requested.date,remote);
+ if(letterOnly)return local.husbandLetter===server.husbandLetter&&
+   local.husbandLetterStatus===server.husbandLetterStatus&&
+   local.husbandLetterOpenedAt===server.husbandLetterOpenedAt;
+ for(const key of ['scores','memo','offDutyMinutes','offDutyType','basicNeedsDelayed','contexts','husbandLetter','husbandLetterStatus','husbandLetterOpenedAt']){
+  if(JSON.stringify(local[key])!==JSON.stringify(server[key]))return false;
+ }
+ return true;
+}
 function syncNext(){
  if(!cloudReady||!cloudCode||cloudSaving)return;
  const dates=Object.keys(pending).sort();
  if(!dates.length)return;
- // Old Apps Script ignores husbandLetter; avoid silently discarding new notes.
- const date=dates.find(d=>letterBackendSupported||(!pending[d].letterOnly&&!pending[d].entry.husbandLetter));
+ const date=dates.find(d=>(conflict?.date!==d) &&
+  (letterBackendSupported||(!pending[d].letterOnly&&!pending[d].entry.husbandLetter)));
  if(!date){
-  setState("편지 자동 동기화 대기 · 최신 Apps Script Code.gs 배포 필요 · 기기 기록 보관",true);
+  if(conflict)setState('기록 충돌 · 기기 원본은 보관 중 · 원본 백업 및 비교 필요',true);
+  else setState('편지 전송 대기 · 최신 Apps Script Code.gs 배포 필요 · 기기 기록 보관',true);
   return;
  }
- if(conflict?.date===date){setState("다른 기기 수정 충돌 · 선택 필요",true);return;}
- const p=pending[date],version=JSON.stringify(p.entry);
- cloudSaving=true;setState("비공개 서버에 저장 중");progress("busy","회복 기록 저장 중");
+ const p=pending[date],version=JSON.stringify(p.entry),req=diagMeta();
+ cloudSaving=true;setState('비공개 서버에 저장 중');progress('busy','회복 기록 저장 중');
+ traceMental('CLOUD_SAVE_REQUEST',{date,requestId:req.requestId,complete:numberFilled(p.entry),
+   memoLength:p.entry.memo.length,letterLength:p.entry.husbandLetter.length,
+   pendingCount:Object.keys(pending).length,reason:p.letterOnly?'letter_only':'full'});
  const epoch=cloudEpoch;
- cloudCall("syncMentalEntry",[{passphrase:cloudCode,entry:p.entry,expectedRevision:p.expectedRevision,letterOnly:p.letterOnly===true,letterAction:p.letterAction||""}],result=>{
+ function retry(reason,delay=10000){
   if(epoch!==cloudEpoch||!unlocked)return;
   cloudSaving=false;
+  traceMental('CLOUD_SAVE_RETRY',{date,requestId:req.requestId,reason,pendingCount:Object.keys(pending).length});
+  setState('서버 저장 확인 실패 · 기기 원본 보관 · 다시 시도합니다',true);
+  progress('error','저장 확인 실패 · 자동 재시도');
+  clearTimeout(retryTimer);retryTimer=setTimeout(syncNext,delay);
+ }
+ cloudCall('syncMentalEntry',[{passphrase:cloudCode,entry:p.entry,expectedRevision:p.expectedRevision,
+   letterOnly:p.letterOnly===true,letterAction:p.letterAction||'',diagnostics:req}],result=>{
+  if(epoch!==cloudEpoch||!unlocked)return;
   if(result?.conflict){
-    conflict={date,local:normalize(date,p.entry),server:normalize(date,result.serverEntry||{}),
-      revision:String(result.serverRevision||"")};
-    progress("error","다른 기기 기록과 충돌");setState("기록 충돌 · 비교 후 선택해 주세요",true);render();return;
+   cloudSaving=false;
+   conflict={date,local:normalize(date,p.entry),server:normalize(date,result.serverEntry||{}),
+     revision:String(result.serverRevision||'')};
+   traceMental('CLOUD_SAVE_CONFLICT',{date,requestId:req.requestId,complete:numberFilled(p.entry),
+     serverComplete:numberFilled(result.serverEntry),reason:'revision_mismatch'});
+   progress('error','다른 기기 기록과 충돌');
+   setState('기록 충돌 · 서버·기기 원본 보관 · 수동 확인 필요',true);
+   render();scheduleCloud(200);return;
   }
-  if(!result?.ok){
-    progress("error","서버 응답 확인 필요");setState(result?.message||"다시 시도합니다",true);
-    retryTimer=setTimeout(syncNext,5000);return;
-  }
-  if(pending[date]&&JSON.stringify(pending[date].entry)===version){
-    // Backend returns an up-to-date row for letter-only writes, preserving any
-    // recovery score changes that occurred on the wife's device.
-    if(p.letterOnly&&result.serverEntry)records[date]=normalize(date,{...result.serverEntry,revision:result.revision||""});
-    else records[date].revision=String(result.revision||"");
+  if(!result?.ok){retry('server_rejected',5000);return;}
+  traceMental('CLOUD_SAVE_ACK',{date,requestId:req.requestId,revision:String(result.revision||'')});
+  // A write ACK is not proof of visibility to the other device.
+  const key=monthKey(date),[year,monthNumber]=key.split('-').map(Number),check=diagMeta();
+  traceMental('CLOUD_READBACK_REQUEST',{date,requestId:check.requestId,revision:String(result.revision||'')});
+  cloudCall('getMentalMonth',[cloudCode,year,monthNumber,check],readback=>{
+   if(epoch!==cloudEpoch||!unlocked)return;
+   const server=readback?.records?.[date];
+   const valid=Boolean(readback?.ok&&server&&
+     String(server.revision||'')===String(result.revision||'')&&
+     sameRemoteData(p.entry,server,p.letterOnly));
+   if(!valid){retry('readback_mismatch');return;}
+   traceMental('CLOUD_READBACK_OK',{date,requestId:check.requestId,
+     revision:String(server.revision||''),serverComplete:numberFilled(server)});
+   if(pending[date]&&JSON.stringify(pending[date].entry)===version){
+    if(p.letterOnly){
+     // Never replace richer device-only recovery details with the letter ACK row.
+     const current=records[date],remote=normalize(date,server);
+     if(localIsRicher(current,remote)){
+      locallyProtectedDates.add(date);
+      records[date]={...current,revision:String(server.revision||''),
+       husbandLetter:remote.husbandLetter,husbandLetterStatus:remote.husbandLetterStatus,
+       husbandLetterOpenedAt:remote.husbandLetterOpenedAt};
+      traceMental('LETTER_ACK_LOCAL_PROTECTED',{date,complete:numberFilled(current),serverComplete:numberFilled(remote)});
+     }else records[date]=remote;
+    }else{
+     records[date].revision=String(server.revision||'');
+     locallyProtectedDates.delete(date);
+    }
     delete pending[date];
-  }else if(pending[date]){
-    pending[date].expectedRevision=String(result.revision||"");
-    pending[date].entry.revision=String(result.revision||"");
-  }
-  saveLocal();progress("done","회복 기록 저장 완료");setState(stateText());
-  scheduleCloud(250);
-  if(screen){if(p.letterOnly&&selected===date&&!letterEditing)refreshScores();updateIndicators();}
- },err=>{if(epoch!==cloudEpoch||!unlocked)return;
-   cloudSaving=false;progress("error","회복 기록 저장 실패");
-   setState("서버 오류 · 기기 기록 보관: "+String(err?.message||err),true);
-   retryTimer=setTimeout(syncNext,10000);
- });
+   }else if(pending[date]){
+    // Edits made while syncing are not acknowledged by the old write.
+    pending[date].expectedRevision=String(server.revision||'');
+    pending[date].entry.revision=String(server.revision||'');
+    traceMental('CLOUD_CHANGED_DURING_SAVE',{date,reason:'new_edits_preserved'});
+   }
+   cloudSaving=false;
+   saveLocal();diag()?.flush(cloudCode);
+   progress('done','회복 기록 서버 재조회 검증 완료');
+   setState(stateText());scheduleCloud(250);
+   if(screen){updateIndicators();if(selected===date&&!letterEditing)render();}
+  },()=>retry('readback_failed'));
+ },()=>retry('save_rpc_failed'));
 }
 window.addEventListener("online",()=>{if(cloudReady)scheduleCloud(300);});
 window.addEventListener("pagehide",saveLocal);
