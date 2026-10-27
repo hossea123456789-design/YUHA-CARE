@@ -862,6 +862,19 @@ function bindHusbandLetter(){
   else setTimeout(finish,620);
  });
 }
+function identityNoticeHTML(){
+ if(diag()?.role()!=='unassigned')return '';
+ return '<div class="mental-safety-banner" id="mentalIdentityNotice"><strong>기기 로그 설정:</strong> '+
+  '현재 기기 사용자가 미지정입니다. 아내·남편 휴대폰을 구별해 저장 문제를 추적하려면 한 번씩 지정해 주세요. '+
+  '<button type="button" id="mentalIdentityConfigure">이 기기 구분 설정</button></div>';
+}
+function bindIdentityNotice(){
+ screen?.querySelector('#mentalIdentityConfigure')?.addEventListener('click',()=>{
+  const panel=screen?.querySelector('#mentalCloudDetails');if(panel){panel.open=true;
+   panel.scrollIntoView({behavior:'smooth',block:'start'});}
+  screen?.querySelector('#mentalDeviceRole')?.focus({preventScroll:true});
+ });
+}
 function syncSafetyHTML(){
  const n=Object.keys(pending).length,protectedCount=locallyProtectedDates.size;
  if(!n&&!protectedCount&&cloudReady)return '';
@@ -943,6 +956,7 @@ function bindDiagnostics(){
  role?.addEventListener('change',()=>{
   diag()?.setRole(role.value);
   diag()?.flush(cloudCode);
+  screen?.querySelector('#mentalIdentityNotice')?.remove();
  });
  screen?.querySelector('#mentalDiagExport')?.addEventListener('click',()=>diag()?.exportLocal());
  screen?.querySelector('#mentalDiagRead')?.addEventListener('click',()=>{
@@ -955,7 +969,7 @@ function bindDiagnostics(){
    if(!result?.ok){node.textContent='서버 로그 조회 오류';return;}
    const rows=Array.isArray(result.rows)?result.rows:[];
    node.textContent=rows.length?rows.map(x=>
-    [x.time,x.role,(x.deviceId||'').slice(0,12),x.os,x.browser,x.webview,x.event,x.target,x.result,x.detail]
+    [new Date(x.time).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false}),x.role,(x.deviceId||'').slice(0,12),x.os,x.browser,x.webview,x.event,x.target,x.result,x.detail]
     .filter(Boolean).join(' | ')).join('\n'):'아직 서버 로그가 없습니다.';
   },error=>{const node=screen?.querySelector('#mentalDiagResult');if(node)
    node.textContent='서버 로그 조회 실패: '+String(error?.message||error).slice(0,120);});
@@ -977,6 +991,7 @@ function view(){
   '<span class="count">Wife Mental Recovery · 개인 기록</span></div></div>'+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
+  identityNoticeHTML()+
   syncSafetyHTML()+
   dailyComfortHTML()+
   husbandLetterHTML()+
@@ -1104,6 +1119,7 @@ function setSelected(d){
 }
 function bind(){
  bindHusbandLetter();
+ bindIdentityNotice();
  bindSyncSafety();
  bindDiagnostics();
  screen.querySelector("#mentalExportBackup")?.addEventListener("click",exportMentalBackup);
