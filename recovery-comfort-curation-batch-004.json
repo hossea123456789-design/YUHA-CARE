@@ -1,0 +1,119 @@
+{
+  "batch": 4,
+  "from": 90,
+  "to": 99,
+  "source": "https://github.com/songys/Chatbot_data/blob/master/ChatbotData.csv",
+  "license": "MIT",
+  "quotes": [
+    {
+      "id": "songys-3570",
+      "text": "슈퍼우먼이 되려고 하지 마세요.",
+      "sourceId": "songys",
+      "sourceRow": 3570,
+      "sourcePrompt": "워킹맘 진짜 힘들다",
+      "category": "워킹맘 부담 완화",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "songys-2644",
+      "text": "일과 일상 사이에서 균형이 잘 맞길 바랄게요.",
+      "sourceId": "songys",
+      "sourceRow": 2644,
+      "sourcePrompt": "쉬고 싶은데 회식 가야돼",
+      "category": "일·생활 균형",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "songys-2853",
+      "text": "집에서 쉬는 시간도 필요해요.",
+      "sourceId": "songys",
+      "sourceRow": 2853,
+      "sourcePrompt": "아무 데도 안 나가고 집에 있고 싶다",
+      "category": "집에서의 휴식",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "songys-539",
+      "text": "지금도 충분히 잘 하고 있어요.",
+      "sourceId": "songys",
+      "sourceRow": 539,
+      "sourcePrompt": "나 인정받고 싶어",
+      "category": "노력 인정",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "songys-647",
+      "text": "자신과 대화하는 시간이 필요하죠.",
+      "sourceId": "songys",
+      "sourceRow": 647,
+      "sourcePrompt": "나만의 시간이 필요한 것 같아",
+      "category": "나만의 시간",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "songys-4127",
+      "text": "맛난거 드시고 조금이라도 쉬셔야 할텐데.",
+      "sourceId": "songys",
+      "sourceRow": 4127,
+      "sourcePrompt": "점심시간엔 그냥 쉬고 싶어",
+      "category": "기본욕구·식사·휴식",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "songys-4829",
+      "text": "몸과 마음이 좀 쉬어야 할 것 같아요.",
+      "sourceId": "songys",
+      "sourceRow": 4829,
+      "sourcePrompt": "퇴근하고 놀고 싶다.",
+      "category": "퇴근 후 소진",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "songys-3937",
+      "text": "자신만의 시간이 필요한가봐요.",
+      "sourceId": "songys",
+      "sourceRow": 3937,
+      "sourcePrompt": "자유시간 갖고 싶어",
+      "category": "개인시간 필요",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "songys-3945",
+      "text": "잘하고 있다고 괜찮다고 스스로에게 말해보세요.",
+      "sourceId": "songys",
+      "sourceRow": 3945,
+      "sourcePrompt": "자존감 어떻게 올려?",
+      "category": "자기 비난 완화",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "songys-2314",
+      "text": "이름, 직업 등 말고 온전히 자신으로 사는 거죠.",
+      "sourceId": "songys",
+      "sourceRow": 2314,
+      "sourcePrompt": "산다는건 뭘까?",
+      "category": "자아 정체성",
+      "reviewed": true,
+      "collectionBatch": "batch-004",
+      "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    }
+  ]
+}
