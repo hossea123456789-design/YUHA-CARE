@@ -38,7 +38,7 @@ function mental(env){
  let src=fs.readFileSync('mental.js','utf8');
  const marker='window.YuhaMental={render,lock,activate';
  assert(src.includes(marker));
- src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false},protected:()=>[...locallyProtectedDates]};'+marker);
+ src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
  env.win.YuhaMentalDiagnostics={emit:()=>{},metadata:()=>({requestId:'test'}),flush:()=>{},setBackendSupport:()=>{}};
  vm.runInNewContext(src,env.ctx,{filename:'mental.js'});
  return env.win.__test;
