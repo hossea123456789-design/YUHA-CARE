@@ -1,11 +1,11 @@
 {
-  "version": "2026-10-27-curated-progress-v3",
+  "version": "2026-10-27-curated-progress-v4",
   "target": 1000,
-  "count": 99,
-  "remaining": 901,
+  "count": 109,
+  "remaining": 891,
   "counts": {
     "preservedOriginalReviewed": 59,
-    "newlySelectedSourceQuotes": 40
+    "newlySelectedSourceQuotes": 50
   },
   "selection": "원래 검수된 59개를 보존하고 신규 원문 수집분을 추가. 기존 941개 screened 후보는 검수 완료로 계산하지 않음.",
   "status": "IN_PROGRESS_NOT_YET_LIVE",
@@ -1082,6 +1082,116 @@
       "reviewed": true,
       "collectionBatch": "batch-004",
       "reviewerNote": "원문 Q/A 문맥 및 육아·직장 병행 상황에 대한 독립 노출 적합성 확인"
+    },
+    {
+      "id": "kmi-17-2",
+      "text": "그 상황들이 정말 마음에 큰 부담을 주고 있었네요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 17,
+      "sourceTurn": 2,
+      "category": "업무 부담",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
+    },
+    {
+      "id": "kmi-24-2",
+      "text": "그 감정들이 일상에서 많은 영향을 미치고 있겠군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 24,
+      "sourceTurn": 2,
+      "category": "피로·불안",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
+    },
+    {
+      "id": "kmi-98-8",
+      "text": "그 무거운 마음을 어떻게 해야 할지 막막하시군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 98,
+      "sourceTurn": 8,
+      "category": "막막한 마음",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
+    },
+    {
+      "id": "kmi-104-10",
+      "text": "스스로를 자책하게 되는 순간들이 있으시군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 104,
+      "sourceTurn": 10,
+      "category": "자책감",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
+    },
+    {
+      "id": "kmi-113-4",
+      "text": "감정을 혼자서 다뤄야 한다는 부담감이 크시군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 113,
+      "sourceTurn": 4,
+      "category": "감정 부담",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
+    },
+    {
+      "id": "kmi-101-2",
+      "text": "밤이 되면 감정적으로 힘든 시간을 보내고 계시는군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 101,
+      "sourceTurn": 2,
+      "category": "밤의 감정적 소진",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
+    },
+    {
+      "id": "kmi-91-10",
+      "text": "스트레스와 불안을 관리하고 싶다는 생각이 점점 강해지고 있네요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 91,
+      "sourceTurn": 10,
+      "category": "스트레스 관리 의지",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
+    },
+    {
+      "id": "kmi-4-20",
+      "text": "조금씩 마음이 편안해지기를 바라신다는 말씀이시군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 4,
+      "sourceTurn": 20,
+      "category": "평온을 바라는 마음",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
+    },
+    {
+      "id": "kmi-19-16",
+      "text": "어려운 순간에도 조금씩 시도해 보려는 노력을 하고 계시군요.",
+      "sourceId": "kmi",
+      "sourceDialogue": 19,
+      "sourceTurn": 16,
+      "category": "조금씩 시도하는 용기",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
+    },
+    {
+      "id": "kmi-75-8",
+      "text": "무기력함의 반복에서 벗어나려는 마음이 강하신 것 같습니다.",
+      "sourceId": "kmi",
+      "sourceDialogue": 75,
+      "sourceTurn": 8,
+      "category": "무기력과 회복",
+      "collectionBatch": "batch-005",
+      "reviewed": true,
+      "reviewerNote": "상담자 원문과 앞뒤 상담 문맥 확인. 특정 타인·질환을 단정하지 않는 일반 공감 문장"
     }
   ]
 }
