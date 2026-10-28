@@ -798,3 +798,33 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 감사 로그/보호 코드 포함 소스 커밋 d2c0b78877adfb018639e268bed354de30db34ba에 대한 Pages Actions run 40549943188: status completed, conclusion success, head_sha가 소스 커밋과 일치함. deploy-pages 단계 및 공개 mental-diagnostics.js 파일 HTTP 스모크 테스트 성공.
 - 자동 합성 데이터 테스트: 브라우저 ID/역할 유지 및 원문 비기록, 진단 큐 서버 ACK, 비어 있는 서버 조회로부터 로컬 기록 보존, 서버 재조회 revision 불일치 시 pending 유지, 편지 저장 검증 뒤 아내 점수 유지 통과. 문법 검사 mental.js/mental-diagnostics.js/bridge-client.js/Code.gs 통과.
 - 실제 Apps Script 배포 및 운영 MENTAL_AUDIT_LOG 생성, 아내·남편 실기기 2대의 동기화/로그 교차 검증은 미완료. 성공으로 오인 금지. 사용자의 실기록은 테스트 목적으로 변경하지 않음.
+
+
+## 36. 2026-10-28 — 기기/서버 충돌의 원본 이중 보관과 사용자 선택 병합
+
+### 사건과 안전 요건
+- 실서버 2026-10-27 날짜에 저장 거절 SERVER_SAVE_CONFLICT / CLIENT_CLOUD_SAVE_CONFLICT가 발생한 것으로 확인. 당시 Windows Edge에서 165자 메모 로컬 저장 성공 이벤트가 있었으나 원본 MENTAL_LOG의 동일 날짜 메모는 5자. 남편 휴대폰의 기록과 서버의 기록은 같아도 아내 기기에서 기록이 아직 서버에 반영되지 않았다면 다른 기기에는 표시될 수 없었다.
+- 실서버 MENTAL_LOG와 기존 Google Sheets 내용을 자동 보정·삭제·덮어쓰지 않는다. 이전 미전송 원본이 남았을 수 있는 Windows Edge 브라우저 사이트 데이터는 삭제 금지.
+- 저장 충돌이 나면 사용자에게 몰래 서버값 또는 로컬값을 일괄 택하거나 날짜를 지우지 않는다.
+
+### 클라이언트 설계 / 주요 파일
+- mental.js: 기존 단일 임시 conflict 변수 대신 날짜별 conflicts 객체와 전용 로컬 저장 키 yuha_mental_recovery_conflicts_v1. 별도 안전 스냅샷 키 yuha_mental_recovery_conflict_snapshots_v1은 두 완전한 JSON 원본(기기/서버), 대상 날짜, 서버 revision을 보관한다. 기존 기기 원본, 서버 원본, 일반 로컬 기록, 미전송 큐를 보존한다. 브라우저 탭 재접속/PIN 해제 후 복원된다.
+- 충돌이 탐지되면 registerConflict가 즉시 스냅샷 기록 및 상태 저장. 기기 저장소 실패 시 storageOkay=false로 기록하고 충돌 해결 및 서버 저장을 중단한다. 원본 삭제, 캐시 초기화, resetServerData 호출 금지.
+- 충돌 날짜별 비교 UI: 7개 점수, 메모, 개인시간, 개인시간 유형, 미룬 기본욕구, Context, 남편 편지 묶음(본문/봉인/열람 상태)의 실제 서로 다른 필드마다 기기 또는 서버 원본을 명시적으로 선택해야만 저장 버튼 활성화. HTML 출력은 이스케이프하며 원문은 PIN 이후 해당 기기에만 표시. 긴 메모는 스크롤 가능한 본문으로 보여준다.
+- 사용자 승인 후에도 추가 로컬 스냅샷을 남기고, 선택한 값만 merged entry로 구성한다. 메모를 선택한 경우 선택하지 않은 점수/편지를 건드리지 않는다. 모든 선택이 끝나지 않았거나 저장소 오류, 서버 미연결, 백엔드 스키마 v5 미만이면 전송 금지. 양쪽 원본 다운로드 JSON 기능 제공.
+- 이미 보류된 다른 날짜 기록은 계속 전송할 수 있으나 충돌 날짜는 사용자 선택 전에 강제 재전송하지 않는다. 개별 날짜가 여러 개 충돌할 때도 각각 독립적으로 보존/표시한다.
+- pending에 resolution (confirmed=true, serverRevision, originalLocal)을 넣고 앱 종료 후에도 보존. 사용자 승인 이후 서버가 또 바뀌면 이전 병합안을 강제 적용하지 않고 originalLocal을 복원해 현재 서버 버전과 다시 비교한다. readback 성공과 서버 archive ACK 두 개가 모두 확인될 때만 pending 및 conflicts를 삭제한다.
+- 기존 localIsRicher/로컬 보호, 기존 검수된 위로 1,000개, 체크리스트/수면/API URL과 화면 전반은 변경 없음. mental.css에는 모바일 320px부터 작동하는 충돌 필드 양쪽 비교 카드와 터치형 버튼만 추가. index.html 자산 버전은 20261028-conflict-resolve2.
+
+### Apps Script v5 원본 보관 프로토콜
+- GitHub apps-script/Code.gs의 getMentalMonth가 schemaVersion: 5를 반환(서버 월 조회 진단 로그도 schema=5). 이전 backend schema 4에서는 충돌 병합 전송을 금지하며 원본을 계속 기기에 보존한다.
+- syncMentalEntry가 사용자가 명시한 resolution을 받으면 ScriptLock 하에서 *현재 서버 revision이 사용자가 확인한 revision과 같은지* 확인한다. 불일치면 기존 conflict 응답, 기존 원본 무변경.
+- revision 확인 후 mentalArchiveResolvedConflict_가 기존 활성 스프레드시트에 MENTAL_CONFLICT_ARCHIVE(8열)를 추가하고 서버 원본 JSON, 기기 원본 JSON, 반영할 병합본 JSON, 익명 기기 ID, 날짜, 서버 revision을 한 행으로 먼저 append/flush. 이 보관이 예외 또는 실패라면 MENTAL_LOG를 쓰지 않는다.
+- 양쪽 원본을 저장한 뒤 MENTAL_LOG 최신 버전으로 갱신하고 audit SERVER_CONFLICT_ARCHIVED/SERVER_SAVE_ACK를 남긴다. 병합 결과가 서버와 동일하여 갱신이 불필요한 경우도 양쪽 원본은 선보관한다. 수신 결과의 conflictArchived=true와 별도의 getMentalMonth readback revision/내용 검증이 일치해야 최종 클라이언트 성공.
+- MENTAL_CONFLICT_ARCHIVE에는 매우 민감한 **실제 원문이 포함**되므로 기존 MENTAL_LOG와 동일한 개인정보 수준으로 스프레드시트 공유 권한 및 접근 보호가 필요. 공개 GitHub/진단용 MENTAL_AUDIT_LOG에는 원문을 기록하지 않음.
+- GitHub Code.gs 커밋은 현재 운영 Apps Script 자동 반영이 아니다. 기존 프로젝트의 Code.gs 교체→배포 관리→기존 웹앱 수정→새 버전 업데이트 필수. 변경 전의 정상 schema 4 감사 로그/기존 사용자 원본 시트는 보존. 신규 버전 배포 후 실제 schemaVersion 5 확인.
+
+### 검증 / 남은 일
+- tests/mental-diagnostics.test.js에 합성 데이터 테스트 추가: 서로 다른 165자/짧은 메모 각각 보존, 필드별 선택 병합, 서버 archive ACK 누락 시 pending 유지, 서버 추가 변경 중 새 충돌시 localOriginal 복원, 브라우저 재진입 후 충돌 양 원본 복원, 구버전 백엔드에서 저장 중단. 기존 디바이스 로그/로컬 보호/저장 readback 테스트도 유지.
+- GitHub Actions는 front JS + Apps Script 문법 및 합성 테스트 후 Pages deploy. 최종 커밋/워크플로 conclusion은 배포 실행 결과를 별도 확인한 뒤 보고.
+- Apps Script 실제 v5 운영 배포, 새 MENTAL_CONFLICT_ARCHIVE 라이브 생성, Windows Edge에서 과거 2026-10-27 실기기 충돌 해결, 아내/남편 휴대폰에서 복구 후 동일 자료 조회는 **미검증**. 사용자가 값을 승인하지 않는 한 실제 Sheets 사용자 데이터를 변경하지 않는다.
