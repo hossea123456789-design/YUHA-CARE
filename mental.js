@@ -326,8 +326,9 @@ function mergeCloudMonth(incoming){
      server.memo.length>local.memo.length&&
      sameWithoutMemo(local,server)){
     if(archiveBeforeLongerCloudMemo(date,local,server)){
-     traceMental('CLOUD_LONGER_MEMO_APPLIED',{date,memoLength:local.memo.length,
-      serverComplete:numberFilled(server),reason:'server_longer_verified_fields_equal'});
+     traceMental('CLOUD_LONGER_MEMO_APPLIED',{date,count:local.memo.length,
+      memoLength:server.memo.length,serverComplete:numberFilled(server),
+      reason:'server_longer_verified_fields_equal'});
      records[date]=server;
      locallyProtectedDates.delete(date);
      delete protectedServerRows[date];
@@ -340,7 +341,8 @@ function mergeCloudMonth(incoming){
    if(localIsRicher(records[date],server)){
     const local=normalize(date,records[date]);
     traceMental('CLOUD_LOCAL_DIVERGENCE',{date,complete:numberFilled(local),
-      serverComplete:numberFilled(server),memoLength:local.memo.length,reason:'protected_local'});
+      serverComplete:numberFilled(server),memoLength:local.memo.length,
+      count:server.memo.length,reason:'protected_local'});
     locallyProtectedDates.add(date);
     protectedServerRows[date]=server;
     // Previously this returned without offering a recovery path if server
@@ -354,7 +356,8 @@ function mergeCloudMonth(incoming){
     }
     continue; // Device original is never erased by a stale server response.
    }
-   traceMental('CLOUD_READ_MERGED',{date,complete:numberFilled(server),reason:'accepted_server'});
+   traceMental('CLOUD_READ_MERGED',{date,complete:numberFilled(server),
+      memoLength:server.memo.length,reason:'accepted_server'});
    records[date]=server;locallyProtectedDates.delete(date);
    delete protectedServerRows[date];
   }else if(!pending[date].letterOnly){
