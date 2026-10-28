@@ -293,16 +293,42 @@ function mergeCloudMonth(incoming){
   const server=normalize(date,value);
   if(!pending[date]){
    if(localIsRicher(records[date],server)){
-    traceMental('CLOUD_LOCAL_DIVERGENCE',{date,complete:numberFilled(records[date]),serverComplete:numberFilled(server),reason:'protected_local'});
+    const local=normalize(date,records[date]);
+    traceMental('CLOUD_LOCAL_DIVERGENCE',{date,complete:numberFilled(local),
+      serverComplete:numberFilled(server),memoLength:local.memo.length,reason:'protected_local'});
     locallyProtectedDates.add(date);
     protectedServerRows[date]=server;
-    continue; // Never erase richer local records with empty/stale cloud rows.
+    // Previously this returned without offering a recovery path if server
+    // already had scores. A locally complete memo could remain invisible to
+    // every other device indefinitely. Promote divergence to a REVIEW ONLY
+    // conflict (never an automatic overwrite).
+    if(server.revision&&differingFields(local,server).length){
+     pending[date]={entry:local,expectedRevision:String(local.revision||""),
+      letterOnly:false,letterAction:"",resolution:null};
+     registerConflict(date,local,server,server.revision,'local_richer_than_cloud');
+    }
+    continue; // Device original is never erased by a stale server response.
    }
    traceMental('CLOUD_READ_MERGED',{date,complete:numberFilled(server),reason:'accepted_server'});
    records[date]=server;locallyProtectedDates.delete(date);
    delete protectedServerRows[date];
-  }else if(!pending[date].letterOnly&&pending[date].expectedRevision===""&&server.revision){
-   registerConflict(date,pending[date].entry,server,server.revision,'initial_revision_mismatch');
+  }else if(!pending[date].letterOnly){
+   const local=pending[date].entry;
+   // Full payload already exists on the cloud, perhaps after a previous
+   // successful save whose ACK was lost: clear only after exact comparison.
+   if(sameRemoteData(local,server,false)){
+    traceMental('CLOUD_PENDING_ALREADY_SYNCED',{date,serverComplete:numberFilled(server),
+      memoLength:server.memo.length,reason:'readback_equal'});
+    records[date]=server;delete pending[date];delete conflicts[date];
+    delete conflictChoices[date];locallyProtectedDates.delete(date);
+    delete protectedServerRows[date];
+   }else if(server.revision &&
+     (!conflicts[date]&&String(pending[date].expectedRevision||"")!==String(server.revision) ||
+      conflicts[date]&&String(conflicts[date].revision||"")!==String(server.revision))){
+    // Also covers stale expectedRevision, not only the old empty-revision case.
+    registerConflict(date,pending[date].resolution?.originalLocal||local,
+      server,server.revision,'cloud_revision_mismatch');
+   }
   }
  }
 }
