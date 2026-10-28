@@ -38,7 +38,7 @@ function mental(env){
  let src=fs.readFileSync('mental.js','utf8');
  const marker='window.YuhaMental={render,lock,activate';
  assert(src.includes(marker));
- src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,conflicts,conflictChoices,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
+ src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,hydrate,conflicts,conflictChoices,setArchiveSupport:v=>conflictArchiveSupported=v,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
  env.win.YuhaMentalDiagnostics={emit:()=>{},metadata:()=>({requestId:'test'}),flush:()=>{},setBackendSupport:()=>{}};
  vm.runInNewContext(src,env.ctx,{filename:'mental.js'});
  return env.win.__test;
@@ -144,4 +144,27 @@ function rpc(env,save,read){
  assert.equal(t.getPending()[date].entry.memo,'local revised memo');
  assert.equal(t.getPending()[date].resolution,null);
  console.log('PASS: further server edits reopen comparison and restore original local draft');
+})();
+
+(function testRecoveryAfterBrowserRestartAndOldBackend(){
+ const date='2026-10-27',first=env(),t=mental(first);
+ const local=t.normalize(date,{...record(date),memo:'long device original'});
+ const server=t.normalize(date,{...record(date),memo:'server original',revision:'r2'});
+ t.setRecords({[date]:local});
+ t.setPending({[date]:{entry:local,expectedRevision:'r1',letterOnly:false}});
+ t.setSession();
+ assert(t.registerConflict(date,local,server,'r2','test'));
+ const second=env(first.store),reopened=mental(second);
+ reopened.hydrate();reopened.setSession();
+ assert.equal(reopened.conflicts[date].server.memo,'server original');
+ assert.equal(reopened.getPending()[date].entry.memo,'long device original');
+ reopened.setArchiveSupport(false);
+ let remoteWrite=false;
+ rpc(second,()=>{remoteWrite=true;return {ok:true,revision:'r3'};},()=>({ok:true,records:{}}));
+ for(const diff of reopened.differingFields(local,server))
+  (reopened.conflictChoices[date]??={})[diff.key]='local';
+ reopened.resolveConflict(date);
+ assert(!remoteWrite,'Old backend must never receive unarchived resolution');
+ assert.equal(reopened.getPending()[date].entry.memo,'long device original');
+ console.log('PASS: browser restart restores both originals and outdated Apps Script blocks overwrite');
 })();
