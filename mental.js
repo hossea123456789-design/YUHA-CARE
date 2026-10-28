@@ -287,11 +287,56 @@ function localIsRicher(a,b){
  if(a.offDutyMinutes>0&&!b.offDutyMinutes)return true;
  return ["contexts","offDutyType","basicNeedsDelayed"].some(key=>a[key]?.some(v=>!b[key]?.includes(v)));
 }
+// A longer cloud memo may be a verified repair of an old truncated
+// device cache. Promote only when *every other logical field* is identical,
+// and preserve the shorter device original before refreshing the display.
+function sameWithoutMemo(a,b){
+ const left=normalize(a.date,a),right=normalize(b.date,b);
+ return ['scores','offDutyMinutes','offDutyType','basicNeedsDelayed','contexts',
+  'husbandLetter','husbandLetterStatus','husbandLetterOpenedAt']
+  .every(key=>JSON.stringify(left[key])===JSON.stringify(right[key]));
+}
+function archiveBeforeLongerCloudMemo(date,local,server){
+ try{
+  const old=storageRead(CONFLICT_HISTORY,[]);
+  const history=Array.isArray(old)?old:[];
+  const signature='server-longer-'+date+'-'+String(server.revision||'');
+  if(!history.some(x=>x.signature===signature)){
+   history.push({signature,date,reason:'server_memo_longer_than_device',
+    createdAt:new Date().toISOString(),local:normalize(date,local),server:normalize(date,server)});
+   localStorage.setItem(CONFLICT_HISTORY,JSON.stringify(history.slice(-35)));
+  }
+  return true;
+ }catch(err){
+  storageOkay=false;
+  traceMental('CLOUD_PROMOTION_BACKUP_FAILED',{date,reason:'local_storage',storageOk:false});
+  return false;
+ }
+}
 function mergeCloudMonth(incoming){
  archiveMental("before-cloud-read");
  for(const [date,value] of Object.entries(incoming||{})){
   const server=normalize(date,value);
   if(!pending[date]){
+   const local=records[date];
+   // Fix the opposite direction of the original data-loss guard:
+   // a *shorter* stale local memo must not hide a longer verified server memo
+   // from the husband's device after a legitimate cloud restoration.
+   if(local&&server.memo&&local.memo&&
+     server.memo.length>local.memo.length&&
+     sameWithoutMemo(local,server)){
+    if(archiveBeforeLongerCloudMemo(date,local,server)){
+     traceMental('CLOUD_LONGER_MEMO_APPLIED',{date,memoLength:local.memo.length,
+      serverComplete:numberFilled(server),reason:'server_longer_verified_fields_equal'});
+     records[date]=server;
+     locallyProtectedDates.delete(date);
+     delete protectedServerRows[date];
+    }else{
+     locallyProtectedDates.add(date);
+     protectedServerRows[date]=server;
+    }
+    continue;
+   }
    if(localIsRicher(records[date],server)){
     const local=normalize(date,records[date]);
     traceMental('CLOUD_LOCAL_DIVERGENCE',{date,complete:numberFilled(local),
