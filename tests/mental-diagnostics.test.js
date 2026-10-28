@@ -168,3 +168,41 @@ function rpc(env,save,read){
  assert.equal(reopened.getPending()[date].entry.memo,'long device original');
  console.log('PASS: browser restart restores both originals and outdated Apps Script blocks overwrite');
 })();
+
+(function testMemoDivergenceIsReviewableWithExistingScores(){
+ const date='2026-10-27',env1=env(),t=mental(env1);
+ const local=t.normalize(date,{...record(date),memo:'long complete note'.repeat(15),revision:'old'});
+ const server=t.normalize(date,{...record(date),memo:'short',revision:'server-v5'});
+ t.setRecords({[date]:local});
+ t.mergeCloudMonth({[date]:server});
+ assert.equal(t.getRecords()[date].memo.length,local.memo.length);
+ assert.equal(t.getPending()[date].entry.memo.length,local.memo.length);
+ assert.equal(t.conflicts[date].server.memo,'short');
+ assert.equal(t.getPending()[date].resolution,null);
+ assert.equal(t.conflicts[date].phase,'review');
+ const history=JSON.parse(env1.store.getItem('yuha_mental_recovery_conflict_snapshots_v1'));
+ assert(history.some(x=>x.local.memo===local.memo&&x.server.memo==='short'));
+ console.log('PASS: complete local memo is reviewable against truncated cloud despite 7/7 scores');
+})();
+(function testOfflineEditsWithStaleRevisionAreNotSentBlindly(){
+ const date='2026-10-27',env1=env(),t=mental(env1);
+ const local=t.normalize(date,{...record(date),memo:'edited offline',revision:'old'});
+ const server=t.normalize(date,{...record(date),memo:'latest elsewhere',revision:'new'});
+ t.setRecords({[date]:local});
+ t.setPending({[date]:{entry:local,expectedRevision:'old',letterOnly:false}});
+ t.mergeCloudMonth({[date]:server});
+ assert.equal(t.conflicts[date].revision,'new');
+ assert.equal(t.getRecords()[date].memo,'edited offline');
+ console.log('PASS: stale nonempty revision is caught on cloud read before a write');
+})();
+(function testLostAckWhenCloudMatchesPending(){
+ const date='2026-10-27',env1=env(),t=mental(env1);
+ const local=t.normalize(date,{...record(date),memo:'this was already saved'});
+ const server=t.normalize(date,{...local,revision:'latest'});
+ t.setRecords({[date]:local});
+ t.setPending({[date]:{entry:local,expectedRevision:'earlier',letterOnly:false}});
+ t.mergeCloudMonth({[date]:server});
+ assert.equal(t.getPending()[date],undefined);
+ assert.equal(t.getRecords()[date].memo,'this was already saved');
+ console.log('PASS: cloud exact match safely releases pending save after lost ACK');
+})();
