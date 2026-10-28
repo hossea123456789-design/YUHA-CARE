@@ -852,3 +852,10 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 캐시 버전은 index.html의 mental.js?v=20261028-memo-repair3으로 갱신.
 - 테스트 tests/mental-diagnostics.test.js: 7/7 점수가 있는 서버에서 로컬의 긴 메모를 보호해 충돌 UI로 등록, 오래된 nonempty revision 충돌 감지, 이미 서버에 있는 같은 데이터의 pending 해제, 남편 단말의 5자 stale 캐시보다 168자 서버 메모 표시와 기기 원본 자동 보관, 점수가 다른 경우에는 자동 프로모션 금지.
 - 웹앱 실제 남편 기기 브라우저의 화면 재확인은 아직 수행하지 않았으므로 GitHub Pages 배포 완료와 분리해 결과 보고할 것.
+
+
+### 2026-10-28 최종 로그 보강 / 개인정보 보호 유의
+- CLIENT_CLOUD_READ_MERGED에 각 날짜의 서버 memoLength, CLIENT_CLOUD_LONGER_MEMO_APPLIED에 기기 캐시 길이(count)와 복구된 서버 메모 길이(memoLength), CLIENT_CLOUD_LOCAL_DIVERGENCE에 서버·기기 메모의 길이만 기록. 기록의 실제 문장, PIN, 실제 점수 값은 진단 로그에 절대 기록하지 않는다.
+- 코드 배포 자산 버전 mental.js?v=20261028-memo-repair4. 기존 Apps Script schemaVersion=5 유지, 추가 서버 배포 불필요.
+- 테스트 데이터는 공개 저장소에 개인 회복 메모 원문을 복제하지 않는 합성 텍스트만 사용한다. 현재 main 코드는 합성 예시로만 QA. 과거 코드 객체 또는 CI 캐시에 개인 내용이 남는 위험을 낮추기 위해 main 커밋 이력 중 노출 위험이 있었던 구간을 제외하고 보존된 최종 트리로 재구성함. 원격의 고립된 과거 Git 객체나 배포 캐시까지 물리적으로 삭제됐다고 단정하지 말 것.
+- 사용자가 실제 남편 휴대폰에서 앱을 다시 열어 PIN 인증한 뒤 CLIENT_CLOUD_LONGER_MEMO_APPLIED 또는 CLIENT_CLOUD_READ_MERGED(memoLength=168) 로그가 수집되는지 확인할 것. 원본 파일 복구 완료와 각 단말의 화면 실제 갱신 성공은 별도 단계로 보고할 것.
