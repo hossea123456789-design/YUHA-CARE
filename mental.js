@@ -449,9 +449,12 @@ function syncNext(){
  const dates=Object.keys(pending).sort();
  if(!dates.length)return;
  const date=dates.find(d=>(!conflicts[d]||Boolean(pending[d].resolution)) &&
+  (!pending[d].resolution||conflictArchiveSupported) &&
   (letterBackendSupported||(!pending[d].letterOnly&&!pending[d].entry.husbandLetter)));
  if(!date){
-  if(Object.keys(conflicts).length)setState('기록 충돌 · 비교 후 원본을 선택하고 저장해 주세요',true);
+  if(Object.keys(conflicts).length)setState(
+    conflictArchiveSupported?'기록 충돌 · 비교 후 원본을 선택하고 저장해 주세요':
+    '안전 보관 서버(v5) 배포 필요 · 충돌 기록은 기기에 보관 중',true);
   else setState('편지 전송 대기 · 최신 Apps Script Code.gs 배포 필요 · 기기 기록 보관',true);
   return;
  }
@@ -1004,7 +1007,7 @@ function conflictPanelHTML(){
      rows+'<p>미선택 항목: '+remaining+'개</p>')+
     '<div class="mental-conflict-actions"><button type="button" data-conflict-backup="'+E(date)+'">양쪽 원본 백업</button>'+
     (c.phase==="resolving"?'': '<button type="button" data-conflict-resolve="'+E(date)+'" '+
-      (!conflictArchiveSupported||remaining?'disabled':'')+'>선택한 값으로 안전하게 저장</button>')+'</div>'+
+      (!cloudReady||!storageOkay||!conflictArchiveSupported||remaining?'disabled':'')+'>선택한 값으로 안전하게 저장</button>')+'</div>'+
     (!conflictArchiveSupported?'<p class="mental-conflict-wait">원본 보관 API(v5) 운영 배포 전에는 덮어쓰기를 차단합니다.</p>':'')+
     '</article>';
   }).join("")+'</section>';
@@ -1052,7 +1055,10 @@ function resolveConflict(date){
  const persisted=saveLocal();
  traceMental("CONFLICT_RESOLUTION_SELECTED",{date,complete:numberFilled(merged),
    serverComplete:numberFilled(c.server),storageOk:persisted,reason:"per_field_choice"});
- if(!persisted){c.phase="review";return;}
+ if(!persisted){
+  records[date]=original;pending[date]=p;c.phase="review";
+  setState("기기 원본 저장 오류 · 서버에 전송하지 않았습니다",true);return;
+ }
  render();scheduleCloud(100);
 }
 function registerConflictBeforeResolution(date,original,c){
