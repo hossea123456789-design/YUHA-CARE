@@ -828,3 +828,10 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - tests/mental-diagnostics.test.js에 합성 데이터 테스트 추가: 서로 다른 165자/짧은 메모 각각 보존, 필드별 선택 병합, 서버 archive ACK 누락 시 pending 유지, 서버 추가 변경 중 새 충돌시 localOriginal 복원, 브라우저 재진입 후 충돌 양 원본 복원, 구버전 백엔드에서 저장 중단. 기존 디바이스 로그/로컬 보호/저장 readback 테스트도 유지.
 - GitHub Actions는 front JS + Apps Script 문법 및 합성 테스트 후 Pages deploy. 최종 커밋/워크플로 conclusion은 배포 실행 결과를 별도 확인한 뒤 보고.
 - Apps Script 실제 v5 운영 배포, 새 MENTAL_CONFLICT_ARCHIVE 라이브 생성, Windows Edge에서 과거 2026-10-27 실기기 충돌 해결, 아내/남편 휴대폰에서 복구 후 동일 자료 조회는 **미검증**. 사용자가 값을 승인하지 않는 한 실제 Sheets 사용자 데이터를 변경하지 않는다.
+
+
+### 2026-10-28 충돌 복구 테스트와 GitHub Pages 배포 검증
+- CI 파일 tests/mental-server-conflicts.test.js를 새로 추가. Google Apps Script SpreadsheetApp/LockService를 **가상화한 DB**에서 클라이언트 승인 resolution을 수신한 경우 양쪽 원본을 먼저 MENTAL_CONFLICT_ARCHIVE에 쓰고 MENTAL_LOG를 저장하는 순서를 확인.
+- 구체 테스트: (1) 실제 서버 레코드 덮기 전 서버 원본과 기기 원본 스냅샷, (2) 서버 revision mismatch는 기록 변경 없이 충돌 반환, (3) 보관 시트 append 실패는 활성 서버 기록 미변경, (4) 사용자 선택 결과가 서버 원본과 같아도 양 원본 아카이브, (5) getMentalMonth 스키마 5 반환.
+- tests/mental-diagnostics.test.js: per-browser 진단 식별/원문 비기록, 서버 조회 병합 보호, 불일치시 미전송 큐 유지, 편지 ACK 보호, 필드별 선택 병합, 서버 archive ACK 없을 때 보류, 재차 충돌시 원본 복귀, 새로고침 이후 원본 재로딩, 구버전 Apps Script 덮어쓰기 차단. 기존 실사용 MENTAL_LOG는 테스트에서 사용하지 않았다.
+- 워크플로에 위 두 합성 테스트와 Code.gs/프론트 JS 구문 검사를 포함. GitHub Pages 작업이 성공해도 Apps Script 운영 웹앱 배포·실기기 검증과는 엄격히 별도로 기록한다.
