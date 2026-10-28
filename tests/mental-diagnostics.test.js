@@ -2,7 +2,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require('crypto');
 const STORE=()=>{const m=new Map();return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)}};
 function env(store=STORE()){
- const win={crypto:crypto.webcrypto,innerWidth:390,innerHeight:844,addEventListener:()=>{}};
+ const win={crypto:crypto.webcrypto,innerWidth:390,innerHeight:844,addEventListener:()=>{},confirm:()=>true};
  const ctx={window:win,document:{hidden:false,addEventListener:()=>{},getElementById:()=>null},
   navigator:{onLine:true,userAgent:'Mozilla/5.0 (Linux; Android 15) Chrome/145 SamsungBrowser/29'},
   location:{origin:'https://hossea123456789-design.github.io'},
@@ -38,7 +38,7 @@ function mental(env){
  let src=fs.readFileSync('mental.js','utf8');
  const marker='window.YuhaMental={render,lock,activate';
  assert(src.includes(marker));
- src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
+ src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,conflicts,conflictChoices,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
  env.win.YuhaMentalDiagnostics={emit:()=>{},metadata:()=>({requestId:'test'}),flush:()=>{},setBackendSupport:()=>{}};
  vm.runInNewContext(src,env.ctx,{filename:'mental.js'});
  return env.win.__test;
@@ -83,4 +83,65 @@ function rpc(env,save,read){
  assert.equal(t.getRecords()[date].scores.energy,7);
  assert.equal(Object.keys(t.getPending()).length,0);
  console.log('PASS: verified letter ACK preserves local-only recovery scores');
+})();
+
+(function testConflictRetainedAndResolved(){
+ const date='2026-10-27',e=env(),t=mental(e);
+ const original=t.normalize(date,{...record(date),memo:'an unsynced local memo of 165 characters'.padEnd(165,'x')});
+ const server=t.normalize(date,{...record(date),memo:'short',revision:'server-v2'});
+ t.setRecords({[date]:original});
+ t.setPending({[date]:{entry:original,expectedRevision:'server-v1',letterOnly:false,letterAction:''}});
+ t.setSession();
+ assert.equal(t.registerConflict(date,original,server,'server-v2','revision_mismatch'),true);
+ assert(t.conflicts[date]);
+ const history=JSON.parse(e.store.getItem('yuha_mental_recovery_conflict_snapshots_v1'));
+ assert(history[0].local.memo.length===165&&history[0].server.memo==='short');
+ const keys=t.differingFields(original,server).map(x=>x.key);
+ assert(keys.includes('memo'));
+ for(const key of keys)t.conflictChoices[date]??={},t.conflictChoices[date][key]='local';
+ let seen=null;
+ rpc(e,(payload)=>{seen=payload;return {ok:true,revision:'server-v3',serverEntry:payload.entry,conflictArchived:true};},
+  ()=>({ok:true,records:{[date]:{...seen.entry,revision:'server-v3'}}}));
+ t.resolveConflict(date);
+ assert(t.getPending()[date].resolution.confirmed);
+ assert.equal(t.getPending()[date].entry.memo.length,165);
+ t.syncNext();
+ assert.equal(Object.keys(t.getPending()).length,0);
+ assert.equal(Object.keys(t.conflicts).length,0);
+ assert.equal(t.getRecords()[date].memo.length,165);
+ assert.equal(seen.resolution.originalLocal.memo.length,165);
+ console.log('PASS: user-picked values, two local original snapshots, archived server ACK and readback');
+})();
+(function testArchiveMissingCannotAck(){
+ const date='2026-10-27',e=env(),t=mental(e);
+ const original=t.normalize(date,record(date)),server=t.normalize(date,{...record(date),memo:'remote',revision:'v2'});
+ t.setRecords({[date]:original});
+ t.setPending({[date]:{entry:original,expectedRevision:'v1',letterOnly:false}});
+ t.setSession();
+ t.registerConflict(date,original,server,'v2','test');
+ for(const diff of t.differingFields(original,server)) (t.conflictChoices[date]??={})[diff.key]='local';
+ t.resolveConflict(date);
+ rpc(e,(p)=>({ok:true,revision:'v3',conflictArchived:false}),()=>({ok:true,records:{[date]:{...p,revision:'v3'}}}));
+ t.syncNext();
+ assert(t.getPending()[date],'Missing server archive confirmation must not clear pending');
+ assert(t.conflicts[date],'Conflict protection persists');
+ console.log('PASS: missing private server archive ACK blocks resolution');
+})();
+(function testConflictAfterFurtherRemoteUpdate(){
+ const date='2026-10-27',e=env(),t=mental(e);
+ const orig=t.normalize(date,{...record(date),memo:'local revised memo'});
+ const server=t.normalize(date,{...record(date),memo:'remote older',revision:'v2'});
+ const newer=t.normalize(date,{...record(date),memo:'remote newest',revision:'v4'});
+ t.setRecords({[date]:orig});
+ t.setPending({[date]:{entry:orig,expectedRevision:'v1',letterOnly:false}});
+ t.setSession();
+ t.registerConflict(date,orig,server,'v2','initial');
+ for(const diff of t.differingFields(orig,server))(t.conflictChoices[date]??={})[diff.key]='local';
+ t.resolveConflict(date);
+ rpc(e,()=>({ok:true,conflict:true,serverEntry:newer,serverRevision:'v4'}),()=>({ok:true,records:{}}));
+ t.syncNext();
+ assert.equal(t.conflicts[date].revision,'v4');
+ assert.equal(t.getPending()[date].entry.memo,'local revised memo');
+ assert.equal(t.getPending()[date].resolution,null);
+ console.log('PASS: further server edits reopen comparison and restore original local draft');
 })();
