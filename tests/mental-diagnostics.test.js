@@ -206,3 +206,27 @@ function rpc(env,save,read){
  assert.equal(t.getRecords()[date].memo,'this was already saved');
  console.log('PASS: cloud exact match safely releases pending save after lost ACK');
 })();
+
+(function testRepairedCloudMemoSupersedesStaleHusbandCache(){
+ const date='2026-10-27',e=env(),t=mental(e);
+ const cached=t.normalize(date,{...record(date),memo:'아기가 아',revision:'old'});
+ const full=t.normalize(date,{...record(date),memo:'Synthetic restored journal note with no personal data. '.repeat(5).slice(0,168),revision:'repaired'});
+ t.setRecords({[date]:cached});
+ t.mergeCloudMonth({[date]:full});
+ assert.equal(t.getRecords()[date].memo,full.memo);
+ assert.equal(t.getPending()[date],undefined);
+ const backups=JSON.parse(e.store.getItem('yuha_mental_recovery_conflict_snapshots_v1'));
+ assert(backups.some(x=>x.reason==='server_memo_longer_than_device'&&x.local.memo==='아기가 아'));
+ console.log('PASS: shorter stale phone cache no longer masks restored 168-char cloud memo');
+})();
+(function testOtherFieldsDifferCannotAutoPromote(){
+ const date='2026-10-27',e=env(),t=mental(e);
+ const cached=t.normalize(date,{...record(date),memo:'short',revision:'local'});
+ const full=t.normalize(date,{...record(date),memo:'longer changed server memo',revision:'remote',
+   scores:{...record(date).scores,energy:4}});
+ t.setRecords({[date]:cached});
+ t.mergeCloudMonth({[date]:full});
+ assert.equal(t.getRecords()[date].memo,'short');
+ assert(t.conflicts[date],'Changes to other fields require manual comparison');
+ console.log('PASS: longer server memo never silently overrides different scores');
+})();

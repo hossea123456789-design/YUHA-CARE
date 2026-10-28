@@ -835,3 +835,20 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 구체 테스트: (1) 실제 서버 레코드 덮기 전 서버 원본과 기기 원본 스냅샷, (2) 서버 revision mismatch는 기록 변경 없이 충돌 반환, (3) 보관 시트 append 실패는 활성 서버 기록 미변경, (4) 사용자 선택 결과가 서버 원본과 같아도 양 원본 아카이브, (5) getMentalMonth 스키마 5 반환.
 - tests/mental-diagnostics.test.js: per-browser 진단 식별/원문 비기록, 서버 조회 병합 보호, 불일치시 미전송 큐 유지, 편지 ACK 보호, 필드별 선택 병합, 서버 archive ACK 없을 때 보류, 재차 충돌시 원본 복귀, 새로고침 이후 원본 재로딩, 구버전 Apps Script 덮어쓰기 차단. 기존 실사용 MENTAL_LOG는 테스트에서 사용하지 않았다.
 - 워크플로에 위 두 합성 테스트와 Code.gs/프론트 JS 구문 검사를 포함. GitHub Pages 작업이 성공해도 Apps Script 운영 웹앱 배포·실기기 검증과는 엄격히 별도로 기록한다.
+
+
+## 37. 2026-10-28 — 아내 Edge 168자 메모 서버 누락 및 남편 단말 오래된 5자 캐시 처리
+
+### 실제 사건 (실데이터 직접 확인 및 복원)
+- 사용자가 2026-10-27 날짜의 회복 메모 원문 전체(줄바꿈 포함 168자)를 제공했으나, 실운영 Google Sheets의 MENTAL_LOG 9행 B열에는 "아기가 아" 5자만 저장돼 있었다. 점수 7개는 채워진 상태, 남편 Samsung Internet은 서버 5자 메시지를 조회하고 있었다.
+- 사용자가 전체 메모를 작성했다는 Edge 로컬 상태는 연결 커넥터가 아닌 당사자 진술과 기존 Edge CLIENT_MEMO_LOCAL_WRITE 165자 로그로만 검증 가능. 원문을 168자로 제공한 내용과 과거 로컬 로그 글자수 차이는 조사했으나 동일성은 보장할 수 없으므로 새 원문은 사용자 제공 내용으로 명시.
+- 실운영 원본 전체 Google Sheets의 Drive 백업 사본을 별도 생성, ID 1sq-a-QnUOu6YOAP9zG5BWFt841fPGBckPjgkuffe85w. 운영 시트 MENTAL_LOG 9행 B열의 전체 이전 JSON을 실조회하고 서버 revision 및 5자 메모 검증 후, 정확한 B9 JSON 일치에 한해 findReplace(matched=1)로 memo만 원문 168자로 복구. C9 revision UTC 갱신. 수정 후 JSON 재조회를 통한 다른 점수/편지/태그 등 모든 필드 원형 보존과 168자 저장 성공 검증. 이 직접 수리는 Apps Script syncMentalEntry 호출이 아니며 새로운 운영 자동 복구 기능으로 오인하지 말 것.
+- MENTAL_AUDIT_LOG에 메모 원문/점수/PIN 없이 SERVER_MANUAL_MEMO_REPAIR 이벤트, 기존 5자→168자 전환, 사용자 제공 텍스트 기반, 전체 백업 완료 메타데이터만 별도 저장. MENTAL_CONFLICT_ARCHIVE는 서버 v5 충돌 승인 시에만 만들어지는 구조로 이번 수리에서 생성하지 않음.
+
+### 회귀 버그: 짧은 로컬 캐시가 복구된 긴 서버 메모까지 가림
+- 이전 localIsRicher는 문자열 길이와 상관없이 메모가 다르면 항상 local richer로 판정. 남편 단말에 예전 5자 로컬 메모가 있는 상태에서 서버를 168자로 고쳐도 여전히 5자가 보이는 치명적인 표시/병합 결함.
+- mental.js mergeCloudMonth에서 기기 메모가 짧고 서버 메모가 더 길며 다른 모든 논리 필드(scores, offDutyMinutes, offDutyType, basicNeedsDelayed, contexts, husbandLetter, status, openedAt)가 동일한 경우에만 '복구된 더 긴 서버 메모' 우선 적용. 적용 전에 클라이언트 내부 CONFLICT_HISTORY 키에 짧은 기기 원본·더 긴 서버 원본 전체 복사본 기록을 성공시키고 진단 메타데이터 CLOUD_LONGER_MEMO_APPLIED를 남김. 기록 보관 실패 시 서버 메모로 자동 교체하지 않고 기존 기기 원본을 보호함.
+- 그 반대인 기기 메모가 더 풍부하거나 서버와 일부 필드 충돌이 있을 때는 계속 기기 로컬 보호 + 날짜별 충돌 비교 UI를 표시. 특히 서버에 7개 점수가 이미 있더라도 보호된 로컬 메모가 서버보다 풍부하면 매월 조회 시 수동 복구를 위한 날짜별 pending/conflict를 생성한다. 서버 revision이 오래된 pending도 재조회 시 먼저 충돌 확인. 클라우드의 전체 레코드가 pending과 정확히 같으면 검증 성공 후 미전송 큐를 안전하게 해제한다.
+- 캐시 버전은 index.html의 mental.js?v=20261028-memo-repair3으로 갱신.
+- 테스트 tests/mental-diagnostics.test.js: 7/7 점수가 있는 서버에서 로컬의 긴 메모를 보호해 충돌 UI로 등록, 오래된 nonempty revision 충돌 감지, 이미 서버에 있는 같은 데이터의 pending 해제, 남편 단말의 5자 stale 캐시보다 168자 서버 메모 표시와 기기 원본 자동 보관, 점수가 다른 경우에는 자동 프로모션 금지.
+- 웹앱 실제 남편 기기 브라우저의 화면 재확인은 아직 수행하지 않았으므로 GitHub Pages 배포 완료와 분리해 결과 보고할 것.
