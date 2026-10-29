@@ -875,3 +875,13 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - tests/mental-diagnostics.test.js: 열람 후 미선택 ♡ 좋아요, 클릭 후 ♥ 1, v5 좋아요 pending 보존, v6 좋아요 저장+서버 재조회 검증, 기존 일지 메모 보존, 콘텐츠 연결 배너 제거. 기존 동기화 데이터 유실 회귀 테스트는 유지.
 - tests/mental-server-conflicts.test.js: v6 capability 및 liked 편지 전용 서버 저장 검증, 다른 편지에 오래된 하트가 적용되지 않도록 충돌 차단. 기존 원본 아카이브 테스트 유지.
 - Pages 배포가 완료되어도 실제 Apps Script v6 서버 배포는 별도로 사용자가 기존 배포를 수정해야 함. 두 기기 실사용 읽음+좋아요 동기화 검증도 배포 뒤 필요하며 자동 테스트 성공과 혼동하지 말 것.
+
+## 39. 2026-10-30 — 아내 회복 프로그레스바 불러오기/저장 구분
+
+- 사용자 요청: 아내 회복 탭 우상단의 불러오는 중과 저장 완료가 시각적으로 동일해 서버 상태를 오인하게 만들던 문제 수정. 색과 문구로 조회 미완료·완료·저장 검증을 분리한다.
+- index.html 상단 공용 showAppProgress에 mental 전용 상태 loading(서버 불러오는 중, 주황색, '…', 추정 진행만, 실제 100%/체크 표시 없음), pending(서버 기록·저장 미확인, 주황색, '대기', 고정 저충전 바, 사라지지 않음), loaded(서버 월별 GET 완료, 파란색, '불러오기 완료', 100%, 녹색 체크 없음), done(서버 SAVE ACK+GET 재조회 검증 후 녹색 체크, '저장 완료')를 도입했다. 실제 쓰기 중 busy는 기존 별도 상태를 유지한다.
+- design.css 최종 헤더 override 뒤에 data-source='mental' && data-state별 CSS를 추가해 77px 헤더에서도 색 구분. 불러오는 중/미확인 주황(#d78311/#ffc15e), 조회 완료 파랑(#409bd0), 진짜 저장 완료는 기존 녹색. 시각 외 aria-label, 퍼센트 라벨/설명도 상태별 분리.
+- mental.js progressViewState(): 잠금 PIN 미입력, 서버 연결 미확인/오류, 대상 월 미조회, 로컬 저장 오류, pending 또는 conflicts/보호 날짜가 있으면 pending 주황. 조회 중이면 loading 주황. 서버 GET 완료 + 이상 없음은 loaded 파랑. 쓰기 중 busy, 서버 재조회까지 검증했으며 미확인 날짜가 없을 때만 done 녹색. 데이터 또는 원본 저장 동작은 변경 없음.
+- 탭 이동 시 mental 프로그레스바만 숨기고 다른 탭의 진행 상태는 독립 유지. 짧은 네트워크 완료 직후에도 mental 탭에 있으면 현재 실제 서버 상태로 복귀한다. index.html mental.js / design.css 캐시 키 20261030-amber-load-v2.
+- tests/mental-diagnostics.test.js에 PIN 미해제, 서버 아직 안 읽음, 읽는 중, 월 조회 완료, 미전송 로컬 기록, 서버 쓰기 중, 연결 끊김, 색상별 텍스트/CSS 회귀 테스트 추가.
+- Apps Script Code.gs는 이번 건에서 변경하거나 재배포하지 않는다. GitHub Actions의 syntax + 합성 테스트 + Pages 게시 성공이 있어야 완료로 보고한다. 실제 삼성 인터넷/Edge의 현재 화면 노출은 사용자 기기에서 추가 확인 필요.
