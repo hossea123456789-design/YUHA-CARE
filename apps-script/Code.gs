@@ -817,7 +817,7 @@ function syncMentalEntry(payload) {
   const diag=payload.diagnostics||{};
   const filled=MENTAL_SCORE_FIELDS_.filter(f=>item.scores[f]!==null).length;
   const letterOnly=payload.letterOnly===true;
-  const letterAction=['seal','open'].includes(payload.letterAction)?payload.letterAction:'';
+  const letterAction=['seal','open','like'].includes(payload.letterAction)?payload.letterAction:'';
   const expectedRevision=String(payload.expectedRevision||'');
   const resolution=payload.resolution&&typeof payload.resolution==='object'?payload.resolution:null;
   const lock=LockService.getScriptLock();
