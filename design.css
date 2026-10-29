@@ -1144,3 +1144,46 @@ header .header-status-group .connection-state{
 @media(prefers-reduced-motion:reduce){
  header .header-status-group .app-progress-activity::before{animation:none!important}
 }
+
+/* Wife recovery: loading and unverified are AMBER, never the green saved state.
+   This follows the final header overrides so the top-right 77px indicator stays legible. */
+header .header-status-group .app-progress[data-source="mental"][data-state="loading"] .app-progress-activity,
+header .header-status-group .app-progress[data-source="mental"][data-state="pending"] .app-progress-activity{
+ color:#a35b12!important;
+}
+header .header-status-group .app-progress[data-source="mental"][data-state="loading"] .app-progress-activity::before,
+header .header-status-group .app-progress[data-source="mental"][data-state="pending"] .app-progress-activity::before{
+ background:#e99424!important;box-shadow:0 0 5px #f4b35088!important;
+}
+header .header-status-group .app-progress[data-source="mental"][data-state="loading"] .app-progress-track,
+header .header-status-group .app-progress[data-source="mental"][data-state="pending"] .app-progress-track{
+ background:#f3ddbc!important;
+}
+header .header-status-group .app-progress[data-source="mental"][data-state="loading"] .app-progress-fill,
+header .header-status-group .app-progress[data-source="mental"][data-state="pending"] .app-progress-fill{
+ background:linear-gradient(90deg,#d78311,#ffc15e)!important;box-shadow:none!important;
+}
+header .header-status-group .app-progress[data-source="mental"][data-state="loading"] .app-progress-percent,
+header .header-status-group .app-progress[data-source="mental"][data-state="pending"] .app-progress-percent{
+ color:#a35b12!important;font-size:10px!important;
+}
+header .header-status-group .app-progress[data-source="mental"][data-state="pending"] .app-progress-activity::before,
+header .header-status-group .app-progress[data-source="mental"][data-state="pending"] .app-progress-fill{
+ animation:none!important;
+}
+/* A completed read is BLUE. Only a verified write uses the existing GREEN check. */
+header .header-status-group .app-progress[data-source="mental"][data-state="loaded"] .app-progress-activity{
+ color:#256f9e!important;
+}
+header .header-status-group .app-progress[data-source="mental"][data-state="loaded"] .app-progress-activity::before{
+ background:#359ed3!important;box-shadow:none!important;animation:none!important;
+}
+header .header-status-group .app-progress[data-source="mental"][data-state="loaded"] .app-progress-track{
+ background:#d9eaf6!important;
+}
+header .header-status-group .app-progress[data-source="mental"][data-state="loaded"] .app-progress-fill{
+ background:#409bd0!important;animation:none!important;box-shadow:none!important;
+}
+header .header-status-group .app-progress[data-source="mental"][data-state="loaded"] .app-progress-percent{
+ color:#26759e!important;
+}
