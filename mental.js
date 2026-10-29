@@ -493,6 +493,7 @@ function activate(pass){
    traceMental('CLOUD_CONNECT_ERROR',{code:reason.slice(0,65),pendingCount:Object.keys(pending).length});
    setState("연결 실패: "+reason,true);render();
 }
+}
 // Load navigated months without overwriting unsynced records.
 function fetchMentalMonthIfNeeded(k){
  if(!cloudReady||!cloudCode||!unlocked||loadedMentalMonths.has(k)||loadingMentalMonths.has(k))return;
