@@ -14,6 +14,7 @@ const CONFLICT_HISTORY="yuha_mental_recovery_conflict_snapshots_v1";
 const conflicts={};
 const conflictChoices={};
 let conflictArchiveSupported=false;
+let reactionBackendSupported=false;
 const locallyProtectedDates=new Set();
 const protectedServerRows={};
 const diag=()=>window.YuhaMentalDiagnostics;
@@ -67,7 +68,7 @@ const nice=v=>Number.isInteger(v)?String(v):Number(v).toFixed(1);
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
 const fixed=(n,places=1)=>typeof n==="number"&&Number.isFinite(n)?n.toFixed(places):"—";
 const LETTER_MAX=1000;
-const empty=date=>({date,scores:Object.fromEntries(FIELDS.map(x=>[x.id,null])),offDutyMinutes:0,offDutyType:[],basicNeedsDelayed:[],contexts:[],memo:"",husbandLetter:"",husbandLetterStatus:"",husbandLetterOpenedAt:"",revision:""});
+const empty=date=>({date,scores:Object.fromEntries(FIELDS.map(x=>[x.id,null])),offDutyMinutes:0,offDutyType:[],basicNeedsDelayed:[],contexts:[],memo:"",husbandLetter:"",husbandLetterStatus:"",husbandLetterOpenedAt:"",husbandLetterLiked:false,revision:""});
 const validScore=v=>typeof v==="number"&&Number.isFinite(v)&&v>=0&&v<=10;
 function normalize(date,item){
  const x=empty(date),a=item&&typeof item==="object"?item:{};
@@ -79,6 +80,7 @@ function normalize(date,item){
  // Existing visible letters remain opened; new submitted letters begin sealed.
  x.husbandLetterStatus=x.husbandLetter?(a.husbandLetterStatus==="sealed"?"sealed":"opened"):"";
  x.husbandLetterOpenedAt=x.husbandLetterStatus==="opened"?String(a.husbandLetterOpenedAt||"").slice(0,32):"";
+ x.husbandLetterLiked=x.husbandLetterStatus==="opened"&&a.husbandLetterLiked===true;
  x.revision=String(a.revision||"");
  return x;
 }
@@ -262,7 +264,7 @@ function hydrate(){
  const p=storageRead(PENDING,{});
  for(const [date,item] of Object.entries(p))if(records[date]&&item&&typeof item==="object"){
    pending[date]={expectedRevision:String(item.expectedRevision||""),entry:normalize(date,item.entry||records[date]),
-    letterOnly:item.letterOnly===true,letterAction:["seal","open"].includes(item.letterAction)?item.letterAction:"",
+    letterOnly:item.letterOnly===true,letterAction:["seal","open","like"].includes(item.letterAction)?item.letterAction:"",
     resolution:item.resolution?.confirmed===true?{confirmed:true,
       serverRevision:String(item.resolution.serverRevision||""),
       originalLocal:normalize(date,item.resolution.originalLocal||item.entry)}:null};
@@ -284,6 +286,7 @@ function localIsRicher(a,b){
  if(count(a)&&count(b)&&FIELDS.some(f=>validScore(a.scores[f.id])&&validScore(b.scores[f.id])&&a.scores[f.id]!==b.scores[f.id]))return true;
  if(a.memo&&a.memo!==b.memo)return true;
  if(a.husbandLetter&&!b.husbandLetter)return true;
+ if(a.husbandLetterLiked&&!b.husbandLetterLiked&&a.husbandLetter===b.husbandLetter)return true;
  if(a.offDutyMinutes>0&&!b.offDutyMinutes)return true;
  return ["contexts","offDutyType","basicNeedsDelayed"].some(key=>a[key]?.some(v=>!b[key]?.includes(v)));
 }
@@ -293,7 +296,7 @@ function localIsRicher(a,b){
 function sameWithoutMemo(a,b){
  const left=normalize(a.date,a),right=normalize(b.date,b);
  return ['scores','offDutyMinutes','offDutyType','basicNeedsDelayed','contexts',
-  'husbandLetter','husbandLetterStatus','husbandLetterOpenedAt']
+  'husbandLetter','husbandLetterStatus','husbandLetterOpenedAt','husbandLetterLiked']
   .every(key=>JSON.stringify(left[key])===JSON.stringify(right[key]));
 }
 function archiveBeforeLongerCloudMemo(date,local,server){
@@ -453,6 +456,7 @@ function activate(pass){
    if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
    diag()?.setBackendSupport(Number(result.schemaVersion)>=4);
    conflictArchiveSupported=Number(result.schemaVersion)>=5;
+   reactionBackendSupported=Number(result.schemaVersion)>=6;
    traceMental('CLOUD_MONTH_SUCCESS',{month:k,requestId:req.requestId,serverCount:Object.keys(result.records||{}).length,schema:Number(result.schemaVersion)});
    mergeCloudMonth(result.records);
    loadedMentalMonths.add(k);
@@ -486,6 +490,7 @@ function fetchMentalMonthIfNeeded(k){
   if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
   diag()?.setBackendSupport(Number(result.schemaVersion)>=4);
    conflictArchiveSupported=Number(result.schemaVersion)>=5;
+   reactionBackendSupported=Number(result.schemaVersion)>=6;
   traceMental('CLOUD_MONTH_SUCCESS',{month:k,requestId:req.requestId,serverCount:Object.keys(result.records||{}).length,schema:Number(result.schemaVersion)});
   mergeCloudMonth(result.records);
   loadedMentalMonths.add(k);
@@ -512,8 +517,9 @@ function sameRemoteData(requested,remote,letterOnly){
  const local=normalize(requested.date,requested),server=normalize(requested.date,remote);
  if(letterOnly)return local.husbandLetter===server.husbandLetter&&
    local.husbandLetterStatus===server.husbandLetterStatus&&
-   local.husbandLetterOpenedAt===server.husbandLetterOpenedAt;
- for(const key of ['scores','memo','offDutyMinutes','offDutyType','basicNeedsDelayed','contexts','husbandLetter','husbandLetterStatus','husbandLetterOpenedAt']){
+   local.husbandLetterOpenedAt===server.husbandLetterOpenedAt&&
+   local.husbandLetterLiked===server.husbandLetterLiked;
+ for(const key of ['scores','memo','offDutyMinutes','offDutyType','basicNeedsDelayed','contexts','husbandLetter','husbandLetterStatus','husbandLetterOpenedAt','husbandLetterLiked']){
   if(JSON.stringify(local[key])!==JSON.stringify(server[key]))return false;
  }
  return true;
@@ -524,11 +530,14 @@ function syncNext(){
  if(!dates.length)return;
  const date=dates.find(d=>(!conflicts[d]||Boolean(pending[d].resolution)) &&
   (!pending[d].resolution||conflictArchiveSupported) &&
-  (letterBackendSupported||(!pending[d].letterOnly&&!pending[d].entry.husbandLetter)));
+  (letterBackendSupported||(!pending[d].letterOnly&&!pending[d].entry.husbandLetter)) &&
+  (reactionBackendSupported||(!pending[d].entry.husbandLetterLiked&&pending[d].letterAction!=='like')));
  if(!date){
   if(Object.keys(conflicts).length)setState(
     conflictArchiveSupported?'기록 충돌 · 비교 후 원본을 선택하고 저장해 주세요':
     '안전 보관 서버(v5) 배포 필요 · 충돌 기록은 기기에 보관 중',true);
+  else if(dates.some(d=>pending[d].letterAction==='like'||pending[d].entry.husbandLetterLiked))
+   setState('하트는 기기에 저장됨 · 편지 반응 서버(v6) 배포 대기',true);
   else setState('편지 전송 대기 · 최신 Apps Script Code.gs 배포 필요 · 기기 기록 보관',true);
   return;
  }
@@ -585,7 +594,8 @@ function syncNext(){
       locallyProtectedDates.add(date);
       records[date]={...current,revision:String(server.revision||''),
        husbandLetter:remote.husbandLetter,husbandLetterStatus:remote.husbandLetterStatus,
-       husbandLetterOpenedAt:remote.husbandLetterOpenedAt};
+       husbandLetterOpenedAt:remote.husbandLetterOpenedAt,
+       husbandLetterLiked:remote.husbandLetterLiked};
       traceMental('LETTER_ACK_LOCAL_PROTECTED',{date,complete:numberFilled(current),serverComplete:numberFilled(remote)});
      }else records[date]=remote;
     }else{
@@ -911,7 +921,12 @@ function husbandLetterHTML(){
    '</div>':
    letter?
    '<div class="mental-letter-paper"><span class="mental-letter-opened">열어본 편지 · 읽음</span>'+
-    '<p>'+E(letter)+'</p><div class="mental-letter-sign">언제나 당신 편인 남편이 ♡</div></div>':
+    '<p>'+E(letter)+'</p><div class="mental-letter-sign">언제나 당신 편인 남편이 ♡</div>'+
+    '<div class="mental-letter-reaction"><button type="button" id="mentalLetterLike" '+
+    (item.husbandLetterLiked?'disabled ':'')+
+    'class="mental-letter-like'+(item.husbandLetterLiked?' is-liked':'')+
+    '" aria-pressed="'+(item.husbandLetterLiked?'true':'false')+'" aria-label="편지에 좋아요">'+
+    (item.husbandLetterLiked?'♥ 1':'♡ 좋아요')+'</button></div></div>':
    '<p class="mental-letter-empty">아직 남겨진 편지가 없어요.<span>짧은 한마디라도 오늘의 마음을 남겨 보세요.</span></p>')+
   '<div class="mental-letter-status" id="mentalLetterSaveState" aria-live="polite">'+pendingState+'</div>'+
   '</section>';
@@ -951,11 +966,19 @@ function bindHusbandLetter(){
    // Commit only on explicit completion, not while composing.
    changes(date,item=>{
     item.husbandLetter=text;item.husbandLetterStatus="sealed";item.husbandLetterOpenedAt="";
+    item.husbandLetterLiked=false;
    },true,"seal");
    letterEditing=false;letterEditDate="";letterDraft="";
    replaceCard();
   });
  }
+ card.querySelector("#mentalLetterLike")?.addEventListener("click",()=>{
+  const date=selected,item=entry(date);
+  if(!item.husbandLetter||item.husbandLetterStatus!=="opened"||item.husbandLetterLiked)return;
+  changes(date,row=>{row.husbandLetterLiked=true;},true,"like");
+  traceMental("LETTER_LIKED",{date,reason:"single_reaction"});
+  replaceCard();
+ });
  card.querySelector("#mentalLetterOpen")?.addEventListener("click",()=>{
   const date=selected,item=entry(date),letter=item.husbandLetter;
   const button=card.querySelector("#mentalLetterOpen");
@@ -1034,13 +1057,14 @@ const CONFLICT_FIELDS=[
 ];
 function conflictValue(item,key){
  if(key.startsWith("score."))return item.scores[key.slice(6)];
- if(key==="letter")return [item.husbandLetter,item.husbandLetterStatus,item.husbandLetterOpenedAt];
+ if(key==="letter")return [item.husbandLetter,item.husbandLetterStatus,item.husbandLetterOpenedAt,item.husbandLetterLiked];
  return item[key];
 }
 function conflictDisplay(value,key){
  if(key==="letter"){
   const v=Array.isArray(value)?value:[];
-  return "내용: "+(v[0]||"미작성")+" / "+(v[1]||"상태 없음")+(v[2]?" / 열람시각 "+v[2]:"");
+  return "내용: "+(v[0]||"미작성")+" / "+(v[1]||"상태 없음")+
+   (v[2]?" / 열람시각 "+v[2]:"")+(v[3]?" / ♥ 1":"");
  }
  if(Array.isArray(value))return value.length?value.join(", "):"없음";
  if(value===null||value===""||value===undefined)return "없음";
@@ -1117,6 +1141,7 @@ function resolveConflict(date){
    merged.husbandLetter=original.husbandLetter;
    merged.husbandLetterStatus=original.husbandLetterStatus;
    merged.husbandLetterOpenedAt=original.husbandLetterOpenedAt;
+   merged.husbandLetterLiked=original.husbandLetterLiked;
   }else merged[f.key]=Array.isArray(original[f.key])?[...original[f.key]]:original[f.key];
  }
  merged.revision=c.revision;
@@ -1208,6 +1233,7 @@ function reconcileProtectedDate(date){
   husbandLetter:server.husbandLetter||local.husbandLetter,
   husbandLetterStatus:server.husbandLetter?server.husbandLetterStatus:local.husbandLetterStatus,
   husbandLetterOpenedAt:server.husbandLetter?server.husbandLetterOpenedAt:local.husbandLetterOpenedAt,
+  husbandLetterLiked:server.husbandLetter?server.husbandLetterLiked:local.husbandLetterLiked,
   revision:String(server.revision||'')});
  records[date]=merged;
  pending[date]={entry:normalize(date,merged),expectedRevision:String(server.revision||''),
