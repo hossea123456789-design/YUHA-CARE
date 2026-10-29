@@ -38,7 +38,7 @@ function mental(env){
  let src=fs.readFileSync('mental.js','utf8');
  const marker='window.YuhaMental={render,lock,activate';
  assert(src.includes(marker));
- src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,hydrate,conflicts,conflictChoices,setArchiveSupport:v=>conflictArchiveSupported=v,setReactionSupport:v=>reactionBackendSupported=v,setSelectedDate:d=>selected=d,changes,husbandLetterHTML,syncSafetyHTML,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
+ src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,hydrate,conflicts,conflictChoices,progressViewState,markMonth:k=>loadedMentalMonths.add(k),setMonth:k=>month=k,setCloudBusy:v=>cloudBusy=v,setCloudReady:v=>cloudReady=v,setCloudSaving:v=>cloudSaving=v,setArchiveSupport:v=>conflictArchiveSupported=v,setReactionSupport:v=>reactionBackendSupported=v,setSelectedDate:d=>selected=d,changes,husbandLetterHTML,syncSafetyHTML,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
  env.win.YuhaMentalDiagnostics={emit:()=>{},metadata:()=>({requestId:'test'}),flush:()=>{},setBackendSupport:()=>{}};
  vm.runInNewContext(src,env.ctx,{filename:'mental.js'});
  return env.win.__test;
@@ -262,4 +262,40 @@ function rpc(env,save,read){
  assert(!t.syncSafetyHTML().includes('기기 간 저장 확인'));
  assert(!t.syncSafetyHTML().includes('서버 연결이 확인되지 않았습니다'));
  console.log('PASS: connection notice removed from recovery content panel');
+})();
+
+(function testProgressReportsTruthfully(){
+ const e=env(),t=mental(e),k='2026-10';
+ t.setMonth(k);
+ assert.equal(t.progressViewState().state,'pending','PIN-locked must not imply loaded');
+ t.setSession();
+ assert.equal(t.progressViewState().state,'pending','connection alone is not a successful month read');
+ t.setCloudBusy(true);
+ assert.equal(t.progressViewState().state,'loading','fetching must have a distinct loading state');
+ t.setCloudBusy(false);t.markMonth(k);
+ assert.equal(t.progressViewState().state,'loaded','only a verified monthly read is loaded');
+ const pending=t.normalize(k+'-27',record(k+'-27'));
+ t.setPending({[k+'-27']:{entry:pending,expectedRevision:'old',letterOnly:false}});
+ assert.equal(t.progressViewState().state,'pending','unsynced changes must stay amber');
+ t.setCloudSaving(true);
+ assert.equal(t.progressViewState().state,'busy','a write is different from a read');
+ t.setCloudSaving(false);t.setPending({});
+ assert.equal(t.progressViewState().state,'loaded','no false write-complete after read');
+ t.setCloudReady(false);
+ assert.equal(t.progressViewState().state,'pending','lost connection must not look complete');
+ console.log('PASS: mental loading/unverified vs loaded vs saving states are distinct');
+})();
+(function testHeaderProgressColoursAndCopy(){
+ const html=fs.readFileSync('index.html','utf8'),css=fs.readFileSync('design.css','utf8');
+ for(const state of ['loading','pending','loaded','done']){
+  assert(html.includes('state==="'+state+'"')||html.includes('state==="done"'));
+ }
+ assert(html.includes('state==="loaded"?"불러오기 완료"'));
+ assert(html.includes('state==="done"?"저장 완료"'));
+ assert(html.includes('state==="loading"?"불러오는 중"'));
+ assert(css.includes('data-state="loading"')&&css.includes('data-state="pending"'));
+ assert(css.includes('#ffc15e'),'Incomplete states need an amber visual');
+ assert(css.includes('data-state="loaded"')&&css.includes('#409bd0'));
+ assert(!html.includes('state==="loading"?"저장 완료"'));
+ console.log('PASS: header uses orange incomplete, blue fetched, green verified save');
 })();
