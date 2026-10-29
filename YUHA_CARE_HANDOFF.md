@@ -859,3 +859,19 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 코드 배포 자산 버전 mental.js?v=20261028-memo-repair4. 기존 Apps Script schemaVersion=5 유지, 추가 서버 배포 불필요.
 - 테스트 데이터는 공개 저장소에 개인 회복 메모 원문을 복제하지 않는 합성 텍스트만 사용한다. 현재 main 코드는 합성 예시로만 QA. 과거 코드 객체 또는 CI 캐시에 개인 내용이 남는 위험을 낮추기 위해 main 커밋 이력 중 노출 위험이 있었던 구간을 제외하고 보존된 최종 트리로 재구성함. 원격의 고립된 과거 Git 객체나 배포 캐시까지 물리적으로 삭제됐다고 단정하지 말 것.
 - 사용자가 실제 남편 휴대폰에서 앱을 다시 열어 PIN 인증한 뒤 CLIENT_CLOUD_LONGER_MEMO_APPLIED 또는 CLIENT_CLOUD_READ_MERGED(memoLength=168) 로그가 수집되는지 확인할 것. 원본 파일 복구 완료와 각 단말의 화면 실제 갱신 성공은 별도 단계로 보고할 것.
+
+## 38. 2026-10-30 — 공감 문장 기능 철회, 편지 좋아요(♥ 1), 연결 안내 진행 UI로 통합
+
+### 사용자 요청 / 실제 수정
+- 기존 오늘, 마음에 닿는 한마디 기능의 콘텐츠가 의미 없다는 평가로 폐기. mental.js의 dailyComfortHTML 및 셔플·렌더 호출 제거, mental.css의 comfort-card 스타일 제거, index.html의 외부 인용 라이브러리 스크립트 제거. JS 라이브러리와 라이선스 정적 파일은 저장소 삭제 및 Pages 번들 제외. 관련 자동 문장 검수·배포 smoke 검사 제거, 다시 유입되지 않게 CI 차단 검사 추가. 옛 문서의 1,000개 문장 설명은 구 기능 변경 이력일 뿐 현재 제공 사항 아님.
+- 편지 읽기 UI: 봉투를 개봉한 경우에만 편지지 하단에 미반응 ♡ 좋아요 표시, 클릭하면 ♥ 1으로 변경해 1회 반응. 선택 후 중복 클릭 방지. 아직 봉인된 편지/편집 중에는 노출하지 않음. 새 편지를 봉인하면 이전 좋아요 초기화.
+- 기존 회복 기록 JSON에 husbandLetterLiked boolean 추가. 과거 필드 누락은 false 처리. 기기 저장/미전송 큐/원본 충돌 스냅샷/동일성 검증 및 원본 비교에서 새 필드 유지. 점수/메모/편지 본문 보존.
+- Apps Script Code.gs v6: mentalValidateEntry_ liked 검증(편지 열림 이후만 true), getMentalMonth schemaVersion 6, letterAction like 허용. 현재 같은 편지를 읽었다는 조건을 확인하고 기존 점수, 메모, 태그, 열람 기록을 덮지 않는 별도 편지 전용 원자적 좋아요 처리. 봉투 열기 직후 좋아요 시 opened+like 처리 지원, 새 편지는 liked=false. 서버에 없는 편지에 대한 오래된 하트는 충돌 반환.
+- 백엔드 v5에서 ♥ 1 누르면 로컬 및 pending에 저장하지만 서버 업로드는 중단하고 v6 지원 확인 전 성공 처리하지 않음. 운영 Apps Script 기존 배포의 새 버전 업데이트 후 다른 기기에서도 좋아요 조회 가능.
+- 기기 간 저장 확인: 일반 연결·미전송 배너를 본문에서 제거, 서버 연결 오류/충돌은 기존 우상단 showAppProgress 진행 UI로 이동. 필수 원본 복구 작업 버튼은 별도 소형 액션 섹션에 남겨 복구 기능 유지. 편집 하단의 장문 저장상태 시각 요소는 접근성 스크린리더용으로만 유지.
+- index.html의 mental.js/mental.css 자산 캐시 키 20261030-heart-progress1. 기존 데이터/로그/원본 스프레드시트/API URL/PIN 및 다른 탭은 변경하지 않음.
+
+### 자동 검증 및 운영 분리
+- tests/mental-diagnostics.test.js: 열람 후 미선택 ♡ 좋아요, 클릭 후 ♥ 1, v5 좋아요 pending 보존, v6 좋아요 저장+서버 재조회 검증, 기존 일지 메모 보존, 콘텐츠 연결 배너 제거. 기존 동기화 데이터 유실 회귀 테스트는 유지.
+- tests/mental-server-conflicts.test.js: v6 capability 및 liked 편지 전용 서버 저장 검증, 다른 편지에 오래된 하트가 적용되지 않도록 충돌 차단. 기존 원본 아카이브 테스트 유지.
+- Pages 배포가 완료되어도 실제 Apps Script v6 서버 배포는 별도로 사용자가 기존 배포를 수정해야 함. 두 기기 실사용 읽음+좋아요 동기화 검증도 배포 뒤 필요하며 자동 테스트 성공과 혼동하지 말 것.
