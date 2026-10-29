@@ -661,11 +661,13 @@ function mentalValidateEntry_(item) {
     (item.husbandLetterStatus==='sealed'?'sealed':'opened'):'';
   const husbandLetterOpenedAt=husbandLetterStatus==='opened'?
     String(item.husbandLetterOpenedAt||'').slice(0,32):'';
+  // One positive reaction per opened letter. No reaction on a sealed letter.
+  const husbandLetterLiked=husbandLetterStatus==='opened'&&item.husbandLetterLiked===true;
   return {date,scores,offDutyMinutes,
     offDutyType:filter(item.offDutyType,MENTAL_OFFDUTY_KEYS_,8),
     basicNeedsDelayed:filter(item.basicNeedsDelayed,MENTAL_NEED_KEYS_,6),
     contexts:filter(item.contexts,MENTAL_CONTEXT_KEYS_,32),
-    memo,husbandLetter,husbandLetterStatus,husbandLetterOpenedAt};
+    memo,husbandLetter,husbandLetterStatus,husbandLetterOpenedAt,husbandLetterLiked};
 }
 function mentalSheet_() {
   const ss=SpreadsheetApp.getActiveSpreadsheet();
@@ -781,8 +783,8 @@ function getMentalMonth(passphrase,year,month,device) {
   });
   const dates=Object.values(records);
   const complete=dates.filter(x=>MENTAL_SCORE_FIELDS_.every(f=>x.scores[f]!==null)).length;
-  mentalWriteAudit_('SERVER_MONTH_READ',device,prefix.slice(0,7),'days='+dates.length+' complete='+complete,'schema=5');
-  return {ok:true,records,year:y,month:m,schemaVersion:5};
+  mentalWriteAudit_('SERVER_MONTH_READ',device,prefix.slice(0,7),'days='+dates.length+' complete='+complete,'schema=6');
+  return {ok:true,records,year:y,month:m,schemaVersion:6};
 }
 
 // Each user-confirmed overwrite archives BOTH full originals in the SAME private workbook.
@@ -838,7 +840,21 @@ function syncMentalEntry(payload) {
     // into the most recent server row, never stale local scores or other notes.
     let merged=item;
     if(letterOnly){
-      if(letterAction==='open'){
+      if(letterAction==='like'){
+        // Atomically preserve the original scores/memo and the exact letter.
+        // A reader may like immediately after opening; open+like may arrive
+        // together before a previous 'open' RPC finishes.
+        if(!currentEntry?.husbandLetter ||
+           currentEntry.husbandLetter!==item.husbandLetter ||
+           item.husbandLetterStatus!=='opened' || item.husbandLetterLiked!==true){
+          mentalWriteAudit_('SERVER_LETTER_CONFLICT',diag,item.date,'conflict','like_letter_mismatch',true);
+          return {ok:true,conflict:true,serverRevision:currentRevision,serverEntry:currentEntry};
+        }
+        merged={...currentEntry,husbandLetterStatus:'opened',
+          husbandLetterOpenedAt:currentEntry.husbandLetterStatus==='opened'?
+            currentEntry.husbandLetterOpenedAt:(item.husbandLetterOpenedAt||new Date().toISOString()),
+          husbandLetterLiked:true};
+      }else if(letterAction==='open'){
         // Only reveal the same letter that the reader saw; never overwrite
         // a letter edited concurrently from the husband's device.
         if(currentEntry?.husbandLetter===item.husbandLetter && currentEntry.husbandLetter){
@@ -862,7 +878,8 @@ function syncMentalEntry(payload) {
         merged=currentEntry?{...currentEntry,
           husbandLetter:item.husbandLetter,
           husbandLetterStatus:item.husbandLetterStatus,
-          husbandLetterOpenedAt:item.husbandLetterOpenedAt}:item;
+          husbandLetterOpenedAt:item.husbandLetterOpenedAt,
+          husbandLetterLiked:false}:item;
       }
     }
     const serialized=JSON.stringify(merged);
