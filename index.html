@@ -536,7 +536,7 @@
         state==="error"?"연결 오류":/저장/.test(message)?"저장 중":
         /조회|불러|확인/.test(message)?"불러오는 중":"동기화 중";
       percentEl.textContent=state==="pending"?"대기":
-        state==="loading"?"…":(state==="busy"?"~":"")+pct+"%";
+        state==="loading"?"…":pct+"%";
       percentEl.title=state==="done"?"서버 저장·재조회 검증 완료":
         state==="loaded"?"서버 기록 조회 성공 · 저장 완료를 뜻하지 않음":
         state==="pending"?"서버 기록 또는 저장 완료 여부 미확인":
