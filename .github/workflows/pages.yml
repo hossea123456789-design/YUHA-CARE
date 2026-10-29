@@ -39,6 +39,14 @@ jobs:
           grep -q 'function getMentalAuditLog' apps-script/Code.gs
           grep -q 'function reportMentalClientEvents' apps-script/Code.gs
           grep -q 'CLOUD_READBACK_OK' public-site/mental.js
+          grep -q 'mentalLetterLike' public-site/mental.js
+          grep -q 'husbandLetterLiked' apps-script/Code.gs
+          if grep -q 'recovery-comfort' public-site/index.html || grep -q 'dailyComfortHTML' public-site/mental.js; then
+            echo 'Removed daily quote feature accidentally returned'; exit 1
+          fi
+          if find public-site -iname '*comfort*' | grep -q .; then
+            echo 'Rejected daily quote assets must not be published'; exit 1
+          fi
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
