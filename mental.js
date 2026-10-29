@@ -644,7 +644,11 @@ function syncNext(){
    saveLocal();diag()?.flush(cloudCode);
    setState(stateText());scheduleCloud(250);
    if(screen){updateIndicators();if(selected===date&&!letterEditing)render();}
-   progress('done','회복 기록 서버 저장·재조회 검증 완료');
+   // An individual write is not a global green success while other dates
+   // remain pending, conflicting, or inaccessible on the server.
+   const finalState=progressViewState();
+   if(finalState.state==="loaded")progress('done','회복 기록 서버 저장·재조회 검증 완료');
+   else progress(finalState.state,finalState.message);
   },()=>retry('readback_failed'));
  },()=>retry('save_rpc_failed'));
 }
