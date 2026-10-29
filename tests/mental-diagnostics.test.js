@@ -297,5 +297,7 @@ function rpc(env,save,read){
  assert(css.includes('#ffc15e'),'Incomplete states need an amber visual');
  assert(css.includes('data-state="loaded"')&&css.includes('#409bd0'));
  assert(!html.includes('state==="loading"?"저장 완료"'));
+ assert(!html.includes('(state==="busy"?"~"'), 'Progress percentage must not look negative');
+ assert(html.includes('state==="loading"?"…":pct+"%"'), 'In-flight numeric percentage has no minus-like prefix');
  console.log('PASS: header uses orange incomplete, blue fetched, green verified save');
 })();
