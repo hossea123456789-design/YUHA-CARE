@@ -38,7 +38,7 @@ function mental(env){
  let src=fs.readFileSync('mental.js','utf8');
  const marker='window.YuhaMental={render,lock,activate';
  assert(src.includes(marker));
- src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,hydrate,conflicts,conflictChoices,setArchiveSupport:v=>conflictArchiveSupported=v,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
+ src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,hydrate,conflicts,conflictChoices,setArchiveSupport:v=>conflictArchiveSupported=v,setReactionSupport:v=>reactionBackendSupported=v,setSelectedDate:d=>selected=d,changes,husbandLetterHTML,syncSafetyHTML,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
  env.win.YuhaMentalDiagnostics={emit:()=>{},metadata:()=>({requestId:'test'}),flush:()=>{},setBackendSupport:()=>{}};
  vm.runInNewContext(src,env.ctx,{filename:'mental.js'});
  return env.win.__test;
@@ -229,4 +229,37 @@ function rpc(env,save,read){
  assert.equal(t.getRecords()[date].memo,'short');
  assert(t.conflicts[date],'Changes to other fields require manual comparison');
  console.log('PASS: longer server memo never silently overrides different scores');
+})();
+
+(function testLetterHeartOneTimeAndServerCompatibility(){
+ const date='2026-10-28',e=env(),t=mental(e);
+ const original=t.normalize(date,{...record(date),husbandLetter:'A thoughtful personal letter',
+  husbandLetterStatus:'opened',husbandLetterOpenedAt:'2026-10-28T02:00:00.000Z'});
+ t.setRecords({[date]:original});t.setSession();t.setSelectedDate(date);
+ assert(t.husbandLetterHTML().includes('♡ 좋아요'));
+ t.changes(date,row=>{row.husbandLetterLiked=true;},true,'like');
+ assert(t.husbandLetterHTML().includes('♥ 1'));
+ assert(t.husbandLetterHTML().includes('disabled'));
+ assert.equal(t.getPending()[date].letterAction,'like');
+ const afterLike=t.getRecords()[date];
+ assert.equal(afterLike.husbandLetterLiked,true);
+ const startMemo=afterLike.memo;
+ let didSend=false,sendPayload;
+ rpc(e,p=>{didSend=true;sendPayload=p;return {ok:true,revision:'v6-reaction'};},
+  ()=>({ok:true,records:{[date]:{...afterLike,revision:'v6-reaction'}}}));
+ t.setReactionSupport(false);t.syncNext();
+ assert(!didSend,'Old v5 backend must not silently discard the reaction');
+ assert(t.getPending()[date],'Reaction must persist in local pending queue');
+ t.setReactionSupport(true);t.syncNext();
+ assert(didSend);assert.equal(sendPayload.letterAction,'like');
+ assert.equal(Object.keys(t.getPending()).length,0);
+ assert.equal(t.getRecords()[date].memo,startMemo);
+ assert.equal(t.getRecords()[date].husbandLetterLiked,true);
+ console.log('PASS: one-heart 0/1 UI and v6-only verified cross-device saving');
+})();
+(function testNoDisruptiveConnectionBanner(){
+ const e=env(),t=mental(e);
+ assert(!t.syncSafetyHTML().includes('기기 간 저장 확인'));
+ assert(!t.syncSafetyHTML().includes('서버 연결이 확인되지 않았습니다'));
+ console.log('PASS: connection notice removed from recovery content panel');
 })();
