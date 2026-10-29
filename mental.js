@@ -417,6 +417,7 @@ function changes(date,fn,letterOnly=false,letterAction=""){
    pendingCount:Object.keys(pending).length,storageOk:localOk});
  if(!localOk)setState("기기 저장 실패 · 저장 공간을 확인해 주세요",true);
  else setState(cloudReady?"기기 저장 완료 · 비공개 동기화 대기":"이 기기에 저장됨");
+ publishProgress();
  scheduleCloud();
  if(screen&&unlocked){refreshOverview();refreshSyncSafety();}
 }
@@ -433,6 +434,21 @@ function stateText(){return !storageOkay?"기기 저장 실패 · 저장 공간 
 function progress(state,msg){
  if(typeof window.showAppProgress==="function")window.showAppProgress("mental-save",msg,state);
 }
+function progressViewState(){
+ if(!unlocked)return {state:"pending",message:"PIN 입력 후 회복 기록 조회"};
+ if(!storageOkay)return {state:"pending",message:"기기 저장 확인 필요 · 원본 유지"};
+ if(cloudSaving)return {state:"busy",message:"회복 기록 서버 저장·검증 중"};
+ if(cloudBusy||loadingMentalMonths.has(month))
+  return {state:"loading",message:"회복 기록 서버 불러오는 중"};
+ if(!cloudReady||cloudError)return {state:"pending",message:"회복 기록 서버 미확인 · 기기 기록 표시"};
+ if(!loadedMentalMonths.has(month))
+  return {state:"pending",message:month+" 서버 기록 조회 전 · 기기 기록 표시"};
+ if(Object.keys(pending).length||Object.keys(conflicts).length||locallyProtectedDates.size)
+  return {state:"pending",message:"서버 저장 미확인 · 기기 기록 보호 중"};
+ return {state:"loaded",message:"회복 기록 서버 불러오기 완료"};
+}
+function publishProgress(){const x=progressViewState();progress(x.state,x.message);}
+
 function cloudCall(method,args,onSuccess,onFail){
  if(!window.google?.script?.run){onFail(new Error("서버 연결을 기다리는 중입니다."));return;}
  try{window.google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFail)[method](...args)}catch(e){onFail(e)}
@@ -446,7 +462,7 @@ function activate(pass){
  cloudCode=pass;
  cloudBusy=true;cloudReady=false;cloudError="";
  setState("비공개 서버 연결 중");
- progress("busy","비공개 회복 기록 조회 중");
+ progress("loading","회복 기록 서버 불러오는 중");
  const keys=[month,monthKey(shift(month+"-01",-1))];
  let outstanding=[...new Set(keys)].length,anyFailed=false;
  [...new Set(keys)].forEach(k=>{
@@ -466,16 +482,16 @@ function activate(pass){
    saveLocal();
    if(--outstanding===0&&!anyFailed){
      cloudBusy=false;cloudReady=true;cloudError="";
-     progress("done","회복 기록 자동 동기화 연결 완료");
      setState(stateText());
      render();scheduleCloud(100);diag()?.flush(cloudCode);
+     publishProgress();
    }
   },failed);
  });
  function failed(err){if(anyFailed||epoch!==cloudEpoch||!unlocked)return;anyFailed=true;cloudBusy=false;cloudReady=false;
    const reason=String(err?.message||err);
    traceMental('CLOUD_CONNECT_ERROR',{code:reason.slice(0,65),pendingCount:Object.keys(pending).length});
-   progress("error","비공개 기록 연결 실패");setState("연결 실패: "+reason,true);render();}
+   setState("연결 실패: "+reason,true);render();
 }
 // Load navigated months without overwriting unsynced records.
 function fetchMentalMonthIfNeeded(k){
@@ -483,6 +499,7 @@ function fetchMentalMonthIfNeeded(k){
  if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(k))return;
  const epoch=cloudEpoch;
  loadingMentalMonths.add(k);
+ if(k===month)publishProgress();
  const [year,monthNumber]=k.split("-").map(Number);
  const req=diagMeta();
  traceMental('CLOUD_MONTH_REQUEST',{month:k,requestId:req.requestId,reason:'navigated'});
@@ -499,6 +516,7 @@ function fetchMentalMonthIfNeeded(k){
   loadedMentalMonths.add(k);
   saveLocal();cloudError="";
   render();scheduleCloud(100);diag()?.flush(cloudCode);
+  if(k===month)publishProgress();
  },error=>{
   loadingMentalMonths.delete(k);
   if(epoch!==cloudEpoch||!unlocked)return;
@@ -542,6 +560,7 @@ function syncNext(){
   else if(dates.some(d=>pending[d].letterAction==='like'||pending[d].entry.husbandLetterLiked))
    setState('하트는 기기에 저장됨 · 편지 반응 서버(v6) 배포 대기',true);
   else setState('편지 전송 대기 · 최신 Apps Script Code.gs 배포 필요 · 기기 기록 보관',true);
+  publishProgress();
   return;
  }
  const p=pending[date],version=JSON.stringify(p.entry),req=diagMeta();
@@ -622,9 +641,9 @@ function syncNext(){
    }
    cloudSaving=false;
    saveLocal();diag()?.flush(cloudCode);
-   progress('done','회복 기록 서버 재조회 검증 완료');
    setState(stateText());scheduleCloud(250);
    if(screen){updateIndicators();if(selected===date&&!letterEditing)render();}
+   progress('done','회복 기록 서버 저장·재조회 검증 완료');
   },()=>retry('readback_failed'));
  },()=>retry('save_rpc_failed'));
 }
@@ -1496,6 +1515,6 @@ function updateIndicators(){
   (letterBackendSupported?"변경사항 기기에 보관 중 · 서버 자동 저장 대기":"편지 전송 대기 · Apps Script 최신 배포 필요"):
   cloudReady?"서버 자동 동기화 연결됨":"기기에 저장 · 서버 연결 대기";
 }
-window.YuhaMental={render,lock,activate,metric:scoresOf,trend,level,fields:FIELDS,
+window.YuhaMental={render,lock,activate,progressViewState,metric:scoresOf,trend,level,fields:FIELDS,
  /* testing helpers have no write privileges beyond local test data */ _preview:{normalize,scoresOf,summary,warningPatterns,weekDays}};
 })();
