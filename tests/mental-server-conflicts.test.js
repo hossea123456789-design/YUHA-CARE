@@ -83,6 +83,41 @@ function setup(opts={}){
 (function testSchemaVersion(){
  const env=setup();
  const response=vm.runInContext('getMentalMonth',env.context)('0000',2026,10);
- assert.equal(response.schemaVersion,5);
- console.log('PASS server: v5 capability is exposed to the frontend');
+ assert.equal(response.schemaVersion,6);
+ console.log('PASS server: v6 capability is exposed to the frontend');
+})();
+
+(function testLikeWithoutTouchingRecoveryRecord(){
+ const env=setup(),letter='A sealed letter transformed to read';
+ const saved=env.row('important recovery memo');saved.husbandLetter=letter;
+ saved.husbandLetterStatus='opened';saved.husbandLetterOpenedAt='2026-10-28T05:00:00.000Z';
+ saved.husbandLetterLiked=false;
+ env.sheet.rows[1][1]=JSON.stringify(saved);
+ const liked={...saved,husbandLetterLiked:true};
+ const reply=vm.runInContext('syncMentalEntry',env.context)({
+  passphrase:'0000',entry:liked,expectedRevision:'obsolete',letterOnly:true,
+  letterAction:'like',diagnostics:{deviceId:'aaaaaaaaaaaaaaaaaaaaaaaa'}
+ });
+ assert.equal(reply.ok,true);
+ const after=JSON.parse(env.sheet.rows[1][1]);
+ assert.equal(after.husbandLetterLiked,true);
+ assert.equal(after.memo,'important recovery memo');
+ assert.equal(after.husbandLetter,letter);
+ assert.equal(after.husbandLetterOpenedAt,'2026-10-28T05:00:00.000Z');
+ console.log('PASS server: liked letter never overwrites recovery memo or scores');
+})();
+(function testLikeCannotApplyToOtherOrSealedLetter(){
+ const env=setup();
+ const saved=env.row('memo');saved.husbandLetter='different letter';
+ saved.husbandLetterStatus='sealed';
+ env.sheet.rows[1][1]=JSON.stringify(saved);
+ const tryLike={...saved,husbandLetter:'stale local letter',
+  husbandLetterStatus:'opened',husbandLetterLiked:true};
+ const reply=vm.runInContext('syncMentalEntry',env.context)({
+  passphrase:'0000',entry:tryLike,letterOnly:true,letterAction:'like',
+  diagnostics:{deviceId:'aaaaaaaaaaaaaaaaaaaaaaaa'}
+ });
+ assert.equal(reply.conflict,true);
+ assert.equal(JSON.parse(env.sheet.rows[1][1]).husbandLetterLiked,undefined);
+ console.log('PASS server: different or unopened letter cannot receive a stale heart');
 })();
