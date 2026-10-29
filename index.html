@@ -320,7 +320,7 @@
       .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
     }
   </style>
-  <link rel="stylesheet" href="design.css?v=20261021-safesync-bedtime4" />
+  <link rel="stylesheet" href="design.css?v=20261030-amber-load-v2" />
   <link rel="stylesheet" href="mental.css?v=20261030-heart-progress1">
 </head>
 
@@ -461,7 +461,7 @@
   <script src="config.js?v=20261020-shared1"></script>
   <script src="bridge-client.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
-  <script src="mental.js?v=20261030-heart-progress1"></script>
+  <script src="mental.js?v=20261030-amber-load-v2"></script>
   <script>
     const CLIENT_CACHE_KEY = "yuha_shared_checklist_client_cache_v1";
     const tabOrder = ["daycare", "sleep", "mental", "outing", "daily", "weekly", "settings"];
@@ -535,8 +535,8 @@
         state==="pending"?"미확인 · 대기":
         state==="error"?"연결 오류":/저장/.test(message)?"저장 중":
         /조회|불러|확인/.test(message)?"불러오는 중":"동기화 중";
-      percentEl.textContent=state==="pending"?"미확인":
-        state==="loading"?"확인 중":(state==="busy"?"~":"")+pct+"%";
+      percentEl.textContent=state==="pending"?"대기":
+        state==="loading"?"…":(state==="busy"?"~":"")+pct+"%";
       percentEl.title=state==="done"?"서버 저장·재조회 검증 완료":
         state==="loaded"?"서버 기록 조회 성공 · 저장 완료를 뜻하지 않음":
         state==="pending"?"서버 기록 또는 저장 완료 여부 미확인":
@@ -579,7 +579,7 @@
         clearTimeout(progressShowTimer);
         if(!progressTasks.size){
           stopProgressTicker();
-          setProgressVisual(message,state,state==="loaded"?100:0);
+          setProgressVisual(message,state,state==="loaded"?100:26);
         }else renderActiveProgress();
         return;
       }
@@ -622,7 +622,7 @@
       setProgressVisual(message,state,pct);
       progressHideTimer=setTimeout(()=>{
         if(progressTasks.size)return;
-        if(task==="mental-save"&&currentTab==="mental"&&window.YuhaMental?.progressViewState){
+        if(currentTab==="mental"&&window.YuhaMental?.progressViewState){
           const view=window.YuhaMental.progressViewState();
           if(view&&["pending","loaded","loading"].includes(view.state)){
             showAppProgress("mental-save",view.message,view.state);return;
