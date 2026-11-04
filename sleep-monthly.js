@@ -150,7 +150,7 @@
   if(a===null)return currentEnd||"";
   const isNight=mode==="night";
   const diff=b===null?null:isNight?(b-a+1440)%1440:b-a;
-  const reasonable=diff!==null&&diff>=30&&diff<=(isNight?180:360);
+  const reasonable=diff!==null&&diff>0&&diff<=(isNight?180:360);
   if(reasonable)return currentEnd;
   if(!isNight&&a+30>=1440)return currentEnd||"";
   return clockLabel(a+30);
