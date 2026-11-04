@@ -172,3 +172,18 @@ console.log('PASS: sleep time linkage, existing data preservation, and inline Ja
  assert.equal(t.element('sleepModalInput').value,'14:25','November 1 must consult October 31');
  console.log('PASS: previous calendar month is used for November 1 time suggestion');
 }
+
+{
+ const t=setup({napStart:'08:00',napEnd:''},{napEnd:'21:00'});
+ t.test.openSleepTimeModal('2026-11-04','napEnd');
+ assert.equal(t.element('sleepModalInput').value,'08:30',
+  'Implausibly long yesterday-derived duration should not become a suggested nap');
+ console.log('PASS: implausible previous-day endpoint falls back to a 30m suggestion');
+}
+{
+ const t=setup({napStart:'08:00',napEnd:'15:00'},{napEnd:'14:25'});
+ t.test.openSleepTimeModal('2026-11-04','napEnd');
+ assert.equal(t.element('sleepModalInput').value,'15:00',
+  'Real current-day manual values must not be overwritten due to historical plausibility limits');
+ console.log('PASS: unusual manually observed end remains intact');
+}
