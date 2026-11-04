@@ -1194,3 +1194,45 @@ header .header-status-group .app-progress[data-source="mental"][data-state="load
  min-height:15px;margin:8px 0 1px;color:#6d7c88;
  font-size:11px;line-height:1.5;letter-spacing:-.15px;word-break:keep-all
 }
+
+/* Monthly sleep report: descriptive pediatric guideline review, not a diagnosis. */
+.sleep-monthly-card{padding:15px 13px 13px}
+.sleep-monthly-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.sleep-monthly-heading h3{font-size:15px;letter-spacing:-.25px;line-height:1.45;color:#294c66;margin:3px 0 0}
+.sleep-monthly-eyebrow{display:block;font-size:10px;font-weight:850;color:#477fa4;letter-spacing:.15px}
+.sleep-monthly-coverage-label{flex-shrink:0;font-size:10px;font-weight:800;line-height:1.5;color:#54718a;padding:4px 7px;background:#f1f6f9;border:1px solid #e0edf3;border-radius:99px;white-space:nowrap}
+.sleep-monthly-coverage-track{height:5px;overflow:hidden;background:#e7edf2;border-radius:12px;margin:12px 0 7px}
+.sleep-monthly-coverage-track>div{height:100%;background:#63a7c3;border-radius:12px;transition:width .24s}
+.sleep-monthly-context{margin:0 0 11px;color:#728393;font-size:10px;line-height:1.65}
+.sleep-monthly-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.sleep-monthly-metric{min-width:0;padding:10px 9px;background:#fafcfd;border:1px solid #e5edf2;border-radius:10px}
+.sleep-monthly-metric>span{display:block;font-size:10px;font-weight:750;color:#678095;line-height:1.3}
+.sleep-monthly-metric>strong{display:block;font-size:16px;line-height:1.45;color:#294b65;letter-spacing:-.4px;font-weight:880;margin:3px 0 1px;white-space:normal;overflow-wrap:break-word}
+.sleep-monthly-metric>small{display:block;font-size:9.5px;color:#8696a5;line-height:1.45}
+.sleep-monthly-guideline{border-top:1px solid #e9eef2;margin-top:12px;padding-top:11px}
+.sleep-monthly-guideline-lead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:5px}
+.sleep-monthly-guideline-lead>strong{color:#2d5265;font-size:11.5px}
+.sleep-monthly-guideline-lead>span{font-size:11px;font-weight:780;color:#28677a}
+.sleep-monthly-counts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sleep-monthly-counts>span{font-size:10px;font-weight:720;color:#4d6476;background:#edf3f7;border:1px solid #dfeaf0;padding:5px 7px;border-radius:7px}
+.sleep-monthly-assessment{border-top:1px solid #e9eef2;margin-top:13px;padding-top:12px}
+.sleep-monthly-assessment h4{font-size:13px;font-weight:850;color:#314f65;margin:0 0 5px}
+.sleep-monthly-evidence-intro{font-size:10.5px;line-height:1.7;color:#6d7f8f;margin:0 0 8px}
+.sleep-monthly-insight{padding:9px 0;border-top:1px solid #eef2f5}
+.sleep-monthly-insight:first-of-type{border-top:0}
+.sleep-monthly-insight strong{font-size:11.5px;color:#2d5366;line-height:1.45}
+.sleep-monthly-insight[data-kind="review"] strong{color:#a05b34}
+.sleep-monthly-insight[data-kind="limited"] strong{color:#8b694d}
+.sleep-monthly-insight[data-kind="positive"] strong{color:#247e66}
+.sleep-monthly-insight p{margin:4px 0 0;font-size:11px;line-height:1.76;color:#5f7280}
+.sleep-monthly-method{margin-top:10px;padding-top:9px;border-top:1px solid #e7edf2}
+.sleep-monthly-method summary{font-size:11px;color:#427a9b;cursor:pointer;font-weight:800;padding:4px 0;min-height:28px}
+.sleep-monthly-method p{font-size:10.5px;color:#718494;line-height:1.75;margin:8px 0}
+.sleep-monthly-citations{display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:10px}
+.sleep-monthly-citations a{font-size:10px;color:#336f9d;text-decoration:underline;text-underline-offset:2px;line-height:1.6}
+@media(min-width:600px){.sleep-monthly-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:355px){
+ .sleep-monthly-card{padding:12px 9px}
+ .sleep-monthly-heading{flex-wrap:wrap;gap:6px}
+ .sleep-monthly-metric>strong{font-size:14px}
+}
