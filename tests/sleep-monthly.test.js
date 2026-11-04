@@ -131,7 +131,7 @@ const make=(q={},records={},today="2026-10-31",recommendationFor=()=>({min:660,m
  assert(panel.innerHTML.includes("12시간 0분"));
  assert(panel.innerHTML.includes("완성 1/3일"));
  assert(panel.innerHTML.includes("소아 수면 의학·발달 연구 기반 종합 검토"));
- assert(panel.innerHTML.includes("자료"));
+ assert(panel.innerHTML.includes("표본 부족"));
  assert(!panel.innerHTML.includes("정상 아동으로 진단"));
  console.log("PASS monthly: actual dashboard DOM renders computed sample and cautious assessment");
 })();
