@@ -63,8 +63,15 @@
    }else if(p>=75){
     kind="positive";title="기록된 날 대부분 권고 범위";
    }
+   const nextStep=kind==="positive"?
+    " 수면량은 권고와 대체로 부합하지만, 야간 각성이나 수면호흡 상태까지 확인된 것은 아닙니다.":
+    x.belowCount>x.withinCount?
+    " 우선 누락된 밤잠·낮잠 시간이 없는지 확인하고, 일정한 취침 준비와 24시간 수면 기회를 살펴보세요.":
+    x.aboveCount>x.withinCount?
+    " 권고보다 긴 수면만으로 질환을 판단할 수는 없으며, 낮 활동성·컨디션 변화와 함께 관찰할 필요가 있습니다.":
+    " 일별 수면량 편차와 낮 활동성을 함께 살피며 일정한 수면 루틴을 유지하는 편이 좋습니다.";
    insights.push({kind,title,text:detail+
-    " 이 비교는 AASM·WHO의 24시간 총수면(낮잠 포함) 권고를 사용하며, 건강 상태의 진단은 아닙니다."});
+    " AASM·WHO의 24시간 총수면(낮잠 포함) 권고에 따른 비교입니다."+nextStep});
   }
   if(x.asleepClock.count>=4&&x.wakeClock.count>=4){
    insights.push({kind:"neutral",title:"수면·기상 리듬",
@@ -74,6 +81,13 @@
   }else{
    insights.push({kind:"limited",title:"수면 리듬 판단에 기록 부족",
     text:"취침·기상 시각을 각각 4일 이상 관찰하면 평균 시각과 일별 변동을 표시합니다."});
+  }
+  if(x.halfDifference!==null){
+   const delta=Math.abs(x.halfDifference);
+   insights.push({kind:"neutral",title:"월 전·후반 추세",
+    text:"월 전반부에 비해 후반부의 완성 기록 하루 총수면 평균이 "+
+     (x.halfDifference===0?"같습니다.":delta+"분 "+(x.halfDifference>0?"늘었습니다.":"줄었습니다."))+
+     " 각 구간 최소 4일의 기록을 비교한 기술통계이며 개인 건강에 대한 평가 기준은 아닙니다."});
   }
   if(x.latencySamples>=3){
    insights.push({kind:"neutral",title:"입실 후 잠들기",
