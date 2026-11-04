@@ -2082,8 +2082,12 @@
     function sleepFollowupValid(startTime,endTime,allowMidnight=false){
       const start=sleepMinutes(startTime),end=sleepMinutes(endTime);
       if(start===null||end===null)return false;
-      const gap=allowMidnight?(end-start+1440)%1440:end-start;
-      return gap>=SLEEP_FOLLOWUP_MINUTES&&(!allowMidnight||gap<=180);
+      if(!allowMidnight)return end-start>=SLEEP_FOLLOWUP_MINUTES;
+      // An actual overnight rollover is plausible only from evening to
+      // after midnight; a clock-earlier 08:00 vs 07:00 is not "23h later".
+      const rollover=start>=18*60&&end<6*60;
+      const gap=end>=start?end-start:(rollover?end+1440-start:-1);
+      return gap>=SLEEP_FOLLOWUP_MINUTES;
     }
     function suggestedSleepTime(row,field){
       const value=String(row[field]||"");
