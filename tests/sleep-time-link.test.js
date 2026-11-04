@@ -13,7 +13,7 @@ const modalTo=html.indexOf('    function updateSleepSummaries() {',modalFrom);
 assert(helperFrom>=0&&helperTo>helperFrom&&modalFrom>helperTo&&modalTo>modalFrom);
 const source=html.slice(helperFrom,helperTo)+'\n'+html.slice(modalFrom,modalTo)+
  '\nglobalThis.__test={suggestedSleepTime,sleepClockPlus,sleepFollowupValid,openSleepTimeModal,applySleepTimeModal};';
-function setup(row,previousDay={}){
+function setup(row,previousDay={},dateKey='2026-11-04'){
  const edits=[];
  const elements=new Map();
  function getEl(id){
@@ -24,7 +24,7 @@ function setup(row,previousDay={}){
  const c={
   document:{getElementById:getEl},
   DAY_NAMES:['일','월','화','수','목','금','토'],
-  getSleepRecord:date=>date==='2026-11-03'?previousDay:row,
+  getSleepRecord:date=>date===new Date(Date.parse(dateKey+'T12:00:00Z')-86400000).toISOString().slice(0,10)?previousDay:row,
   shiftSleepDate:(date,days)=>new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10),
   updateSleepField:(date,field,value)=>{row[field]=value;edits.push([field,value]);},
   drawSleepTable(){},drawSleepCalendar(){},updateSleepSummaries(){},
@@ -164,4 +164,11 @@ console.log('PASS: sleep time linkage, existing data preservation, and inline Ja
  t.test.openSleepTimeModal('2026-11-04','napEnd');
  assert.equal(t.element('sleepModalInput').value,'14:25');
  console.log('PASS: previous day end is suggested for confirmation, not fabricated as observed time');
+}
+
+{
+ const t=setup({napStart:'12:20',napEnd:''},{napStart:'12:30',napEnd:'14:25'},'2026-11-01');
+ t.test.openSleepTimeModal('2026-11-01','napEnd');
+ assert.equal(t.element('sleepModalInput').value,'14:25','November 1 must consult October 31');
+ console.log('PASS: previous calendar month is used for November 1 time suggestion');
 }
