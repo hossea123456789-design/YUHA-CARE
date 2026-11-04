@@ -1,0 +1,111 @@
+const assert=require("node:assert/strict");
+const fs=require("node:fs");
+const vm=require("node:vm");
+const src=fs.readFileSync("sleep-monthly.js","utf8");
+const sandbox={window:{}};
+vm.runInNewContext(src,sandbox,{filename:"sleep-monthly.js"});
+const lib=sandbox.window.YuhaSleepMonthly;
+assert(lib&&typeof lib.buildMonthlySummary==="function");
+const make=(q={},records={},today="2026-10-31",recommendationFor=()=>({min:660,max:840}))=>
+ lib.buildMonthlySummary({
+  year:2026,month:10,today,
+  qualityFor:d=>q[d]||{level:"empty",total:null,night:null,nap:null,latency:null},
+  recordFor:d=>records[d]||{},
+  recommendationFor
+ });
+(function testMissingDataNeverMeansZero(){
+ const result=make();
+ assert.equal(result.completeDays,0);
+ assert.equal(result.averageTotal,null);
+ assert.equal(result.recommendedCount,0);
+ assert.equal(result.completeness,0);
+ assert.equal(result.insights[0].kind,"limited");
+ console.log("PASS monthly: absent data is unobserved, never 0h sleep");
+})();
+(function testActualCompleteDatesAndCoverage(){
+ const q={};
+ for(let i=1;i<=8;i++){
+  const d="2026-10-"+String(i).padStart(2,"0");
+  q[d]={level:"good",total:i===8?630:720,night:600,nap:i===8?30:120,napCount:1,latency:25};
+ }
+ q["2026-10-09"]={level:"partial",total:null,night:600,nap:null,napCount:0,latency:null};
+ const result=make(q,{},"2026-10-10");
+ assert.equal(result.eligible,10);
+ assert.equal(result.completeDays,8);
+ assert.equal(result.completeness,80);
+ assert.equal(result.observedDays,9);
+ assert.equal(result.nightSamples,9);
+ assert.equal(result.napSamples,8);
+ assert.equal(result.recommendedCount,8);
+ assert.equal(result.withinCount,7);
+ assert.equal(result.belowCount,1);
+ assert.equal(result.aboveCount,0);
+ assert.equal(result.recommendationPct,88);
+ assert.equal(result.averageTotal,709);
+ assert.equal(result.averageNight,600);
+ assert.equal(result.latencyAverage,25);
+ assert.equal(result.insights[0].kind,"positive");
+ console.log("PASS monthly: correct denominators, daytime data and guideline compliance");
+})();
+(function testMixedAgeSpecificRecommendedRanges(){
+ const q={
+  "2026-10-01":{level:"good",total:690,night:600,nap:90},
+  "2026-10-02":{level:"good",total:690,night:600,nap:90}
+ };
+ const result=make(q,{},"2026-10-02",date=>
+  ({min:date.endsWith("-01")?720:660,max:840}));
+ assert.equal(result.recommendedCount,2);
+ assert.equal(result.withinCount,1);
+ assert.equal(result.belowCount,1);
+ assert.equal(result.completeDays,2);
+ assert.equal(result.insights[0].kind,"limited");
+ console.log("PASS monthly: uses actual age-specific recommendation per day");
+})();
+(function testMidnightAndCrossMonthBelongsToWakeDate(){
+ const records={
+  "2026-09-30":{asleepTime:"23:50"},
+  "2026-10-01":{wakeTime:"06:30",asleepTime:"00:10"},
+  "2026-10-02":{wakeTime:"06:45"}
+ };
+ const q={
+  "2026-10-01":{level:"good",total:710,night:610,nap:100},
+  "2026-10-02":{level:"good",total:690,night:570,nap:120}
+ };
+ const result=make(q,records,"2026-10-02");
+ assert.equal(result.asleepClock.count,2);
+ assert.equal(result.asleepClock.clock,"00:00");
+ assert.equal(result.wakeClock.count,2);
+ assert.equal(result.completeDays,2);
+ console.log("PASS monthly: midnight circular averages, month boundary, wake-day attribution");
+})();
+(function testNeverIncludeFutureDates(){
+ const q={"2026-10-01":{level:"good",total:700,night:600,nap:100},
+  "2026-10-09":{level:"good",total:700,night:600,nap:100}};
+ const result=make(q,{},"2026-10-03");
+ assert.equal(result.eligible,3);
+ assert.equal(result.completeDays,1);
+ assert.equal(result.completeness,33);
+ console.log("PASS monthly: partial current month excludes future records from denominator");
+})();
+(function testThirtyMinuteSuggestedTimeButPreserveActualEnd(){
+ assert.equal(lib.suggestedEnd("08:00","","nap"),"08:30");
+ assert.equal(lib.suggestedEnd("08:00","08:00","nap"),"08:30");
+ assert.equal(lib.suggestedEnd("08:00","07:30","nap"),"08:30");
+ assert.equal(lib.suggestedEnd("08:00","08:25","nap"),"08:25");
+ assert.equal(lib.suggestedEnd("23:50","","night"),"00:20");
+ assert.equal(lib.suggestedEnd("22:00","22:20","night"),"22:20");
+ assert.equal(lib.suggestedEnd("23:50","00:30","night"),"00:30");
+ assert.equal(lib.suggestedEnd("23:50","21:00","night"),"00:20");
+ console.log("PASS monthly: 30-minute defaults while preserving valid actual sleep timing");
+})();
+(function testEvidenceAndWiring(){
+ const html=fs.readFileSync("index.html","utf8");
+ const workflow=fs.readFileSync(".github/workflows/pages.yml","utf8");
+ assert(html.includes('src="sleep-monthly.js?'));
+ assert(html.includes('id="sleepMonthlySummary"'));
+ assert(html.includes("drawSleepMonthlySummary();fetchSleepMonth()"));
+ assert(html.includes("pmc.ncbi.nlm.nih.gov/articles/PMC4877308/"));
+ assert(html.includes("www.who.int/en/news/item/24-04-2019"));
+ assert(workflow.includes("sleep-monthly.js"));
+ console.log("PASS monthly: linked assets, research sources and live summary renderer");
+})();
