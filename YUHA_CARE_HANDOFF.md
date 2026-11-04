@@ -910,3 +910,12 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 실제 근거: AASM 2016 수면 권고 합의 https://pmc.ncbi.nlm.nih.gov/articles/PMC4877308/ ; WHO 2019 영유아 24시간 활동/수면 https://www.who.int/en/news/item/24-04-2019-to-grow-up-healthy-children-need-to-sit-less-and-play-more ; 수면 규칙성 서술 검토 https://pubmed.ncbi.nlm.nih.gov/35014925/ ; AAP 소아 수면무호흡 신호 https://www.healthychildren.org/English/ages-stages/baby/sleep/Pages/Sleep-Apnea-Detection.aspx . WHO 권고 근거의 질은 일부 영역에서 낮으므로 집단 권고를 개별 질환 진단으로 과장하지 않는다.
 - 사용자 직전 요청의 시간 연동은 이전 섹션 40의 `index.html` SLEEP_FOLLOWUP_MINUTES=30 및 모달 기본 추천/저장 연동으로 이미 반영됨. 이번 월간 UI 때문에 기존의 기본값이나 SLEEP_LOG 원본을 변경하지 않는다.
 - 신규 테스트 tests/sleep-monthly.test.js: 완성날 분모, 누락 기록, 권고 판정, 자정/월경계, 오늘까지 집계, 근거 링크, 월간 카드 DOM 실제 렌더, 실제 시간 모달 +30분 시각 추천. .github/workflows/pages.yml에 sleep-monthly.js 배포 번들 및 Node 문법/테스트 등록. 2기기 실제 연결 화면 QA는 배포 CI 성공과 별도.
+
+
+## 42. 2026-11-04 — 수면 시각 입력: 어제 같은 필드 우선, 불일치 시에만 30분 보정
+
+- 요청한 우선순위는 오늘 이미 기록한 유효 시각 > 어제 같은 필드의 실측 기록 > 오늘 시작 시간 +30분(어제 값과 불일치) > 고정 기본값. 예: 어제 1차 낮잠 종료 14:25, 오늘 시작 12:30 → 오늘 종료 입력 추천 14:25. 오늘 시작 14:25 → 어제 종료와 겹치므로 14:55로 보정. +30분을 항상 쓰는 기본값으로 취급하지 않음.
+- index.html의 suggestedSleepTime(row,field,dateKey)에서 yesterdaySleepRecord(dateKey)로 전날 같은 항목 값을 참조한다. current valid actual time is preserved. 어제 종료 시각이 오늘 시작보다 최소 30분 뒤이고, 낮잠 6시간 이내/입실→입면 3시간 이내이면 먼저 추천한다. 어제 값이 없거나 시작과 겹치거나 지나치게 차이 나면 start +30분으로 되돌아간다. 전날 기록도 오늘 시작도 없으면 기존 고정 기본값을 유지한다. 기상·첫 낮잠 시작·입실 등 전날 같은 필드가 있는 경우도 어제 시각을 우선 참조한다.
+- 시작 시각을 실제 변경·저장할 때에는 오늘의 이미 유효한 수동 종료값을 바꾸지 않는다. 오늘 기존 종료 시각이 시작과 역전/불합리하면 전날 실제 종료 시각이 유효한지 먼저 확인하여 보정하고, 그렇지 않을 때만 +30분. 오늘 종료 항목이 아직 비어 있으면 시작만 저장하고 종료를 임의 생성하지 않는다(사용자가 종료 모달에서 어제 값을 확인하고 저장). 정상 데이터의 일괄 덮어쓰기나 시트/Apps Script 수정 없음.
+- 자정 넘기는 밤 입면은 허용하되 말이 안 되는 오전 08:00 시작/07:00 종료를 23시간으로 취급하지 않는다. 2차 낮잠은 1차 종료 이후 입력하는 기존 검증을 유지. 모달 힌트가 어제 실제값 추천과 어제 기록이 맞지 않는 경우의 30분 보정을 명확히 구분하여 안내한다.
+- tests/sleep-time-link.test.js에서 14:25 전일 종료 추천, 오늘 14:25 시작 시 14:55 보정, 전일 오전 기상 기본값, 수동 실제 종료 보존, 새 시작 변경 시 어제 기록 반영, 종료 공란 시 잘못된 자동 저장 방지, 월 경계(11월 1일 → 10월 31일) 확인. GitHub Actions Pages 파이프라인에 반영.
