@@ -320,7 +320,7 @@
       .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
     }
   </style>
-  <link rel="stylesheet" href="design.css?v=20261104-time-link1" />
+  <link rel="stylesheet" href="design.css?v=20261104-time-link2" />
   <link rel="stylesheet" href="mental.css?v=20261030-heart-progress1">
 </head>
 
@@ -2064,8 +2064,8 @@
       const [h,m] = time.split(":").map(Number);
       return h * 60 + m;
     }
-    // Follow-up defaults are at least 30 minutes later. Only bedtime-to-asleep
-    // may roll over midnight; naps are recorded within one calendar date.
+    // Suggest the same time as yesterday before trying a 30-minute fallback.
+    // Suggestions are NOT observed sleep data until explicitly confirmed.
     const SLEEP_FOLLOWUP_MINUTES=30;
     const SLEEP_FOLLOWUP_FIELDS={bedTime:"asleepTime",napStart:"napEnd",nap2Start:"nap2End"};
     const SLEEP_PREVIOUS_FIELDS={asleepTime:"bedTime",napEnd:"napStart",nap2End:"nap2Start",nap2Start:"napEnd"};
@@ -2083,24 +2083,66 @@
     function sleepFollowupValid(startTime,endTime,allowMidnight=false){
       const start=sleepMinutes(startTime),end=sleepMinutes(endTime);
       if(start===null||end===null)return false;
-      if(!allowMidnight)return end-start>=SLEEP_FOLLOWUP_MINUTES;
-      // An actual overnight rollover is plausible only from evening to
-      // after midnight; a clock-earlier 08:00 vs 07:00 is not "23h later".
+      if(!allowMidnight){
+        const gap=end-start;
+        return gap>=SLEEP_FOLLOWUP_MINUTES&&gap<=360;
+      }
+      // Overnight rollovers only apply to a late bedtime followed by post-midnight sleep.
       const rollover=start>=18*60&&end<6*60;
       const gap=end>=start?end-start:(rollover?end+1440-start:-1);
-      return gap>=SLEEP_FOLLOWUP_MINUTES;
+      return gap>=SLEEP_FOLLOWUP_MINUTES&&gap<=180;
     }
-    function suggestedSleepTime(row,field){
+    function yesterdaySleepRecord(dateKey){
+      if(!dateKey)return {};
+      return getSleepRecord(shiftSleepDate(dateKey,-1));
+    }
+    function sleepSuggestedFollowup(startTime,todayEnd,yesterdayEnd,allowMidnight=false){
+      // Never replace a consistent manual time with yesterday's or a default.
+      if(sleepFollowupValid(startTime,todayEnd,allowMidnight))
+        return {time:todayEnd,source:"current",suggested:false};
+      // Yesterday's real endpoint is preferable to an artificial 30-minute nap.
+      if(sleepFollowupValid(startTime,yesterdayEnd,allowMidnight))
+        return {time:yesterdayEnd,source:"yesterday",suggested:true};
+      // If today's start differs enough to invalidate yesterday's endpoint,
+      // only then resort to a 30-minute spacing suggestion.
+      const fallback=sleepClockPlus(startTime,SLEEP_FOLLOWUP_MINUTES,allowMidnight);
+      if(fallback)return {time:fallback,source:"spacing",suggested:true};
+      return {time:todayEnd||"",source:"none",suggested:false};
+    }
+    function suggestedSleepTime(row,field,dateKey){
       const value=String(row[field]||"");
+      const yesterday=yesterdaySleepRecord(dateKey);
+      const historical=String(yesterday[field]||"");
       const previousKey=SLEEP_PREVIOUS_FIELDS[field];
-      if(!previousKey)return {time:value||SLEEP_TIME_DEFAULTS[field],suggested:false};
-      const previous=row[previousKey];
+      // These fields have no same-day predecessor; keep today first, then yesterday.
+      if(!previousKey){
+        if(value)return {time:value,source:"current",suggested:false};
+        if(sleepMinutes(historical)!==null)
+          return {time:historical,source:"yesterday",suggested:true};
+        return {time:SLEEP_TIME_DEFAULTS[field],source:"default",suggested:false};
+      }
+      const start=String(row[previousKey]||"");
       const overnight=field==="asleepTime";
-      if(previous&&sleepFollowupValid(previous,value,overnight))
-        return {time:value,suggested:false};
-      const next=previous?sleepClockPlus(previous,SLEEP_FOLLOWUP_MINUTES,overnight):"";
-      if(next)return {time:next,suggested:true,previousKey,previous};
-      return {time:value||SLEEP_TIME_DEFAULTS[field],suggested:false};
+      // 2nd nap start must follow 1st nap end, even when borrowing yesterday.
+      if(field==="nap2Start"){
+        if(value&&(!start||sleepFollowupValid(start,value)))
+          return {time:value,source:"current",suggested:false};
+        if(historical&&(!start||sleepFollowupValid(start,historical)))
+          return {time:historical,source:"yesterday",suggested:true};
+        const spaced=start?sleepClockPlus(start):"";
+        if(spaced)return {time:spaced,source:"spacing",suggested:true,previous:start};
+        return {time:value||SLEEP_TIME_DEFAULTS[field],source:"default",suggested:false};
+      }
+      if(start){
+        const suggestion=sleepSuggestedFollowup(start,value,historical,overnight);
+        if(suggestion.time)return {...suggestion,previous:start};
+      }
+      // Without a start time, use today's actual value, yesterday's same field,
+      // then the original per-field default. No guessed duration is saved.
+      if(value)return {time:value,source:"current",suggested:false};
+      if(sleepMinutes(historical)!==null)
+        return {time:historical,source:"yesterday",suggested:true};
+      return {time:SLEEP_TIME_DEFAULTS[field],source:"default",suggested:false};
     }
 
     function napIntervals(row) {
@@ -2718,10 +2760,11 @@
       const row=getSleepRecord(dateKey);
       document.getElementById("sleepModalTitle").textContent=sleepFieldLabels[field];
       document.getElementById("sleepModalDate").textContent=`${dateKey} (${DAY_NAMES[new Date(dateKey+"T12:00:00").getDay()]}) · ${field==="wakeTime"?"이날 아침":field==="napStart"||field==="napEnd"||field==="nap2Start"||field==="nap2End"?"이날 낮": "이날 밤"}`;
-      const suggestion=suggestedSleepTime(row,field);
+      const suggestion=suggestedSleepTime(row,field,dateKey);
       document.getElementById("sleepModalInput").value=suggestion.time;
-      document.getElementById("sleepModalTimeHint").textContent=suggestion.suggested?
-        "앞 시각("+suggestion.previous+")보다 30분 뒤를 추천했어요 · 저장하면 적용됩니다.":"";
+      document.getElementById("sleepModalTimeHint").textContent=
+        suggestion.source==="yesterday"?"어제 같은 항목의 "+suggestion.time+" 기록을 참고했어요 · 저장 시 적용됩니다.":
+        suggestion.source==="spacing"?"오늘 시작 시각이 어제 기록과 달라 "+suggestion.time+" (+30분)을 추천했어요 · 저장 시 적용됩니다.":"";
       document.getElementById("sleepTimeModal").classList.add("show");
     }
     function closeSleepTimeModal(){
@@ -2740,7 +2783,8 @@
       let adjustedNext="";
       if(!clear&&nextField&&value!==record[field]&&record[nextField]&&
          !sleepFollowupValid(value,record[nextField],field==="bedTime")){
-        adjustedNext=sleepClockPlus(value,SLEEP_FOLLOWUP_MINUTES,field==="bedTime");
+        const prior=yesterdaySleepRecord(dateKey);
+        adjustedNext=sleepSuggestedFollowup(value,record[nextField],prior[nextField],field==="bedTime").time;
       }
       if(!clear && (field==="nap2Start"||field==="nap2End")) {
         const start=sleepMinutes(field==="nap2Start"?value:record.nap2Start);
