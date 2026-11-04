@@ -135,3 +135,27 @@ const make=(q={},records={},today="2026-10-31",recommendationFor=()=>({min:660,m
  assert(!panel.innerHTML.includes("정상 아동으로 진단"));
  console.log("PASS monthly: actual dashboard DOM renders computed sample and cautious assessment");
 })();
+
+(function testActualTimePickerStartEndChaining(){
+ const html=fs.readFileSync("index.html","utf8");
+ const start=html.indexOf("    const SLEEP_FOLLOWUP_MINUTES=30;");
+ const end=html.indexOf("    function napIntervals(row)",start);
+ assert(start>=0&&end>start,"Smart time-picker functions must exist in the app");
+ const ctx={
+  window:{},
+  sleepMinutes:value=>{
+   if(!/^\d{2}:\d{2}$/.test(value||""))return null;
+   const parts=value.split(":").map(Number);
+   return parts[0]*60+parts[1];
+  }
+ };
+ vm.runInNewContext(html.slice(start,end)+
+   "\nwindow.sleepTimeTest={suggestedSleepTime,sleepClockPlus,sleepFollowupValid};",
+   ctx,{filename:"actual-sleep-time-input.js"});
+ const ui=ctx.window.sleepTimeTest;
+ assert.equal(ui.suggestedSleepTime({napStart:"08:00",napEnd:"08:00"},"napEnd").time,"08:30");
+ assert.equal(ui.suggestedSleepTime({napStart:"08:00",napEnd:"08:30"},"napEnd").time,"08:30");
+ assert.equal(ui.suggestedSleepTime({bedTime:"23:50",asleepTime:""},"asleepTime").time,"00:20");
+ assert.equal(ui.suggestedSleepTime({nap2Start:"15:00",nap2End:"15:00"},"nap2End").time,"15:30");
+ console.log("PASS actual sleep modal: 30-minute start/end suggestions and midnight bedtime");
+})();
