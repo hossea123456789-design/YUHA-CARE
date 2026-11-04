@@ -1187,3 +1187,10 @@ header .header-status-group .app-progress[data-source="mental"][data-state="load
 header .header-status-group .app-progress[data-source="mental"][data-state="loaded"] .app-progress-percent{
  color:#26759e!important;
 }
+
+/* Sleep time picker: explain inferred follow-up clock without modifying saved
+   entries until the user confirms. Keep the modal compact on small screens. */
+.sleep-modal-time-hint{
+ min-height:15px;margin:8px 0 1px;color:#6d7c88;
+ font-size:11px;line-height:1.5;letter-spacing:-.15px;word-break:keep-all
+}
