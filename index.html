@@ -2080,17 +2080,20 @@
       return String(Math.floor(value/60)).padStart(2,"0")+":"+
         String(value%60).padStart(2,"0");
     }
-    function sleepFollowupValid(startTime,endTime,allowMidnight=false){
+    function sleepFollowupValid(startTime,endTime,allowMidnight=false,capHistorical=false){
       const start=sleepMinutes(startTime),end=sleepMinutes(endTime);
       if(start===null||end===null)return false;
+      // Never discard a real, manually recorded end only because duration is
+      // unusual. Limit durations only when borrowing yesterday as a guess.
+      const plausibleMax=allowMidnight?180:360;
       if(!allowMidnight){
         const gap=end-start;
-        return gap>=SLEEP_FOLLOWUP_MINUTES&&gap<=360;
+        return gap>=SLEEP_FOLLOWUP_MINUTES&&(!capHistorical||gap<=plausibleMax);
       }
       // Overnight rollovers only apply to a late bedtime followed by post-midnight sleep.
       const rollover=start>=18*60&&end<6*60;
       const gap=end>=start?end-start:(rollover?end+1440-start:-1);
-      return gap>=SLEEP_FOLLOWUP_MINUTES&&gap<=180;
+      return gap>=SLEEP_FOLLOWUP_MINUTES&&(!capHistorical||gap<=plausibleMax);
     }
     function yesterdaySleepRecord(dateKey){
       if(!dateKey)return {};
@@ -2101,7 +2104,7 @@
       if(sleepFollowupValid(startTime,todayEnd,allowMidnight))
         return {time:todayEnd,source:"current",suggested:false};
       // Yesterday's real endpoint is preferable to an artificial 30-minute nap.
-      if(sleepFollowupValid(startTime,yesterdayEnd,allowMidnight))
+      if(sleepFollowupValid(startTime,yesterdayEnd,allowMidnight,true))
         return {time:yesterdayEnd,source:"yesterday",suggested:true};
       // If today's start differs enough to invalidate yesterday's endpoint,
       // only then resort to a 30-minute spacing suggestion.
@@ -2127,7 +2130,7 @@
       if(field==="nap2Start"){
         if(value&&(!start||sleepFollowupValid(start,value)))
           return {time:value,source:"current",suggested:false};
-        if(historical&&(!start||sleepFollowupValid(start,historical)))
+        if(historical&&(!start||sleepFollowupValid(start,historical,false,true)))
           return {time:historical,source:"yesterday",suggested:true};
         const spaced=start?sleepClockPlus(start):"";
         if(spaced)return {time:spaced,source:"spacing",suggested:true,previous:start};
