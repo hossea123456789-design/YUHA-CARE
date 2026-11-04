@@ -23,16 +23,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p public-site/assets
-          cp index.html design.css mental.css mental.js mental-diagnostics.js bridge-client.js config.js public-site/
+          cp index.html design.css mental.css mental.js mental-diagnostics.js bridge-client.js config.js sleep-monthly.js public-site/
           cp assets/mental-letter-sealed.svg assets/mental-letter-opened.svg public-site/assets/
       - name: Verify artwork paths and integrity before publishing
         run: |
           set -euo pipefail
           node --check public-site/mental.js
+          node --check public-site/sleep-monthly.js
           node --check public-site/mental-diagnostics.js
           node --check public-site/bridge-client.js
           node tests/mental-diagnostics.test.js
           node tests/mental-server-conflicts.test.js
+          node tests/sleep-monthly.test.js
           node tests/sleep-time-link.test.js
           cp apps-script/Code.gs /tmp/yuha-apps-script-check.js
           node --check /tmp/yuha-apps-script-check.js
