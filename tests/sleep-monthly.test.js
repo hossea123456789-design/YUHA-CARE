@@ -109,3 +109,29 @@ const make=(q={},records={},today="2026-10-31",recommendationFor=()=>({min:660,m
  assert(workflow.includes("sleep-monthly.js"));
  console.log("PASS monthly: linked assets, research sources and live summary renderer");
 })();
+
+(function testRealMonthlyDashboardRendersFromCalculatedEvidence(){
+ const html=fs.readFileSync("index.html","utf8");
+ const begin=html.indexOf("    function drawSleepMonthlySummary() {");
+ const end=html.indexOf("    function renderSleepTab() {",begin);
+ assert(begin>=0&&end>begin,"Monthly renderer must be declared before main sleep tab");
+ const panel={innerHTML:""};
+ const q={"2026-10-01":{level:"good",total:720,night:600,nap:120,napCount:1,latency:30}};
+ const mock={
+  window:{YuhaSleepMonthly:lib},
+  document:{getElementById:id=>id==="sleepMonthlySummary"?panel:null},
+  sleepViewYear:2026,sleepViewMonth:10,
+  localDateKey:()=>"2026-10-03",
+  getSleepQuality:date=>q[date]||{level:"empty",total:null,nap:null,night:null},
+  getSleepRecord:()=>({}),sleepRecommendation:()=>({min:660,max:840}),
+  escapeHtml:value=>String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+ };
+ vm.runInNewContext(html.slice(begin,end)+"\ndrawSleepMonthlySummary();",mock,{filename:"monthly-dom-render.js"});
+ assert(panel.innerHTML.includes("월별 수면 리포트"));
+ assert(panel.innerHTML.includes("12시간 0분"));
+ assert(panel.innerHTML.includes("완성 1/3일"));
+ assert(panel.innerHTML.includes("소아 수면 의학·발달 연구 기반 종합 검토"));
+ assert(panel.innerHTML.includes("자료"));
+ assert(!panel.innerHTML.includes("정상 아동으로 진단"));
+ console.log("PASS monthly: actual dashboard DOM renders computed sample and cautious assessment");
+})();
