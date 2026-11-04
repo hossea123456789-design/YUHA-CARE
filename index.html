@@ -320,7 +320,7 @@
       .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
     }
   </style>
-  <link rel="stylesheet" href="design.css?v=20261030-amber-load-v2" />
+  <link rel="stylesheet" href="design.css?v=20261104-time-link1" />
   <link rel="stylesheet" href="mental.css?v=20261030-heart-progress1">
 </head>
 
@@ -392,6 +392,7 @@
       <h3 id="sleepModalTitle">수면 시간 입력</h3>
       <p id="sleepModalDate"></p>
       <input id="sleepModalInput" type="time" step="60" aria-label="시각 선택" />
+      <p class="sleep-modal-time-hint" id="sleepModalTimeHint" aria-live="polite"></p>
       <div class="sleep-modal-actions">
         <button type="button" id="sleepModalCancel">취소</button>
         <button type="button" class="clear" id="sleepModalClear">지우기</button>
@@ -2062,6 +2063,40 @@
       const [h,m] = time.split(":").map(Number);
       return h * 60 + m;
     }
+    // Follow-up defaults are at least 30 minutes later. Only bedtime-to-asleep
+    // may roll over midnight; naps are recorded within one calendar date.
+    const SLEEP_FOLLOWUP_MINUTES=30;
+    const SLEEP_FOLLOWUP_FIELDS={bedTime:"asleepTime",napStart:"napEnd",nap2Start:"nap2End"};
+    const SLEEP_PREVIOUS_FIELDS={asleepTime:"bedTime",napEnd:"napStart",nap2End:"nap2Start",nap2Start:"napEnd"};
+    const SLEEP_TIME_DEFAULTS={bedTime:"19:30",asleepTime:"20:00",napStart:"12:30",
+      napEnd:"14:00",nap2Start:"15:00",nap2End:"16:00",wakeTime:"06:30"};
+    function sleepClockPlus(time,minutes=SLEEP_FOLLOWUP_MINUTES,allowMidnight=false){
+      const start=sleepMinutes(time);
+      if(start===null)return "";
+      const result=start+minutes;
+      if(!allowMidnight&&result>=1440)return "";
+      const value=result%1440;
+      return String(Math.floor(value/60)).padStart(2,"0")+":"+
+        String(value%60).padStart(2,"0");
+    }
+    function sleepFollowupValid(startTime,endTime,allowMidnight=false){
+      const start=sleepMinutes(startTime),end=sleepMinutes(endTime);
+      if(start===null||end===null)return false;
+      const gap=allowMidnight?(end-start+1440)%1440:end-start;
+      return gap>=SLEEP_FOLLOWUP_MINUTES&&(!allowMidnight||gap<=180);
+    }
+    function suggestedSleepTime(row,field){
+      const value=String(row[field]||"");
+      const previousKey=SLEEP_PREVIOUS_FIELDS[field];
+      if(!previousKey)return {time:value||SLEEP_TIME_DEFAULTS[field],suggested:false};
+      const previous=row[previousKey];
+      const overnight=field==="asleepTime";
+      if(previous&&sleepFollowupValid(previous,value,overnight))
+        return {time:value,suggested:false};
+      const next=previous?sleepClockPlus(previous,SLEEP_FOLLOWUP_MINUTES,overnight):"";
+      if(next)return {time:next,suggested:true,previousKey,previous};
+      return {time:value||SLEEP_TIME_DEFAULTS[field],suggested:false};
+    }
 
     function napIntervals(row) {
       const intervals=[];
@@ -2610,7 +2645,10 @@
       const row=getSleepRecord(dateKey);
       document.getElementById("sleepModalTitle").textContent=sleepFieldLabels[field];
       document.getElementById("sleepModalDate").textContent=`${dateKey} (${DAY_NAMES[new Date(dateKey+"T12:00:00").getDay()]}) · ${field==="wakeTime"?"이날 아침":field==="napStart"||field==="napEnd"||field==="nap2Start"||field==="nap2End"?"이날 낮": "이날 밤"}`;
-      document.getElementById("sleepModalInput").value=row[field]||({bedTime:"19:30",asleepTime:"20:00",napStart:"12:30",napEnd:"14:00",nap2Start:"15:00",nap2End:"16:00",wakeTime:"06:30"}[field]);
+      const suggestion=suggestedSleepTime(row,field);
+      document.getElementById("sleepModalInput").value=suggestion.time;
+      document.getElementById("sleepModalTimeHint").textContent=suggestion.suggested?
+        "앞 시각("+suggestion.previous+")보다 30분 뒤를 추천했어요 · 저장하면 적용됩니다.":"";
       document.getElementById("sleepTimeModal").classList.add("show");
     }
     function closeSleepTimeModal(){
@@ -2623,10 +2661,17 @@
       const {dateKey,field}=sleepEditing;
       const value=clear?"":document.getElementById("sleepModalInput").value;
       if(!clear && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {alert("시간을 선택해 주세요.");return;}
+      const record=getSleepRecord(dateKey);
+      // Auto-move only the now-inconsistent following time, never a valid one.
+      const nextField=SLEEP_FOLLOWUP_FIELDS[field];
+      let adjustedNext="";
+      if(!clear&&nextField&&value!==record[field]&&record[nextField]&&
+         !sleepFollowupValid(value,record[nextField],field==="bedTime")){
+        adjustedNext=sleepClockPlus(value,SLEEP_FOLLOWUP_MINUTES,field==="bedTime");
+      }
       if(!clear && (field==="nap2Start"||field==="nap2End")) {
-        const record=getSleepRecord(dateKey);
         const start=sleepMinutes(field==="nap2Start"?value:record.nap2Start);
-        const end=sleepMinutes(field==="nap2End"?value:record.nap2End);
+        const end=sleepMinutes(field==="nap2End"?value:(adjustedNext||record.nap2End));
         const firstEnd=sleepMinutes(record.napEnd);
         if(start!==null&&firstEnd!==null&&start<firstEnd){
           alert("2차 낮잠은 1차 낮잠이 끝난 뒤 시작해야 합니다.");return;
@@ -2638,6 +2683,11 @@
       const returnDate=nap2ReturnDate;
       closeSleepTimeModal();
       updateSleepField(dateKey,field,value);
+      if(adjustedNext){
+        updateSleepField(dateKey,nextField,adjustedNext);
+        setSleepStatus("앞 시간 변경으로 "+sleepFieldLabels[nextField]+"을(를) "+
+          adjustedNext+"으로 조정했습니다 · 자동 저장 중");
+      }
       drawSleepTable();drawSleepCalendar();updateSleepSummaries();
       if(returnDate)setTimeout(()=>reopenNap2Popover(returnDate),0);
     }
