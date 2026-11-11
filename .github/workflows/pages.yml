@@ -38,6 +38,7 @@ jobs:
           node tests/sleep-monthly.test.js
           node tests/sleep-time-link.test.js
           node tests/history-export.test.js
+          node tests/history-export-ui.test.js
           python3 -c "import xml.etree.ElementTree as ET; r=ET.parse('/tmp/yuha-history-export-fixture.xml').getroot(); assert r.tag=='yuhaCareHistory'; assert len(r.findall('./records/record'))==3; print('PASS XML parsed by ElementTree')"
           cp apps-script/Code.gs /tmp/yuha-apps-script-check.js
           node --check /tmp/yuha-apps-script-check.js
