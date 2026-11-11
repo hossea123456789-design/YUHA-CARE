@@ -2206,7 +2206,7 @@
     }
     function sleepObservedAwake(dateKey) {
       const text=String(getSleepRecord(dateKey).nightAwakeMinutes??"");
-      if(!/^(?:0|[1-9]\\d{0,2})$/.test(text))return null;
+      if(!/^(?:0|[1-9]\d{0,2})$/.test(text))return null;
       const value=Number(text);
       return value>=0&&value<=960?value:null;
     }
