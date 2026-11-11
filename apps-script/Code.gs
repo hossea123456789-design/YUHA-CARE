@@ -339,6 +339,14 @@ function ensureSleepMetaColumns_(sh) {
   if(headers.some((v,i)=>v && v!==SLEEP_META_HEADERS_[i]))
     throw new Error('SLEEP_LOG P:U 열에 기존 데이터가 있어 보존을 위해 변경을 중단합니다.');
   if(headers.some((v,i)=>v!==SLEEP_META_HEADERS_[i])){
+    // An empty header does not prove an empty column. Reject even hidden
+    // user content under P:U rather than silently claiming those cells.
+    const last=sh.getLastRow();
+    if(last>1){
+      const cells=sh.getRange(2,16,last-1,6).getDisplayValues();
+      if(cells.some(row=>row.some(value=>String(value??"").trim()!=="")))
+        throw new Error('SLEEP_LOG P:U 기존 데이터가 있어 새 항목 열 생성을 중단했습니다.');
+    }
     sh.getRange(1,16,1,6).setValues([SLEEP_META_HEADERS_]);
     sh.getRange(1,16,1,6).setFontWeight('bold').setBackground('#344778').setFontColor('white');
     sh.getRange('P:U').setNumberFormat('@');sh.setColumnWidths(16,6,135);
