@@ -1730,6 +1730,7 @@
     const SLEEP_SERVER_CACHE = "yuha_sleep_server_v5_";
     const SLEEP_RESCUE_CACHE = "yuha_sleep_rescue_20261111_";
     const sleepRecoveryState=Object.create(null);
+    const sleepFetchHealth=Object.create(null);
     const SLEEP_PENDING_KEY = "yuha_sleep_pending_v5";
     const SLEEP_CACHE_MODE_KEY = "yuha_sleep_cache_mode_v3";
     const SLEEP_BIRTH_KEY = "yuha_sleep_birth_v3";
@@ -1886,14 +1887,24 @@
       ensureSleepMonth(year,month);
       if(!force&&sleepLoadTokens[key])return;
       const token=(sleepLoadTokens[key]||0)+1;sleepLoadTokens[key]=token;
-      if(!navigator.onLine){setSleepStatus("오프라인 · 기기에 저장한 기록 표시 중");return;}
+      if(!navigator.onLine){
+        sleepFetchHealth[key]={state:"offline"};
+        setSleepStatus("오프라인 · 기기에 저장한 기록 표시 중");
+        updateSleepRecoveryNotice();
+        return;
+      }
+      sleepFetchHealth[key]={state:"loading"};
+      updateSleepRecoveryNotice();
       showAppProgress("sleep-fetch-"+key, "수면 기록 불러오는 중", "busy");
       google.script.run
         .withSuccessHandler(result=>{
           if(sleepLoadTokens[key]!==token)return;
           if(!result||!result.ok){
+            sleepFetchHealth[key]={state:"error",message:"서버 응답 오류"};
+            delete sleepLoadTokens[key];
             showAppProgress("sleep-fetch-"+key, "수면 기록 조회 실패", "error");
             setSleepStatus("수면 기록 서버 조회 실패 · 기기 저장본 표시 중","error");
+            updateSleepRecoveryNotice();
             return;
           }
           sleepSessionOnline=true;
@@ -1910,6 +1921,9 @@
           const oldServerCount=Object.keys(cleanSleepSnapshot(sleepServerMonths[key],key)).length;
           const merged=mergeSleepMonthWithoutErasing(key,incoming,cachedBefore);
           sleepRecoveryState[key]=merged;
+          sleepFetchHealth[key]={state:merged.serverCount===0?"empty":"success",
+            serverCount:merged.serverCount,deviceCount:merged.deviceCount,
+            mismatchCount:merged.mismatches.length,deviceOnly:merged.deviceOnly};
           if(merged.serverCount===0&&oldServerCount>0){
             // A suddenly blank server read is suspicious: do not wipe the
             // previously verified cloud baseline used for conflict checks.
@@ -1949,6 +1963,7 @@
             sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:"자동 저장 연결됨",
             hasRecoveryWarning||waitingMeta&&!sleepServerMetaReady||waitingNap2&&!sleepServerNap2Ready?"error":sleepPending.length?"":"saved");
           if(currentTab==="sleep") renderSleepTab();
+          updateSleepRecoveryNotice();
           if(currentTab==="settings") {
             const bd=document.getElementById("sleepBirthDateSettings");
             if(bd && document.activeElement!==bd)bd.value=birthDate;
@@ -1958,8 +1973,11 @@
           if(sleepPending.length&&!sleepCacheOnly) requestSleepSync(false);
         })
         .withFailureHandler(err=>{
+          sleepFetchHealth[key]={state:"error",message:String(err?.message||err).slice(0,120)};
+          delete sleepLoadTokens[key];
           showAppProgress("sleep-fetch-"+key, key+" 수면 기록 조회 실패", "error");
           setSleepStatus("서버 조회 실패 · 기기 저장본 표시 중: "+(err.message||err),"error");
+          updateSleepRecoveryNotice();
         })
         .getSleepMonth(year,month);
     }
@@ -2732,6 +2750,58 @@
       }));
     }
 
+    function updateSleepRecoveryNotice(){
+      const el=document.getElementById("sleepRecoveryNotice");
+      if(!el)return;
+      const key=sleepMonthKey(sleepViewYear,sleepViewMonth);
+      const health=sleepFetchHealth[key]||{state:"unverified"};
+      const rows=ensureSleepMonth(sleepViewYear,sleepViewMonth);
+      const localCount=Object.values(rows).filter(sleepRecordHasData).length;
+      let message="",kind="";
+      if(health.state==="error"){
+        kind="error";
+        message="서버 기록을 불러오지 못했습니다. 화면의 미기록은 원본 삭제를 뜻하지 않습니다. 현재 기기 보유 "+localCount+"일 · "+(health.message||"서버 오류");
+      }else if(health.state==="offline"){
+        kind="error";message="오프라인입니다. 현재 기기에 남은 "+localCount+"일만 표시하며 서버 기록을 삭제하지 않았습니다.";
+      }else if(health.state==="empty"){
+        kind="error";
+        message="서버가 이 달 기록을 0일로 반환했습니다. 현재 기기 "+localCount+
+          "일 보존 · 과거 자료가 있는 경우 서버 연결/배포 상태를 확인해야 합니다.";
+      }else if(health.state==="success"){
+        kind=health.deviceOnly||health.mismatchCount?"warning":"ok";
+        message="조회한 서버 기록 "+health.serverCount+"일 / 기기 기록 "+localCount+
+          "일"+(health.deviceOnly||health.mismatchCount?
+          " · 기기 전용 "+health.deviceOnly+"일, 상이한 항목 "+health.mismatchCount+"건 원본 별도 보존":"");
+      }else message="서버에서 이 달 기록 확인 전입니다. 기기 캐시는 "+localCount+"일이며 조회 결과가 원본 삭제를 뜻하지는 않습니다.";
+      el.className="sleep-recovery-notice "+kind;
+      el.textContent=message;
+    }
+    function exportSleepDeviceRecovery(){
+      const snapshot={schema:"yuha-sleep-device-rescue-v1",
+        exportedAt:new Date().toISOString(),
+        note:"Read-only backup of all accessible sleep localStorage keys. No server writes.",
+        entries:{}};
+      for(let i=0;i<localStorage.length;i++){
+        const key=localStorage.key(i);
+        if(key&&(key.startsWith("yuha_sleep_month_")||
+          key.startsWith("yuha_sleep_server_")||
+          key.startsWith("yuha_sleep_pending_")||
+          key.startsWith(SLEEP_RESCUE_CACHE)||
+          key.startsWith("yuha_sleep_birth_")))
+          snapshot.entries[key]=localStorage.getItem(key);
+      }
+      if(!Object.keys(snapshot.entries).length){
+        alert("이 브라우저에 다운로드할 수면 기록 캐시가 없습니다. 서버 원본과는 별개입니다.");
+        return;
+      }
+      const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:"application/json;charset=utf-8"});
+      const url=URL.createObjectURL(blob),link=document.createElement("a");
+      link.href=url;link.download="yuha-sleep-device-rescue-"+localDateKey(new Date())+".json";
+      document.body.appendChild(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),12000);
+      setSleepStatus("수면 기기 캐시 원본을 JSON 파일로 내려받았습니다 · 서버 데이터 변경 없음","saved");
+    }
+
     function renderSleepTab() {
       const y=sleepViewYear,m=sleepViewMonth;
       const weekDates=getSleepWeekDates(sleepSelectedDate);
@@ -2743,6 +2813,14 @@
         <div class="panel-head sleep-heading"><div><h2 class="panel-title">수면 기록</h2>
           <span class="count">유하 · ${ageLabel(ageAtSleepDate(localDateKey(new Date())))}</span></div>
           <button type="button" class="history-export-trigger" id="sleepHistoryExport">XML 기록 추출</button></div>
+        <section class="sleep-recovery-tools" aria-label="기존 수면 기록 보호 및 서버 점검">
+          <strong>기존 기록 보호·조회 상태</strong>
+          <p id="sleepRecoveryNotice" class="sleep-recovery-notice" role="status" aria-live="polite">서버 기록 확인 전입니다.</p>
+          <div class="sleep-recovery-actions">
+            <button type="button" id="sleepRecoveryRefresh">서버 기록 다시 조회</button>
+            <button type="button" id="sleepDeviceRecovery">기기 원본 백업(JSON)</button>
+          </div>
+        </section>
         <div class="sleep-card sleep-map-card">
           <div class="sleep-card-title"><span>${y}년 ${m}월</span>
             <div class="sleep-map-nav"><button type="button" id="sleepPrev" aria-label="이전 달">〈</button>
@@ -2777,6 +2855,12 @@
           <div class="sleep-sync-mini"><span id="sleepPendingCount">${sleepPending.length?`임시 보관 ${sleepPending.length}건`:"자동 저장"}</span><button type="button" id="sleepRetry" style="${sleepPending.length?"":"display:none"}">동기화 재시도</button></div>
         </div>`;
       document.getElementById("sleepHistoryExport").addEventListener("click",openSleepHistoryExport);
+      document.getElementById("sleepRecoveryRefresh").addEventListener("click",()=>{
+        setSleepStatus("기존 기록 서버 재조회 중 · 기기 원본 덮어쓰기 없음");
+        fetchSleepMonth(true);
+      });
+      document.getElementById("sleepDeviceRecovery").addEventListener("click",exportSleepDeviceRecovery);
+      updateSleepRecoveryNotice();
       document.getElementById("sleepPrevWeek").addEventListener("click",()=>changeSleepWeek(-1));
       document.getElementById("sleepNextWeek").addEventListener("click",()=>changeSleepWeek(1));
       document.getElementById("sleepToday").addEventListener("click",()=>{
