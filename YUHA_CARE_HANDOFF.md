@@ -1,10 +1,12 @@
 # YUHA-CARE 전체 구현·운영·작업 인수인계서
 
 > **중요: 다음 작업 세션을 위한 시작 문서 (Single Source of Handoff)**  
-> 문서 기준일: **2026-10-21 (KST)**  
+> 문서 기준일: **2026-11-11 (KST)** — 최신 main 및 운영 데이터 재검증  
 > 정본 코드: GitHub 저장소 `hossea123456789-design/YUHA-CARE`, `main` 브랜치  
 > 정본 화면: https://hossea123456789-design.github.io/YUHA-CARE/  
 > 목적: 이전 대화를 보지 못하는 개발자/ChatGPT 세션도 현재 구현, 판단 배경, 배포 방법, 미해결 이슈를 이해하고 **기존 데이터를 보존하며 동일 프로젝트를 이어서 개발**하도록 한다.
+>
+> **최신 설계 우선:** 다음 세션은 §45~49와 최신 main을 먼저 확인한다. 과거 §45의 N:S 신규 필드 배치는 이후 수정된 초기안이다. 운영 정본은 A:M 보존, 기존 중복 2차 낮잠 제목 N:O 유지, 신규 관찰 필드 P:U 사용이다. 백엔드 코드·실제 배포 상태를 구분해 판단한다.
 
 ## 0. 필수 인수인계 규칙 (앞으로 반드시 준수)
 
@@ -44,7 +46,7 @@ Android / tablet / desktop
   ↓ open HTTPS
 GitHub Pages: index.html + design.css + config.js + bridge-client.js
   ├─ localStorage: 체크리스트 캐시, 수면 월별 캐시, 서버 기준값, 미동기화 편집 큐
-  ├─ 체크리스트 즉시 UI + 로컬 저장, 약 2.5초 idle 후 묶음 저장
+  ├─ 체크리스트 즉시 UI + 로컬 저장, 최근 입력·터치 종료 후 약 2초 idle 묶음 저장
   ├─ 수면 필드별 편집 큐 + 충돌 감지
   └─ 숨겨진 Apps Script iframe (브리지/메시지 중계)
          ↓ postMessage(origin + nonce 검사)
@@ -55,14 +57,14 @@ Google Apps Script 웹앱 /exec
       ├─ getAppData / saveAppData (체크리스트)
       └─ getSleepMonth / syncSleepChanges (수면)
           ↓ SpreadsheetApp
-Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
+Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUDIT_LOG
 ```
 
 ### 2.1 GitHub Pages와 Apps Script의 역할 구분
 - **사용자에게 보여지는 HTML/CSS/JS는 오직 GitHub Pages**에서 관리. Google Sheets는 HTML 저장소가 아니다.
 - 브라우저의 다른 도메인에서 `google.script.run`을 직접 호출할 수 없으므로, `bridge-client.js`가 숨겨진 iframe을 생성해 Apps Script HtmlService와 `postMessage`로 통신한다.
 - 별도의 `apps-script/Bridge.html`은 **없다.** 중계 HTML 문자열은 `Code.gs`의 `serveYuhaBridge_(e)`가 생성한다. `doGet(e)`에서 `bridge=1` 요청을 처리한다.
-- `bridge-client.js`는 응답 nonce 및 Google 발신 origin을 확인하며, 서버 측 브리지는 GitHub Pages origin과 nonce를 확인한다. 허용 메서드는 `getAppData`, `saveAppData`, `getSleepMonth`, `syncSleepChanges` 4개.
+- `bridge-client.js`는 응답 nonce 및 Google 발신 origin을 확인하며, 서버 측 브리지는 GitHub Pages origin과 nonce를 확인한다. 현행 허용 메서드는 `getAppData`, `saveAppData`, `getSleepMonth`, `syncSleepChanges`, `getMentalMonth`, `syncMentalEntry`, `reportMentalClientEvents`, `getMentalAuditLog` 8개.
 - `bridge-client.js`가 `window.google.script.run` 프록시를 제공한다. 실제 화면 코드 `index.html`은 기존 Apps Script 호출과 유사하게 `google.script.run.withSuccessHandler(...).withFailureHandler(...).method(...)`를 사용.
 - `window.YuhaDBBridge`의 `connected()` 및 `reconnect()`가 제공된다.
 - 18초 브리지 초기 연결 경고, RPC 응답 타임아웃 65초. 연결 오류 상태는 우측 상단에 표현된다.
@@ -75,6 +77,10 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 | `index.html` | HTML 골격, 화면 렌더링, 체크리스트/수면 점수 계산 및 상태 머신, UI 이벤트 | 기능/상호작용/점수/저장 클라이언트 |
 | `design.css` | 전역·모바일 스타일, 헤더/탭/수면 표/히트맵/진행 표시 | 시각 디자인, 레이아웃, 반응형 |
 | `bridge-client.js` | 외부 Apps Script 연결, 통신 nonce, 메서드 프록시, 연결 상태 이벤트 | 연결 오류, 타임아웃, 재연결 |
+| `mental.js`, `mental.css`, `mental-diagnostics.js` | 아내 회복·편지·PIN·진단 로그 | 회복·동기화·보안 관련 UX |
+| `sleep-monthly.js` | 월간 수면 통계 및 학술적 한계 표시 | 월별 수면 해석 |
+| `history-export.js` | 수면·회복 XML 내보내기·기간 지정·관찰 지표 해설 | XML 구조·출력 변경 |
+| `tests/` | 회귀 자동 테스트 | 기능 및 데이터 보호 테스트 |
 | `config.js` | 모든 기기에서 공통으로 사용할 기존 Apps Script 웹앱 URL | 백엔드 배포 주소가 실제로 변경된 경우만 |
 | `apps-script/Code.gs` | Apps Script 백엔드/Sheets DB CRUD/HTML 중계 생성 | 서버 데이터 형식·API·새 필드 |
 | `.github/workflows/pages.yml` | `main` push 시 GitHub Pages Actions 배포 | 배포 파일 추가/워크플로 변경 |
@@ -84,7 +90,7 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 ### 3.1 GitHub Pages 배포 절차
 1. `main`의 소스 파일을 수정한다. 권장: 관련 파일과 이 MD/README를 한 흐름에서 갱신한다.
 2. `.github/workflows/pages.yml`은 `main` push에 자동 반응한다. `workflow_dispatch`도 선언되어 있다.
-3. 워크플로는 `public-site`를 만든 뒤 **`index.html`, `design.css`, `mental.js`, `mental.css`, `bridge-client.js`, `config.js`만 복사**해 Pages artifact를 올리고 `actions/deploy-pages@v4`로 배포한다. **Apps Script 코드 및 본 문서는 GitHub 저장소에는 존재하지만 공개 Pages 산출물에는 포함하지 않는다.**
+3. 워크플로는 `public-site`를 만든 뒤 **`index.html`, `design.css`, `mental.css`, `mental.js`, `mental-diagnostics.js`, `bridge-client.js`, `config.js`, `sleep-monthly.js`, `history-export.js`, 편지 SVG 2개를 복사**해 Pages artifact를 올리고 `actions/deploy-pages@v4`로 배포한다. **Apps Script 코드 및 본 문서는 GitHub 저장소에는 존재하지만 공개 Pages 산출물에는 포함하지 않는다.**
 4. 최신 `main` commit SHA와 최신 Actions run의 `head_sha`가 같은지, 전체 `status=completed` 및 `conclusion=success`인지, `deploy-pages` 단계도 성공인지 확인한다.
 5. 정적 CSS/JS 내용 변경 시 브라우저 캐시로 이전 화면이 남을 수 있다. `index.html`에서 `design.css?v=...` 등 참조의 버전을 갱신하고 새로고침한다.
 6. 실제 GUI가 필요하면 320/360/390px 모바일, 768px 태블릿에서 시각 확인한다. 브라우저/렌더링 테스트가 불가능하면 **문법·배포 검증까지만 됐다고 명시**한다.
@@ -949,6 +955,36 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 날짜 의미: bedTime/asleepTime/onsetState는 선택 날짜의 **그날 밤**, wakeTime/nightAwakeMinutes/nightWakings/morningCondition은 선택 날짜 **그날 아침**, napStart/napEnd/nap2Start/nap2End/napSource는 선택 날짜 낮잠, specialFlags는 그날 특수 상황. 전날 밤 입면→오늘 아침 기상으로 계산하는 날 D의 밤잠에는 **D의 nightAwakeMinutes를 차감**한다. `nightDurationGross(D)`는 전날 실제 잠든 시각부터 D 기상까지 240~960분 범위, `nightDuration(D)`는 관찰된 wake 총분만 차감. 미입력은 관측된 0이 아니므로 임의로 0분이라 표시하거나 `nightWakings=0`이라 기록하지 않는다. 관찰된 awake가 gross를 넘으면 앱은 시간 입력을 거절하고(기존 비정상 기록은 total=null) Sheets H열 수식은 공란을 반환한다.
 - 기존 수면 점수 자체의 감점 비율은 유지. **일상 수면 규칙성** 비교에서 여행·질병·특별 상황을 표시한 날 또는 그 전날의 취침을 제외하고 과거 7일 기준선에서도 제외. 날짜별 실제 총수면량과 AASM 연령별 권고 비교는 유지하되 별도 특수 상황 메모를 붙인다. 낮잠이 어린이집 추정/보호자 전달이면 평가의 관측 정확도 주의를 붙이며, 기록된 밤중 각성 및 아침 컨디션 등은 진단/추가 임의 감점이 아니라 관찰 지표다.
 - 수면 탭 월별 리포트에 기상 중 평균 분/각성 횟수 평균(각각 실제 기록한 날만 분모), 특수 상황 일수, 낮잠 직접 관찰·어린이집 추정·보호자 전달 일수, 입면 울음과 피로/보챔 일수 등의 학술적으로 과장하지 않는 해석을 추가. XML 추출 `fieldDefinitions`에도 6개 신필드와 새로운 24시간 계산 규칙/미기록 의미를 추가.
-- Google Sheets `SLEEP_LOG`의 원래 A:M 데이터를 변경하지 않고 **N:S 6개 텍스트 열을 뒤에 확장**: N nightAwakeMinutes, O nightWakings, P napSource, Q onsetState, R specialFlags, S morningCondition. getSleepMonth는 schemaVersion=3, metadataSupported=true; syncSleepChanges는 개별 새 필드에 대한 기존 세밀한 충돌 보호와 범위 검증을 그대로 적용한다. H열 계산은 각성분을 반영하되 음수이면 공란, J는 기존 합산. N:S 기존 칸 제목이 다르면 안전하게 작업을 중단한다.
+- Google Sheets `SLEEP_LOG`의 원래 A:M과 N:O 기존 중복 제목을 보존하며, **현행 신규 관찰 6개 항목은 P:U**: P nightAwakeMinutes, Q nightWakings, R napSource, S onsetState, T specialFlags, U morningCondition. 이전 N:S 계획은 폐기했다(§46). getSleepMonth는 schemaVersion=3, metadataSupported=true; syncSleepChanges는 개별 새 필드에 대한 기존 세밀한 충돌 보호와 범위 검증을 그대로 적용한다. H열의 새 수식은 P열 각성분을 반영하되 음수이면 공란, J는 기존 합산. P:U 제목이 충돌하거나 제목 아래 기존 데이터가 있으면 덮어쓰기 없이 중단한다. 운영 H열의 기입된 기존 수식은 P열 차감 반영 여부를 별도 검증한다.
 - **중요 운영 사항:** GitHub Pages만 자동 배포됨. 새 Apps Script `apps-script/Code.gs`를 현재 연결된 Apps Script 프로젝트에 복사하고 **기존 웹앱 배포 관리 → 수정 → 새 버전 배포**해야 새 데이터가 다른 기기까지 동기화된다. 이전 서버(schemaVersion<3)에 입력한 관찰 기록은 로컬 pending과 월 캐시에 보존하고, 서버와 주고받는 옛 수면시간 필드는 정상 동작시키며, 새 필드는 구버전 서버에 보내지 않는다. 구버전 서버 월 조회가 로컬의 신필드를 덮어쓰지 못하게 별도 복원한다. 미배포 상태는 화면에 기기 보관 안내를 명시한다. 배포 전 브라우저 사이트 데이터 삭제/앱 캐시 초기화는 금지.
 - 테스트 `tests/sleep-context.test.js`: 600분 밤잠 − 40분 각성 + 90분 낮잠 = 650분, 미입력 vs 명시적 0, 비정상 각성, 특별 상황 시 규칙성 분리, 월별 통계, N:S 필드 검증, XML 및 참고 점수 표시. `tests/sleep-context-sync.test.js`: 구버전 서버 월 조회가 로컬 신필드 데이터를 지우지 못함, 구버전 서버로 신필드 전송하지 않다가 v3 연결 시 기존 안전한 동기화 API로 전송. GitHub CI에 등록. 실 기기 화면과 Google Apps Script 편집·재배포 이후 교차 기기 통합 검증은 별도 확인 대상.
+
+
+## 46. 2026-11-11 — 수면 데이터 긴급 보존 및 신필드 열 충돌 수정
+
+- 사용자 앱에서 과거 수면 기록이 사라져 보인 사건을 조사했다. 기존 월 조회 코드는 빈/불완전 서버 응답을 기기 월별 캐시에 통째로 대입할 위험이 있었다. 현행 index.html의 mergeSleepMonthWithoutErasing()는 날짜·필드별 비파괴 병합, 충돌 시 로컬 표시 원본 보호, 서버/기기 원본의 구분 스냅샷을 구현한다. 서버와 값이 상이할 때 자동 덮어쓰기/복구 추정은 하지 않는다.
+- 브라우저 수면 화면에 서버 기록 다시 조회(읽기 전용), 기기 원본 백업(JSON), 월별 조회 실패/빈 응답/원본 차이 안내를 추가했다. 기기 원본 스냅샷은 yuha_sleep_rescue_20261111_ 접두사의 별도 키에 보관한다. 데이터 초기화, 캐시·사이트 데이터 삭제, 원본 시트에 대한 시험성 쓰기 금지.
+- 운영 SLEEP_LOG의 기존 A:M, 중복 제목이 존재하는 N:O를 보존하고 신규 필드를 P:U(16~21열)로 이동했다. P 깨어 있던 분, Q 밤중 각성 횟수, R 낮잠 기록 출처, S 잠들기 전 상태, T 특별한 날, U 아침 컨디션이다. apps-script/Code.gs ensureSleepMetaColumns_는 헤더가 없더라도 아래 칸에 기존 데이터가 있으면 생성 중단. getSleepMonth는 A:U를 읽고 소스상 schemaVersion=3, metadataSupported=true를 반환한다.
+- 실제 운영 원본과 2026-11-11 긴급 보존 백업을 읽기 전용 대조: 기존 수면 실입력 날짜 25일분은 유지되었고, 핵심 시각 필드(C:G, L:M)의 백업 대비 빠진 값 0건·기존 비공란 값 변경 0건이다. 운영 시트의 날짜 행은 42개로 사전 생성된 빈 행이 포함되므로 42일 모두 실입력한 것으로 해석하면 안 된다. 신규 P:U 값이 하나 이상 기록된 날짜는 8일이다. 다른 기기에서만 남은 미전송 기록의 완전 복구를 증명하는 수치는 아니다.
+- 운영 시트에는 신규 P:U 헤더가 존재하지만 실행 중인 Apps Script /exec의 코드 버전은 별도 검증이 필요하다. 운영 H열 기존 수식은 P열을 아직 참조하지 않았고 P열 실제 각성분 기록은 0건이었다. 현행 Code.gs는 nightAwakeMinutes 편집 시 해당 H열 수식을 새 공식으로 갱신하도록 구현돼 있다. 기존 H열 전체를 임의 일괄 변경하지 않는다.
+- 근거 커밋: 03490bb9(비파괴 병합), 5e701dae(P:U 점유 데이터 보호), 40a86c03(긴급 조사), 0ee821f4(브리지 연결 실패 안전화). 회귀 tests/sleep-data-rescue.test.js, tests/sleep-context-sync.test.js 등을 .github/workflows/pages.yml에서 등록했다.
+
+## 47. 2026-11-11 — 수면 퀄리티 체크 UI 시간순 정리
+
+- 수면 입력표 아래, 월별 분석 위의 관찰 카드를 '수면 퀄리티 체크'로 명명. 관찰 순서를 전날 밤~오늘 아침(밤중 각성) → 오늘 아침(기상 컨디션) → 오늘 낮잠(출처) → 오늘 밤(입면 상태) → 당일 특별한 상황(여행·질병·일정)으로 정리했다. '오늘 밤'은 그날 밤의 입면 과정이며 아침의 직전 밤과 혼동하지 않도록 날짜 설명을 제공한다.
+- index.html drawSleepObservation(), design.css 시간순 타임라인 스타일 반영. tests/sleep-quality-order.test.js는 실제 렌더 문구·순서·기존 선택값 유지·배치를 검증한다. 커밋 8433bacb, 67e553df, 5c1e43db, be304aa5. 모바일 실기기 조작 QA와 마지막 Actions 배포 성공 판정은 별개다.
+
+## 48. 2026-11-11 — XML 추출에 신규 관찰 지표의 원본·한글 해설 동시 포함
+
+- 기존 history-export.js는 serverVersion/deviceVersion/pendingChanges/conflictVersions 내부의 모든 원본 필드를 직렬화하고, index.html은 신규 6개 관찰 항목의 fieldDefinitions을 이미 제공했다. 다만 데이터가 travel/fussy/crying 등 영문 코드여서 읽기 어렵고, 모든 출처에서 6개 항목이 온전히 출력되는지 전용 테스트가 없었다.
+- history-export.js buildXml()의 수면 기록 항목에 sleepObservations를 추가했다. 여섯 항목은 nightWakings(밤중 각성 횟수), nightAwakeMinutes(밤중 각성 총 분), morningCondition(아침 컨디션), napSource(낮잠 출처), onsetState(잠드는 과정), specialFlags(여행·질병·특별 일정)이다. 각각 raw=원본 코드/숫자, recorded=기록 여부, dateBasis=적용 날짜 시점, 한글 해설 및 분·회 단위를 담는다.
+- sleepObservations의 version source는 serverVersion, deviceVersion, pendingChanges, conflictServerValue, conflictDeviceValue로 구분한다. 기존 XML의 serverVersion·deviceVersion·pendingChanges·conflictVersions 원본은 삭제하거나 병합하지 않는다. 미입력은 recorded=false, 명시적인 숫자 문자열 0은 recorded=true로 구별한다. specialFlags의 다중 상황(예: travel,illness)도 '여행, 질병'으로 풀되 raw 원문을 유지한다. sleepObservations는 입력 데이터에 없는 계산 점수를 생성하지 않는다.
+- 기존 시각 필드 bedTime/asleepTime/wakeTime/napStart/napEnd/nap2Start/nap2End도 원본 버전에 계속 포함된다. XML 기간 지정 필터는 기록 전체에 일관되게 적용되고, 아내 회복 XML의 기존 구조·PIN 검증은 변경하지 않았다. 파일 자체는 암호화되지 않는다.
+- index.html sleepExportLocalMonth()에서 숫자 0이 비어 있는 문자열로 변환될 수 있던 String(row[key]||'')를 null 병합 처리로 변경해 0을 보존하고, history-export.js 캐시 키를 20261111-sleep-observations1로 갱신했다.
+- tests/history-export.test.js에 6개 지표, 한글 해설, 서버/기기/미전송/충돌 출처, 0·미입력 구분, 원래 시각 데이터, 범위 밖 제외 검증을 추가했다. CI는 /tmp/yuha-sleep-observations.xml을 Python ElementTree로 파싱하여 다섯 출처 버전을 확인한다. 소스 커밋: 08a983ff(XML), 5f4dbefc(테스트), 19ce7f91(로컬 0 보존·캐시), 7a810d62(CI 파싱). GitHub 커밋과 CI 테스트 등록은 확인됐지만 마지막 Actions 성공 및 모바일 다운로드 실사용은 별도 확인 사항이다.
+
+## 49. 2026-11-11 — 새 제작 세션 상태 및 다음 검증
+
+- 최신 main을 기준으로 재개한다. 사용자가 '최신화'와 XML의 신규 수면 지표 추출을 함께 요청해 위 46~48을 정리했다. 이번 문서 및 README 갱신 외에 운영 Sheets 데이터와 배포된 Apps Script 코드는 직접 수정하지 않는다.
+- 우선순위: (1) 최종 main SHA와 Actions conclusion=success 및 Pages 정적 파일 확인, (2) 실제 /exec schemaVersion=3·metadataSupported=true 읽기 확인, (3) 기기별 사이트 캐시·미전송 상태 보존·백업, (4) 두 기기에서 안전한 별도 테스트 날짜로 기록 저장·조회·교차 동기화, (5) 0분/40분과 H/J 계산, XML 신규 6필드 실제 다운로드·파싱 검증.
+- GitHub Pages가 자동 배포돼도 Apps Script 새 버전 배포를 의미하지 않는다. 원본·긴급백업과 아내 회복 민감정보를 공개 저장소에 게시하지 않는다. 테스트 전 운영 데이터와 휴대폰 브라우저 저장소 삭제 금지. 검증하지 않은 항목은 완료라고 보고하지 않는다.
