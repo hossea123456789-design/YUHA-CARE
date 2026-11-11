@@ -83,31 +83,34 @@ function buildXml(doc){
  if(!SPEC[doc.kind])throw Error("지원하지 않는 기록 유형입니다.");
  const date=new Date().toISOString();
  const batches=Array.isArray(doc.months)?doc.months:[];
+ if(!VALID_MONTH.test(doc.firstMonth)||!VALID_MONTH.test(doc.lastMonth))throw Error("XML의 조회 연월이 잘못되었습니다.");
+ const [lastYear,lastNumber]=doc.lastMonth.split("-").map(Number);
+ const lastCalendarDate=new Date(Date.UTC(lastYear,lastNumber,0)).toISOString().slice(0,10);
  const startDay=doc.startDate||doc.firstMonth+"-01";
- const endDay=doc.endDate||doc.lastMonth+"-31";
- if(!validDate(startDay)||(!validDate(endDay)&&!/^20\d{2}-(?:0[1-9]|1[0-2])-31$/.test(endDay))||startDay>endDay)
+ const endDay=doc.endDate||lastCalendarDate;
+ if(!validDate(startDay)||!validDate(endDay)||startDay>endDay)
   throw Error("XML의 기록 날짜 범위가 올바르지 않습니다.");
  const withinRange=day=>day>=startDay&&day<=endDay;
  let results=new Map(),failed=[];
  for(const batch of batches){
   if(batch?.error)failed.push(batch.month);
   for(const [day,server] of Object.entries(batch?.server||{})){
-   if(!VALID_DAY.test(day)||!day.startsWith(batch.month)||!withinRange(day))continue;
+   if(!validDate(day)||!day.startsWith(batch.month)||!withinRange(day))continue;
    const item=results.get(day)||{date:day};
    item.server=server;results.set(day,item);
   }
   for(const [day,local] of Object.entries(batch?.device||{})){
-   if(!VALID_DAY.test(day)||!day.startsWith(batch.month))continue;
+   if(!validDate(day)||!day.startsWith(batch.month)||!withinRange(day))continue;
    const item=results.get(day)||{date:day};
    item.device=local;results.set(day,item);
   }
   for(const [day,pending] of Object.entries(batch?.pending||{})){
-   if(!VALID_DAY.test(day)||!day.startsWith(batch.month))continue;
+   if(!validDate(day)||!day.startsWith(batch.month)||!withinRange(day))continue;
    const item=results.get(day)||{date:day};
    item.pending=pending;results.set(day,item);
   }
   for(const [day,conflict] of Object.entries(batch?.conflicts||{})){
-   if(!VALID_DAY.test(day)||!day.startsWith(batch.month))continue;
+   if(!validDate(day)||!day.startsWith(batch.month)||!withinRange(day))continue;
    const item=results.get(day)||{date:day};
    item.conflict=conflict;results.set(day,item);
   }
