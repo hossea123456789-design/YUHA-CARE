@@ -8,26 +8,32 @@ function fixture(){
  function el(){
   const handlers={};
   return {handlers,disabled:false,hidden:false,value:"",
-   style:{},classList:{add(){},remove(){}},dataset:{},
+   style:{},classList:{add(){},remove(){},toggle(){}},dataset:{},
    addEventListener(type,fn){handlers[type]=fn;},
    click(){handlers.click?.({target:this});},
    remove(){this.removed=true;},
    setAttribute(name,val){this[name]=val;}
   };
  }
- const all=el(),month=el(),monthInput=el();
+ const all=el(),month=el(),range=el(),monthInput=el(),monthRow=el(),rangePanel=el(),dateStart=el(),dateEnd=el();
+ const presets=["thisYear","last12","last6","last3","custom"].map(key=>{
+  const b=el();b.dataset.preset=key;return b;
+ });
  all.value="all";all.checked=true;month.value="month";month.checked=false;
+ range.value="range";range.checked=false;
  monthInput.disabled=true;monthInput.value="2026-11";
  const run=el(),partial=el(),again=el(),status=el(),bar=el(),progress=el(),cancel=el();
  partial.hidden=true;again.hidden=true;
  const els={
-  '[data-month]':monthInput,'[data-run]':run,'[data-partial]':partial,'[data-again]':again,
+  '[data-month]':monthInput,'[data-month-row]':monthRow,
+  '[data-range-panel]':rangePanel,'[data-start]':dateStart,'[data-end]':dateEnd,
+  '[data-run]':run,'[data-partial]':partial,'[data-again]':again,
   '[data-status]':status,'[data-bar]':bar,'[data-progress]':progress
  };
  const cover=el();
  cover.querySelector=name=>els[name];
- cover.querySelectorAll=name=>name==='input[name="historyScope"]'?[all,month]:
-  name==='[data-close]'?[cancel]:[];
+ cover.querySelectorAll=name=>name==='input[name="historyScope"]'?[all,month,range]:
+  name==='[data-preset]'?presets:name==='[data-close]'?[cancel]:[];
  const a=el();let file=null;
  const downloads=[];
  const doc={
@@ -44,7 +50,7 @@ function fixture(){
  a.click=()=>downloads.push({name:a.download,file});
  vm.runInNewContext(script,sandbox,{filename:"history-export.js"});
  const flush=()=>new Promise(resolve=>setImmediate(resolve));
- return {api:sandbox.window.YuhaHistoryExport,cover,all,month,monthInput,run,partial,again,status,
+ return {api:sandbox.window.YuhaHistoryExport,cover,all,month,range,monthInput,monthRow,rangePanel,dateStart,dateEnd,presets,run,partial,again,status,
   downloads,flush};
 }
 (async()=>{
@@ -114,4 +120,66 @@ function fixture(){
  assert.equal(read.length,0);
  assert(f.status.textContent.includes("접근 권한"));
  console.log("PASS popup: locked mental data cannot fetch or download");
+})();
+
+(async()=>{
+ const f=fixture(),read=[];
+ f.api.open({kind:"sleep",month:"2026-11",fromMonth:"2025-03",
+  localMonthKeys:()=>[],localMonth:()=>({records:{}}),
+  fetchMonth:async k=>{
+   read.push(k);
+   return {ok:true,records:{
+    [k+"-01"]:{wakeTime:"06:10"},
+    [k+"-15"]:{wakeTime:"06:30"},
+    [k+"-28"]:{wakeTime:"06:50"}
+   }};
+  }
+ });
+ f.all.checked=false;f.range.checked=true;f.range.handlers.change();
+ assert.equal(f.rangePanel.hidden,false);
+ assert.equal(f.monthRow.hidden,true);
+ assert.equal(f.dateStart.disabled,false);
+ const six=f.presets.find(b=>b.dataset.preset==="last6");
+ six.click();
+ const today=new Date();
+ const todayKey=[today.getFullYear(),String(today.getMonth()+1).padStart(2,"0"),String(today.getDate()).padStart(2,"0")].join("-");
+ const expected=f.api.presetDates("last6",todayKey);
+ assert.equal(f.dateStart.value,expected.startDate);
+ assert.equal(f.dateEnd.value,expected.endDate);
+ // User edits the preset dates to a day-level range crossing month boundary.
+ f.dateStart.value="2026-08-15";f.dateStart.handlers.change();
+ f.dateEnd.value="2026-09-02";f.dateEnd.handlers.change();
+ f.run.click();await f.flush();await f.flush();
+ assert.deepEqual(read,["2026-08","2026-09"]);
+ assert.equal(f.downloads.length,1);
+ const xml=await f.downloads[0].file.text();
+ assert(xml.includes('scope="range"'));
+ assert(xml.includes('startDate="2026-08-15" endDate="2026-09-02"'));
+ assert(xml.includes('record date="2026-08-15"'));
+ assert(xml.includes('record date="2026-08-28"'));
+ assert(xml.includes('record date="2026-09-01"'));
+ assert(!xml.includes('record date="2026-08-01"'));
+ assert(!xml.includes('record date="2026-09-15"'));
+ assert(f.downloads[0].name.includes("2026-08-15_to_2026-09-02"));
+ console.log("PASS popup: six-month preset autofills days and custom date range exports exact records");
+})();
+(async()=>{
+ const f=fixture(),reads=[];
+ f.api.open({kind:"mental",month:"2026-11",fromMonth:"2025-03",
+  authorized:()=>true,localMonthKeys:()=>[],localMonth:()=>({records:{}}),
+  fetchMonth:async k=>{reads.push(k);return {ok:true,records:{}};}
+ });
+ f.all.checked=false;f.range.checked=true;f.range.handlers.change();
+ f.presets.find(p=>p.dataset.preset==="thisYear").click();
+ const now=new Date();
+ assert.equal(f.dateStart.value,now.getFullYear()+"-01-01");
+ assert.equal(f.dateEnd.value,[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-"));
+ // Invalid or reversed dates must not contact the server.
+ f.dateStart.value="2026-11-07";f.dateStart.handlers.change();
+ f.dateEnd.value="2026-11-02";f.dateEnd.handlers.change();
+ f.run.click();await f.flush();
+ assert.equal(f.downloads.length,0);
+ assert.equal(reads.length,0);
+ assert(f.status.textContent.includes("시작일과 종료일"));
+ console.log("PASS popup: year-to-date and invalid custom-date protection");
 })();
