@@ -79,6 +79,74 @@ function canonical(value){
  return value;
 }
 function isSame(a,b){return JSON.stringify(canonical(a))===JSON.stringify(canonical(b));}
+// A readable, provenance-aware view of the six sleep observation fields.
+// The unmodified server/device/pending/conflict records are still exported below.
+const SLEEP_QUALITY_FIELDS=Object.freeze([
+ {key:"nightWakings",label:"밤중 각성 횟수",unit:"count",dateBasis:"morning"},
+ {key:"nightAwakeMinutes",label:"밤중 깨어 있던 시간",unit:"minutes",dateBasis:"morning"},
+ {key:"morningCondition",label:"아침 컨디션",dateBasis:"morning"},
+ {key:"napSource",label:"낮잠 기록 출처",dateBasis:"nap"},
+ {key:"onsetState",label:"잠들기 전 상태",dateBasis:"bedtime"},
+ {key:"specialFlags",label:"그날의 특별한 상황",dateBasis:"day"}
+]);
+const SLEEP_QUALITY_LABELS=Object.freeze({
+ morningCondition:{bright:"개운하고 활기참",ordinary:"평소와 같음",tired:"피곤해함",fussy:"보채거나 예민함"},
+ napSource:{observed:"집에서 직접 관찰",daycare:"어린이집 추정",caregiver:"보호자 전달"},
+ onsetState:{calm:"편안하게 잠듦",fussy:"가벼운 보챔",crying:"지속적인 울음"},
+ specialFlags:{none:"평소",travel:"여행",illness:"질병",unusual:"특별 일정"}
+});
+function sleepObservationDisplay(key,raw){
+ const choices=SLEEP_QUALITY_LABELS[key];
+ if(key==="nightWakings")return raw+"회";
+ if(key==="nightAwakeMinutes")return raw+"분";
+ if(key==="specialFlags")return raw.split(",").map(code=>choices[code]||code).join(", ");
+ return choices?.[raw]||raw;
+}
+function sleepObservationVersionXml(record,source){
+ if(!record||typeof record!=="object"||Array.isArray(record))return "";
+ if(!SLEEP_QUALITY_FIELDS.some(f=>record[f.key]!==null&&record[f.key]!==undefined&&String(record[f.key])!==""))return "";
+ let xml='        <version'+attr("source",source)+'>\n';
+ for(const field of SLEEP_QUALITY_FIELDS){
+  const raw=record[field.key],recorded=raw!==null&&raw!==undefined&&String(raw)!=="";
+  xml+='          <'+field.key+attr("label",field.label)+
+   attr("dateBasis",field.dateBasis)+attr("recorded",recorded?"true":"false")+
+   (field.unit?attr("unit",field.unit):"");
+  if(recorded)xml+=attr("raw",String(raw))+">"+safeXml(sleepObservationDisplay(field.key,String(raw)))+
+   "</"+field.key+">\n";
+  else xml+="/>\n";
+ }
+ return xml+'        </version>\n';
+}
+function sleepObservationPendingRecord(pending){
+ const result={};
+ for(const field of SLEEP_QUALITY_FIELDS){
+  const item=pending?.[field.key];
+  if(item&&typeof item==="object"&&Object.prototype.hasOwnProperty.call(item,"value"))
+   result[field.key]=item.value;
+ }
+ return result;
+}
+function sleepObservationConflictRecord(conflicts,side){
+ const result={};
+ for(const field of SLEEP_QUALITY_FIELDS){
+  const item=conflicts?.[field.key];
+  if(item&&typeof item==="object"&&Object.prototype.hasOwnProperty.call(item,side))
+   result[field.key]=item[side];
+ }
+ return result;
+}
+function sleepObservationsXml(record){
+ const versions=[
+  sleepObservationVersionXml(record.server,"serverVersion"),
+  sleepObservationVersionXml(record.device,"deviceVersion"),
+  sleepObservationVersionXml(sleepObservationPendingRecord(record.pending),"pendingChanges"),
+  sleepObservationVersionXml(sleepObservationConflictRecord(record.conflict,"serverValue"),"conflictServerValue"),
+  sleepObservationVersionXml(sleepObservationConflictRecord(record.conflict,"deviceValue"),"conflictDeviceValue")
+ ].filter(Boolean);
+ if(!versions.length)return "";
+ return '      <sleepObservations note="날짜별 수면 관찰 지표. 읽기 편한 한글 표기이며 원본 값은 raw 속성과 각 원본 버전에 유지됩니다. 미입력과 명시적 0은 구분합니다.">\n'+
+  versions.join("")+'      </sleepObservations>\n';
+}
 function buildXml(doc){
  if(!SPEC[doc.kind])throw Error("지원하지 않는 기록 유형입니다.");
  const date=new Date().toISOString();
@@ -130,7 +198,7 @@ function buildXml(doc){
   attr("failedMonths",failed.join(","))+attr("recordCount",sorted.length)+'/>\n'+
   '    <interpretation>기록 날짜는 개별 일자의 기준일입니다. serverVersion과 deviceVersion은 같은 날짜의 서로 다른 저장본일 수 있으며, 중복 날짜로 합산하지 마세요. pending은 미동기화 변경, conflict는 비교 필요한 원본입니다. complete 속성은 요청한 월의 서버 조회 성공 여부만 뜻하며 미동기화 기록이 없다는 의미는 아닙니다. 내보내기 과정은 원본을 수정하지 않습니다.</interpretation>\n'+
   (doc.kind==="sleep"?
-   '    <analysisNote>수면 기록의 bedTime/asleepTime은 해당 날짜 밤이며, wakeTime은 해당 날짜 아침입니다. 해당 날짜 총수면은 전날 asleepTime과 당일 wakeTime 및 당일 낮잠 구간을 이용해 계산하세요. XML에는 계산으로 만든 추정값을 실측 시각으로 넣지 않았습니다.</analysisNote>\n':
+   '    <analysisNote>수면 기록의 bedTime/asleepTime은 해당 날짜 밤이며, wakeTime은 해당 날짜 아침입니다. 해당 날짜 총수면은 전날 asleepTime과 당일 wakeTime 및 당일 낮잠 구간을 이용하고 해당 날짜 nightAwakeMinutes가 기록된 경우 그만큼 차감해 계산하세요. nightWakings와 nightAwakeMinutes는 당일 아침 기준, onsetState는 그날 밤 기준, napSource는 그날 낮잠 기준입니다. sleepObservations는 원본별 한글 해설이며 원래 값(raw)과 각 원본 버전을 함께 남깁니다. XML에는 계산으로 만든 추정값을 실측 시각으로 넣지 않았습니다.</analysisNote>\n':
    '    <analysisNote>점수는 사용자의 주관적인 0~10 자기평가이며 의학적 진단이 아닙니다. memo와 husbandLetter는 원문으로 보존합니다. PIN이나 서버 접속 정보는 포함하지 않습니다.</analysisNote>\n')+
   '  </metadata>\n';
  const defs=Array.isArray(doc.fields)?doc.fields:[];
@@ -151,6 +219,7 @@ function buildXml(doc){
   if(r.device!==undefined)xml+=node("deviceVersion",r.device,6);
   if(hasPending)xml+=node("pendingChanges",r.pending,6);
   if(r.conflict!==undefined)xml+=node("conflictVersions",r.conflict,6);
+  if(doc.kind==="sleep")xml+=sleepObservationsXml(r);
   xml+="    </record>\n";
  }
  xml+="  </records>\n</yuhaCareHistory>\n";
