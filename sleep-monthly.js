@@ -89,6 +89,27 @@
      (x.halfDifference===0?"같습니다.":delta+"분 "+(x.halfDifference>0?"늘었습니다.":"줄었습니다."))+
      " 각 구간 최소 4일의 기록을 비교한 기술통계이며 개인 건강에 대한 평가 기준은 아닙니다."});
   }
+  if(x.awakeMinutesSamples>=3||x.wakingCountSamples>=3){
+   insights.push({kind:"neutral",title:"밤중 각성 관찰",
+    text:(x.awakeMinutesSamples>=3?"깨어 있던 시간 평균 "+x.awakeMinutesAverage+"분("+x.awakeMinutesSamples+"일). ":"")+
+      (x.wakingCountSamples>=3?"각성 횟수 평균 "+x.wakingCountAverage+"회("+x.wakingCountSamples+"일). ":"")+
+      "기록된 날만 집계했으며 미기록은 0회·0분으로 취급하지 않았습니다. 깨어 있던 분은 밤잠에서 차감했습니다."});
+  }
+  if(x.specialDays>0){
+   insights.push({kind:"neutral",title:"여행·질병·특별 일정 분리",
+    text:"특별 상황이 표시된 날이 "+x.specialDays+"일입니다. 이 날은 평소 취침·기상 규칙성 점수에서 구분했으며, 월간 수면량 통계에서는 해당 기록을 유지했습니다. 실제 비교 시 특수 상황과 평상시를 나누어 검토하세요."});
+  }
+  if(x.daycareEstimatedDays>0||x.caregiverReportedDays>0){
+   insights.push({kind:"limited",title:"낮잠 시간의 관측 정확도",
+    text:"낮잠 시간 출처: 어린이집 추정 "+x.daycareEstimatedDays+"일, 보호자 전달 "+
+      x.caregiverReportedDays+"일, 직접 관찰 "+x.directObservedDays+
+      "일. 추정된 시각은 객관적으로 측정된 입면·기상과 구별하여 해석하세요."});
+  }
+  if(x.onsetCryDays>=2||x.morningTiredDays>=2){
+   insights.push({kind:"neutral",title:"입면 과정·기상 컨디션",
+    text:"지속적인 울음으로 기록한 밤 "+x.onsetCryDays+"일, 아침에 피곤하거나 보챈 기록 "+
+     x.morningTiredDays+"일입니다. 수면량만으로 수면의 질을 단정하지 않고 그날의 환경과 함께 관찰할 자료로 활용하세요."});
+  }
   if(x.latencySamples>=3){
    insights.push({kind:"neutral",title:"입실 후 잠들기",
     text:"침대 입실부터 실제 잠듦까지 기록된 평균은 "+x.latencyAverage+"분("+x.latencySamples+"일)입니다. "+
@@ -108,7 +129,9 @@
   const days=new Date(Date.UTC(year,month,0)).getUTCDate();
   const last=today||"9999-12-31";
   const eligible=period>last.slice(0,7)?0:period===last.slice(0,7)?Math.min(days,Number(last.slice(8,10))):days;
-  const totals=[],nights=[],naps=[],latencies=[],sleepClocks=[],wakes=[];
+  const totals=[],nights=[],naps=[],latencies=[],sleepClocks=[],wakes=[],awakeMin=[],wakingCounts=[];
+  let specialDays=0,daycareEstimatedDays=0,caregiverReportedDays=0,directObservedDays=0,
+    morningTiredDays=0,onsetCryDays=0;
   let observedDays=0,withinCount=0,belowCount=0,aboveCount=0,recommendedCount=0;
   let napSingle=0,napDouble=0,firstHalf=[],secondHalf=[];
   for(let i=1;i<=eligible;i++){
@@ -124,6 +147,16 @@
    }
    if(valid(q.latency))latencies.push(q.latency);
    const p=recordFor(dayBefore(date))||{},t=recordFor(date)||{};
+   if(String(t.specialFlags||"").split(",").some(x=>["travel","illness","unusual"].includes(x)))specialDays++;
+   if(t.napSource==="daycare")daycareEstimatedDays++;
+   if(t.napSource==="caregiver")caregiverReportedDays++;
+   if(t.napSource==="observed")directObservedDays++;
+   if(["tired","fussy"].includes(t.morningCondition))morningTiredDays++;
+   if(p.onsetState==="crying")onsetCryDays++;
+   if(/^(?:0|[1-9]\d{0,2})$/.test(String(t.nightAwakeMinutes??"")))
+    awakeMin.push(Number(t.nightAwakeMinutes));
+   if(/^(?:0|[1-9]\d{0,1})$/.test(String(t.nightWakings??"")))
+    wakingCounts.push(Number(t.nightWakings));
    const asleep=clockMinutes(p.asleepTime),wake=clockMinutes(t.wakeTime);
    if(asleep!==null)sleepClocks.push(asleep);
    if(wake!==null)wakes.push(wake);
@@ -147,6 +180,10 @@
    averageNap:mean(naps),napSamples:naps.length,napSingle,napDouble,
    latencyAverage:mean(latencies),latencySamples:latencies.length,
    asleepClock,wakeClock,
+   awakeMinutesAverage:mean(awakeMin),awakeMinutesSamples:awakeMin.length,
+   wakingCountAverage:mean(wakingCounts),wakingCountSamples:wakingCounts.length,
+   specialDays,daycareEstimatedDays,caregiverReportedDays,directObservedDays,
+   morningTiredDays,onsetCryDays,
    withinCount,belowCount,aboveCount,recommendedCount,
    recommendationPct:recommendedCount?Math.round(withinCount/recommendedCount*100):null,
    halfDifference:firstHalf.length>=4&&secondHalf.length>=4?
