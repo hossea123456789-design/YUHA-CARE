@@ -66,6 +66,7 @@ const safe=c.__safe;
   getMaxColumns(){return 23;},
   insertColumnsAfter(){throw Error("Existing sheet already has sufficient columns");},
   getRange(row,col,rows,cols){
+   if(row==="P:U")return {setNumberFormat(){return this;}};
    assert.equal(row,1);
    return {
     getDisplayValues(){return [grid.slice(col-1,col-1+cols)];},
