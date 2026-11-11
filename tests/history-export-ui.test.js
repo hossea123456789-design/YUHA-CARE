@@ -17,7 +17,9 @@ function fixture(){
  }
  const all=el(),month=el(),monthInput=el();
  all.value="all";all.checked=true;month.value="month";month.checked=false;
+ monthInput.disabled=true;monthInput.value="2026-11";
  const run=el(),partial=el(),status=el(),bar=el(),progress=el(),cancel=el();
+ partial.hidden=true;
  const els={
   '[data-month]':monthInput,'[data-run]':run,'[data-partial]':partial,
   '[data-status]':status,'[data-bar]':bar,'[data-progress]':progress
