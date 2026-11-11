@@ -135,7 +135,8 @@ function make(){
  assert(html.includes('drawSleepObservation();drawSleepMonthlySummary();fetchSleepMonth()'));
  assert(html.includes("sleepServerMetaReady=result.metadataSupported===true"));
  assert(html.includes("const cachedBefore=ensureSleepMonth(year,month);"));
- assert(html.includes("if(!sleepServerMetaReady)Object.entries(localMeta)"));
+ assert(html.includes("mergeSleepMonthWithoutErasing(key,incoming,cachedBefore)"));
+ assert(html.includes("rescueSleepSnapshot(key,cachedBefore,\"device\")"));
  assert(html.includes("sleepServerMetaReady||!SLEEP_META_KEYS.includes(op.field)"));
  assert(html.includes('key:"nightAwakeMinutes"'));
  assert(html.includes('key:"morningCondition"'));
