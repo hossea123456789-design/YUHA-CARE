@@ -1718,7 +1718,12 @@
     // ============================================================
     // 수면 기록: 기상은 당일 아침, 밤잠은 전날 취침 → 오늘 기상, 낮잠은 당일.
     // ============================================================
-    const SLEEP_KEYS = ["bedTime", "asleepTime", "napStart", "napEnd", "wakeTime", "nap2Start", "nap2End"];
+    const SLEEP_META_KEYS=["nightAwakeMinutes","nightWakings","napSource","onsetState","specialFlags","morningCondition"];
+    const SLEEP_KEYS = ["bedTime", "asleepTime", "napStart", "napEnd", "wakeTime", "nap2Start", "nap2End",...SLEEP_META_KEYS];
+    const SLEEP_SITUATIONS={travel:"여행",illness:"질병",unusual:"특별 일정"};
+    const SLEEP_NAP_SOURCES={observed:"집에서 직접 관찰",daycare:"어린이집 추정",caregiver:"보호자 전달"};
+    const SLEEP_ONSET_STATES={calm:"편안하게 잠듦",fussy:"가벼운 보챔",crying:"지속적인 울음"};
+    const SLEEP_MORNING_STATES={bright:"개운하고 활기참",ordinary:"평소와 같음",tired:"피곤해함",fussy:"보채거나 예민함"};
     let nap2Popup=null; // 임시 미니 편집창: 입력표 높이는 항상 동일
     let nap2ReturnDate=null;
     const SLEEP_MONTH_CACHE = "yuha_sleep_month_v5_"; // 기상일 기준 스키마
@@ -1747,6 +1752,7 @@
     let sleepSyncTimer = null;
     let sleepSessionOnline = false;
     let sleepServerNap2Ready = false;
+    let sleepServerMetaReady = false;
     let sleepIsEditing = false;
 
     function localDateKey(date) {
@@ -1793,7 +1799,7 @@
       try{localStorage.setItem(SLEEP_PENDING_KEY,JSON.stringify(sleepPending));}catch(e){setSleepStatus("기기 저장공간에 기록을 저장하지 못했습니다: "+e.message,"error");}
       const n=document.getElementById("sleepPendingCount");if(n)n.textContent=sleepPending.length?`기기 임시 저장 ${sleepPending.length}건`:"자동 저장";      const retry=document.getElementById("sleepRetry");if(retry)retry.style.display=sleepPending.length?"":"none";
     }
-    function defaultSleepRecord() {return {bedTime:"",asleepTime:"",napStart:"",napEnd:"",wakeTime:"",nap2Start:"",nap2End:""};}
+    function defaultSleepRecord() {return Object.fromEntries(SLEEP_KEYS.map(k=>[k,""]));}
     function ensureSleepMonth(year,month) {
       const key=sleepMonthKey(year,month);
       if(!sleepMonths[key]){
@@ -1842,9 +1848,23 @@
           }
           sleepSessionOnline=true;
           sleepServerNap2Ready=result.nap2Supported===true;
+          sleepServerMetaReady=result.metadataSupported===true&&Number(result.schemaVersion)>=3;
+          // Old backend responses do not contain the new columns. Preserve local
+          // observations without replacing server-owned time fields.
+          const cachedBefore=ensureSleepMonth(year,month);
+          const localMeta=Object.create(null);
+          if(!sleepServerMetaReady)Object.entries(cachedBefore).forEach(([date,row])=>{
+            if(row&&SLEEP_META_KEYS.some(f=>String(row[f]??"")!==""))
+              localMeta[date]=Object.fromEntries(SLEEP_META_KEYS.map(f=>[f,String(row[f]??"")]));
+          });
           sleepServerMonths[key]=result.records||{};
           try{localStorage.setItem(SLEEP_SERVER_CACHE+key,JSON.stringify(sleepServerMonths[key]));}catch(_){}
           sleepMonths[key]=JSON.parse(JSON.stringify(sleepServerMonths[key]));
+          if(!sleepServerMetaReady)Object.entries(localMeta).forEach(([date,extra])=>{
+            const row=sleepMonths[key][date]||defaultSleepRecord();
+            SLEEP_META_KEYS.forEach(field=>{if(extra[field]!=="")row[field]=extra[field];});
+            sleepMonths[key][date]=row;
+          });
           sleepPending.forEach(op=>{
             if(sleepMonthOfDate(op.date)!==key || !SLEEP_KEYS.includes(op.field))return;
             const row=sleepMonths[key][op.date]||defaultSleepRecord();
@@ -1859,10 +1879,13 @@
           }
           showAppProgress("sleep-fetch-"+key, "수면 기록 갱신 완료", "done");
           const waitingNap2=sleepPending.some(op=>op.field==="nap2Start"||op.field==="nap2End");
-          setSleepStatus(waitingNap2&&!sleepServerNap2Ready?
+          const waitingMeta=sleepPending.some(op=>SLEEP_META_KEYS.includes(op.field));
+          setSleepStatus(waitingMeta&&!sleepServerMetaReady?
+            "새 수면 관찰 기록은 기기에 보관 중 · Apps Script Code.gs v3 배포 후 자동 동기화":
+            waitingNap2&&!sleepServerNap2Ready?
             "2차 낮잠은 기기에 보관 중 · Apps Script Code.gs 새 버전 배포 필요":
             sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:"자동 저장 연결됨",
-            waitingNap2&&!sleepServerNap2Ready?"error":sleepPending.length?"":"saved");
+            waitingMeta&&!sleepServerMetaReady||waitingNap2&&!sleepServerNap2Ready?"error":sleepPending.length?"":"saved");
           if(currentTab==="sleep") renderSleepTab();
           if(currentTab==="settings") {
             const bd=document.getElementById("sleepBirthDateSettings");
@@ -1921,11 +1944,13 @@
       if(sleepSaving||!sleepPending.length)return;
       if(!navigator.onLine){setSleepStatus("오프라인 · 기기에 저장됨");return;}
       if(sleepConflicts.length&&!manual)return;
-      const snapshot=sleepPending
-        .filter(op=>sleepServerNap2Ready||(op.field!=="nap2Start"&&op.field!=="nap2End"))
-        .map(op=>({...op}));
+      const isSyncable=op=>(sleepServerNap2Ready||(op.field!=="nap2Start"&&op.field!=="nap2End"))&&
+        (sleepServerMetaReady||!SLEEP_META_KEYS.includes(op.field));
+      const snapshot=sleepPending.filter(isSyncable).map(op=>({...op}));
       if(!snapshot.length){
-        setSleepStatus("2차 낮잠 기기 저장됨 · 서버 Code.gs 새 버전 배포 필요","error");
+        setSleepStatus(sleepPending.some(op=>SLEEP_META_KEYS.includes(op.field))?
+          "새 수면 관찰 기록은 기기에 보관 중 · Apps Script Code.gs v3 배포 필요":
+          "2차 낮잠 기기 저장됨 · 서버 Code.gs 새 버전 배포 필요","error");
         return;
       }
       sleepSaving=true;
@@ -1952,9 +1977,7 @@
           showAppProgress("sleep-save",sleepPending.length?"추가 수면 기록 저장 중":"수면 기록 저장 완료",
             sleepPending.length?"busy":"done");
           setSleepStatus(sleepPending.length?`자동 저장 중 · 남은 ${sleepPending.length}건`:"자동 저장 완료","saved");
-          if(sleepPending.length && snapshot.some(op=>op.field==="nap2Start"||op.field==="nap2End") ||
-            sleepPending.some(op=>op.field!=="nap2Start"&&op.field!=="nap2End"))
-            requestSleepSync(false);
+          if(sleepPending.some(isSyncable))requestSleepSync(false);
           if(currentTab==="sleep")renderSleepTab();
         })
         .withFailureHandler(err=>{
@@ -1986,7 +2009,9 @@
     function showSleepConflicts(conflicts) {
       const list=document.getElementById("sleepConflictList");if(!list)return;
       list.textContent="";
-      const labels={bedTime:"입실",asleepTime:"실제 취침",napStart:"1차 낮잠 시작",napEnd:"1차 낮잠 종료",nap2Start:"2차 낮잠 시작",nap2End:"2차 낮잠 종료",wakeTime:"해당 날짜 아침 기상",birthDate:"생년월일"};
+      const labels={bedTime:"입실",asleepTime:"실제 취침",napStart:"1차 낮잠 시작",napEnd:"1차 낮잠 종료",nap2Start:"2차 낮잠 시작",nap2End:"2차 낮잠 종료",wakeTime:"해당 날짜 아침 기상",birthDate:"생년월일",
+        nightAwakeMinutes:"밤중 깨어 있던 분",nightWakings:"밤중 각성 횟수",napSource:"낮잠 기록 출처",
+        onsetState:"잠들기 전 상태",specialFlags:"특수 상황",morningCondition:"아침 컨디션"};
       conflicts.forEach(c=>{
         const row=document.createElement("div");row.className="sleep-conflict-row";
         const title=document.createElement("strong");title.textContent=`${c.date==="@profile"?"설정":c.date} · ${labels[c.field]||c.field}`;
