@@ -469,7 +469,7 @@ function sleepNightFormula_(row) {
   const prev=`IFERROR(INDEX($D$2:$D,MATCH(TEXT(DATEVALUE(A${row})-1,"yyyy-mm-dd"),$A$2:$A,0)),"")`;
   const raw=`MOD(TIMEVALUE(G${row})-TIMEVALUE(${prev}),1)`;
   const awake=`IFERROR(VALUE(N${row})/1440,0)`;
-  return `=IF(OR(G${row}="",${prev}=""),"",IF(${raw}<=16/24,MAX(0,${raw}-${awake}),""))`;
+  return `=IF(OR(G${row}="",${prev}=""),"",IF(AND(${raw}<=16/24,${awake}<=${raw}),MAX(0,${raw}-${awake}),""))`;
 }
 
 function saveSleepField(payload) {
