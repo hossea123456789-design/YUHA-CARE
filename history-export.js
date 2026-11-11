@@ -135,7 +135,7 @@ function open(options){
  const today=new Date(),nowMonth=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0");
  const initial=VALID_MONTH.test(options.month||"")?options.month:nowMonth;
  const kind=options.kind,info=SPEC[kind];
- let cancelled=false,busy=false,lastBatches=null,lastRange=null;
+ let cancelled=false,busy=false,lastBatches=null,lastRange=null,lastDownload=null,lastDownloadScope='';
  const cover=document.createElement("div");
  cover.id="yuhaHistoryExportModal";cover.className="history-export-backdrop";
  cover.innerHTML='<div class="history-export-dialog" role="dialog" aria-modal="true" aria-labelledby="historyExportTitle">'+
@@ -149,22 +149,22 @@ function open(options){
   "수면 시간 전체 기록이 포함된 XML 파일입니다. 파일 자체는 암호화되지 않습니다.")+'</p>'+
  '<div class="history-export-status" role="status" aria-live="polite" data-status>준비됨 · 서버 기록까지 확인해 추출합니다.</div>'+
  '<div class="history-export-progress" role="progressbar" aria-label="조회 월 진행 상태" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-progress><div data-bar></div></div>'+
- '<div class="history-export-actions"><button type="button" data-partial hidden>부분 기록만 다운로드</button><button type="button" data-close>취소</button>'+
+ '<div class="history-export-actions"><button type="button" data-partial hidden>부분 기록만 다운로드</button><button type="button" data-again hidden>파일 다시 받기</button><button type="button" data-close>취소</button>'+
  '<button type="button" class="history-export-primary" data-run>XML 추출</button></div></div>';
  document.body.appendChild(cover);
  const monthInput=cover.querySelector("[data-month]");
- const go=cover.querySelector("[data-run]"),partial=cover.querySelector("[data-partial]");
+ const go=cover.querySelector("[data-run]"),partial=cover.querySelector("[data-partial]"),again=cover.querySelector("[data-again]");
  const status=cover.querySelector("[data-status]"),bar=cover.querySelector("[data-bar]");
  const progress=cover.querySelector("[data-progress]");
  const radios=[...cover.querySelectorAll('input[name="historyScope"]')];
  radios.forEach(r=>r.addEventListener("change",()=>{
   monthInput.disabled=radios.find(x=>x.checked)?.value!=="month";
-  partial.hidden=true;lastBatches=null;lastRange=null;
+  partial.hidden=true;again.hidden=true;lastBatches=null;lastRange=null;lastDownload=null;
  }));
  monthInput.addEventListener("change",()=>{
-  partial.hidden=true;lastBatches=null;lastRange=null;
+  partial.hidden=true;again.hidden=true;lastBatches=null;lastRange=null;lastDownload=null;
  });
- const close=()=>{cancelled=true;cover.remove();};
+ const close=()=>{cancelled=true;lastDownload=null;cover.remove();};
  cover.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",close));
  cover.addEventListener("click",e=>{if(e.target===cover&&!busy)close();});
  cover.addEventListener("keydown",e=>{if(e.key==="Escape"){e.preventDefault();close();}});
@@ -190,7 +190,7 @@ function open(options){
  }
  async function start(onlyDevice=false){
   if(busy)return;
-  partial.hidden=true;
+  partial.hidden=true;again.hidden=true;lastDownload=null;
   setBusy(true);
   let range=null;
   try{
@@ -229,6 +229,7 @@ function open(options){
       " · 전체 파일로 표시하지 않습니다. 재시도하거나 부분 기록을 선택하세요.");
    }else{
     const name=download(kind,range.scope,result);
+    lastDownload=result;lastDownloadScope=range.scope;again.hidden=false;
     setProgress(out.length,out.length,name+" · "+result.recordCount+"일치 XML 추출 완료"+
        (result.complete?"":" (기기 기록만 포함 · 불완전)"));
    }
@@ -243,8 +244,14 @@ function open(options){
    const result=buildXml({kind,scope:lastRange.scope,firstMonth:lastRange.first,lastMonth:lastRange.last,
     months:lastBatches,fields:options.fields||[],context:options.context||{},mode:"partial"});
    const name=download(kind,lastRange.scope+"-partial",result);
+   lastDownload=result;lastDownloadScope=lastRange.scope+"-partial";again.hidden=false;
    status.textContent=name+" · "+result.recordCount+"일치 추출 · 서버 미확인 월 "+result.failed.length+"개";
   }catch(err){status.textContent="부분 추출 실패: "+String(err?.message||err);}
+ });
+ again.addEventListener("click",()=>{
+  try{check();if(!lastDownload)return;const filename=download(kind,lastDownloadScope,lastDownload);
+   status.textContent=filename+" · XML 파일을 다시 다운로드했습니다.";
+  }catch(err){status.textContent="재다운로드 실패: "+String(err?.message||err);}
  });
  go.addEventListener("click",()=>{void start();});
  return {close};
