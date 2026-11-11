@@ -27,6 +27,34 @@ function monthsBetween(first,last){
  }
  return out;
 }
+function validDate(v){
+ if(!VALID_DAY.test(String(v||"")))return false;
+ const d=new Date(v+"T00:00:00Z");
+ return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===v;
+}
+function localDate(date){
+ return date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0")+"-"+String(date.getDate()).padStart(2,"0");
+}
+function addDaysISO(day,count){
+ const [y,m,d]=day.split("-").map(Number);
+ return new Date(Date.UTC(y,m-1,d+count)).toISOString().slice(0,10);
+}
+function shiftMonthsClamped(day,count){
+ const [y,m,d]=day.split("-").map(Number);
+ const first=new Date(Date.UTC(y,m-1+count,1));
+ const lastDay=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();
+ return new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth(),Math.min(d,lastDay))).toISOString().slice(0,10);
+}
+function presetDates(preset,today){
+ if(!validDate(today))throw Error("기준 날짜가 올바르지 않습니다.");
+ let start;
+ if(preset==="thisYear")start=today.slice(0,4)+"-01-01";
+ else if(preset==="last12")start=addDaysISO(shiftMonthsClamped(today,-12),1);
+ else if(preset==="last6")start=addDaysISO(shiftMonthsClamped(today,-6),1);
+ else if(preset==="last3")start=addDaysISO(shiftMonthsClamped(today,-3),1);
+ else throw Error("지원하지 않는 기간 프리셋입니다.");
+ return {startDate:start,endDate:today,preset};
+}
 function node(name,value,indent){
  const pad=" ".repeat(indent);
  if(value===null||value===undefined)return pad+"<"+name+' nil="true"/>\n';
@@ -55,11 +83,16 @@ function buildXml(doc){
  if(!SPEC[doc.kind])throw Error("지원하지 않는 기록 유형입니다.");
  const date=new Date().toISOString();
  const batches=Array.isArray(doc.months)?doc.months:[];
+ const startDay=doc.startDate||doc.firstMonth+"-01";
+ const endDay=doc.endDate||doc.lastMonth+"-31";
+ if(!validDate(startDay)||(!validDate(endDay)&&!/^20\d{2}-(?:0[1-9]|1[0-2])-31$/.test(endDay))||startDay>endDay)
+  throw Error("XML의 기록 날짜 범위가 올바르지 않습니다.");
+ const withinRange=day=>day>=startDay&&day<=endDay;
  let results=new Map(),failed=[];
  for(const batch of batches){
   if(batch?.error)failed.push(batch.month);
   for(const [day,server] of Object.entries(batch?.server||{})){
-   if(!VALID_DAY.test(day)||!day.startsWith(batch.month))continue;
+   if(!VALID_DAY.test(day)||!day.startsWith(batch.month)||!withinRange(day))continue;
    const item=results.get(day)||{date:day};
    item.server=server;results.set(day,item);
   }
@@ -88,6 +121,7 @@ function buildXml(doc){
  xml+='  <metadata>\n'+
   '    <exportedAt>'+date+'</exportedAt>\n'+
   '    <period'+attr("startMonth",doc.firstMonth)+attr("endMonth",doc.lastMonth)+
+  attr("startDate",startDay)+attr("endDate",endDay)+attr("preset",doc.preset||"none")+
   attr("requestedMonths",batches.length)+'/>\n'+
   '    <source'+attr("mode",doc.mode||"server-and-device")+
   attr("failedMonths",failed.join(","))+attr("recordCount",sorted.length)+'/>\n'+
@@ -117,10 +151,12 @@ function buildXml(doc){
   xml+="    </record>\n";
  }
  xml+="  </records>\n</yuhaCareHistory>\n";
- return {xml,recordCount:sorted.length,failed,complete,scope:doc.scope,firstMonth:doc.firstMonth,lastMonth:doc.lastMonth};
+ return {xml,recordCount:sorted.length,failed,complete,scope:doc.scope,firstMonth:doc.firstMonth,lastMonth:doc.lastMonth,startDate:startDay,endDate:endDay,preset:doc.preset||"none"};
 }
 function download(kind,scope,out){
- const rangeLabel=out.scope==="month"?out.firstMonth+(scope.includes("partial")?"-partial":""):scope;
+ const suffix=scope.includes("partial")?"-partial":"";
+ const rangeLabel=out.scope==="month"?out.firstMonth+suffix:
+  out.scope==="range"?out.startDate+"_to_"+out.endDate+suffix:scope;
  const filename="yuha-"+SPEC[kind].filename+"-history-"+rangeLabel+"-"+new Date().toISOString().slice(0,10)+".xml";
  const blob=new Blob([out.xml],{type:"application/xml;charset=utf-8"});
  const url=URL.createObjectURL(blob);
@@ -132,10 +168,10 @@ function download(kind,scope,out){
 function open(options){
  if(!options||!SPEC[options.kind]||typeof options.fetchMonth!=="function"||typeof options.localMonth!=="function")throw Error("내보내기 설정이 없습니다.");
  if(document.getElementById("yuhaHistoryExportModal"))return;
- const today=new Date(),nowMonth=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0");
+ const today=new Date(),todayDay=localDate(today),nowMonth=todayDay.slice(0,7);
  const initial=VALID_MONTH.test(options.month||"")?options.month:nowMonth;
  const kind=options.kind,info=SPEC[kind];
- let cancelled=false,busy=false,lastBatches=null,lastRange=null,lastDownload=null,lastDownloadScope='';
+ let cancelled=false,busy=false,lastBatches=null,lastRange=null,lastDownload=null,lastDownloadScope="",activePreset="thisYear";
  const cover=document.createElement("div");
  cover.id="yuhaHistoryExportModal";cover.className="history-export-backdrop";
  cover.innerHTML='<div class="history-export-dialog" role="dialog" aria-modal="true" aria-labelledby="historyExportTitle">'+
@@ -143,7 +179,22 @@ function open(options){
  '<p class="history-export-desc">추출할 기록 범위를 선택하세요. 전체가 기본입니다. XML은 날짜·필드·서버/기기 원본을 구분하여 분석하기 쉽게 저장합니다.</p>'+
  '<label class="history-export-option"><input type="radio" name="historyScope" value="all" checked> 전체 히스토리</label>'+
  '<label class="history-export-option"><input type="radio" name="historyScope" value="month"> 특정 월</label>'+
- '<label class="history-export-month"><span>추출 월</span><input type="month" data-month min="2020-01" max="'+nowMonth+'" value="'+initial+'" disabled></label>'+
+ '<label class="history-export-option"><input type="radio" name="historyScope" value="range"> 기간 지정 · 프리셋</label>'+
+ '<label class="history-export-month" data-month-row><span>추출 월</span><input type="month" data-month min="2020-01" max="'+nowMonth+'" value="'+initial+'" disabled></label>'+
+ '<div class="history-export-range" data-range-panel hidden>'+
+  '<div class="history-export-presets" role="group" aria-label="기간 프리셋">'+
+   '<button type="button" data-preset="thisYear" class="active">이번 년도만</button>'+
+   '<button type="button" data-preset="last12">최근 1년</button>'+
+   '<button type="button" data-preset="last6">최근 6개월</button>'+
+   '<button type="button" data-preset="last3">최근 3개월</button>'+
+   '<button type="button" data-preset="custom">직접 지정</button>'+
+  '</div>'+
+  '<div class="history-export-dates">'+
+   '<label>시작일<input type="date" data-start min="2020-01-01" max="'+todayDay+'"></label>'+
+   '<label>종료일<input type="date" data-end min="2020-01-01" max="'+todayDay+'"></label>'+
+  '</div>'+
+  '<p class="history-export-range-hint">선택한 시작일과 종료일을 모두 포함합니다. 프리셋을 누른 뒤 날짜를 직접 수정할 수도 있습니다.</p>'+
+ '</div>'+
  '<p class="history-export-sensitive">'+(kind==="mental"?
   "메모·점수·편지 원문이 포함된 민감정보 파일입니다. PIN과 서버 비밀번호는 포함하지 않지만 XML 파일 자체는 암호화되지 않습니다.":
   "수면 시간 전체 기록이 포함된 XML 파일입니다. 파일 자체는 암호화되지 않습니다.")+'</p>'+
@@ -153,17 +204,44 @@ function open(options){
  '<button type="button" class="history-export-primary" data-run>XML 추출</button></div></div>';
  document.body.appendChild(cover);
  const monthInput=cover.querySelector("[data-month]");
+ const monthRow=cover.querySelector("[data-month-row]");
+ const rangePanel=cover.querySelector("[data-range-panel]");
+ const startInput=cover.querySelector("[data-start]"),endInput=cover.querySelector("[data-end]");
+ const presetButtons=[...cover.querySelectorAll("[data-preset]")];
  const go=cover.querySelector("[data-run]"),partial=cover.querySelector("[data-partial]"),again=cover.querySelector("[data-again]");
  const status=cover.querySelector("[data-status]"),bar=cover.querySelector("[data-bar]");
  const progress=cover.querySelector("[data-progress]");
  const radios=[...cover.querySelectorAll('input[name="historyScope"]')];
- radios.forEach(r=>r.addEventListener("change",()=>{
-  monthInput.disabled=radios.find(x=>x.checked)?.value!=="month";
+ function clearResults(){
   partial.hidden=true;again.hidden=true;lastBatches=null;lastRange=null;lastDownload=null;
- }));
- monthInput.addEventListener("change",()=>{
-  partial.hidden=true;again.hidden=true;lastBatches=null;lastRange=null;lastDownload=null;
- });
+ }
+ function markPreset(key){
+  activePreset=key;
+  presetButtons.forEach(b=>b.classList.toggle("active",b.dataset.preset===key));
+ }
+ function setPreset(key){
+  if(key!=="custom"){
+   const dates=presetDates(key,todayDay);
+   startInput.value=dates.startDate;endInput.value=dates.endDate;
+  }
+  markPreset(key);clearResults();
+ }
+ function currentScope(){return radios.find(x=>x.checked)?.value||"all";}
+ function updateInputs(){
+  const mode=currentScope();
+  monthRow.hidden=mode!=="month";
+  rangePanel.hidden=mode!=="range";
+  monthInput.disabled=busy||mode!=="month";
+  startInput.disabled=busy||mode!=="range";
+  endInput.disabled=busy||mode!=="range";
+  presetButtons.forEach(b=>{b.disabled=busy||mode!=="range";});
+ }
+ radios.forEach(r=>r.addEventListener("change",()=>{clearResults();updateInputs();}));
+ monthInput.addEventListener("change",clearResults);
+ presetButtons.forEach(b=>b.addEventListener("click",()=>setPreset(b.dataset.preset)));
+ for(const input of [startInput,endInput])
+  input.addEventListener("change",()=>{markPreset("custom");clearResults();});
+ setPreset("thisYear");updateInputs();
  const close=()=>{cancelled=true;lastDownload=null;cover.remove();};
  cover.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",close));
  cover.addEventListener("click",e=>{if(e.target===cover&&!busy)close();});
@@ -177,16 +255,29 @@ function open(options){
   bar.style.width=pct+"%";progress.setAttribute("aria-valuenow",String(pct));
   status.textContent=msg;
  }
- function setBusy(v){busy=v;go.disabled=v;monthInput.disabled=v||radios.find(x=>x.checked)?.value!=="month";radios.forEach(x=>x.disabled=v);partial.disabled=v;}
+ function setBusy(v){busy=v;go.disabled=v;radios.forEach(x=>x.disabled=v);partial.disabled=v;again.disabled=v;updateInputs();}
  function getRange(){
-  const scope=radios.find(x=>x.checked)?.value||"all";
-  const selected=monthInput.value;
-  if(scope==="month"&&(!VALID_MONTH.test(selected)||selected>nowMonth))throw Error("유효한 조회 월을 선택해 주세요.");
-  let first=scope==="month"?selected:String(options.fromMonth||"2025-03");
-  const local=typeof options.localMonthKeys==="function"?options.localMonthKeys():[];
-  if(scope==="all")for(const v of local||[])if(VALID_MONTH.test(v)&&v<first)first=v;
-  const months=monthsBetween(first,scope==="month"?selected:nowMonth);
-  return {scope,months,first,last:months[months.length-1]};
+  const scope=currentScope(),selected=monthInput.value;
+  let startDate,endDate,preset="none";
+  if(scope==="month"){
+   if(!VALID_MONTH.test(selected)||selected>nowMonth)throw Error("유효한 조회 월을 선택해 주세요.");
+   startDate=selected+"-01";
+   endDate=selected===nowMonth?todayDay:
+    new Date(Date.UTC(Number(selected.slice(0,4)),Number(selected.slice(5,7)),0)).toISOString().slice(0,10);
+  }else if(scope==="range"){
+   startDate=startInput.value;endDate=endInput.value;
+   if(!validDate(startDate)||!validDate(endDate)||startDate<"2020-01-01"||
+      endDate>todayDay||startDate>endDate)
+    throw Error("시작일과 종료일을 올바르게 선택해 주세요. 종료일은 오늘을 넘길 수 없습니다.");
+   preset=activePreset;
+  }else{
+   let first=String(options.fromMonth||"2025-03");
+   const local=typeof options.localMonthKeys==="function"?options.localMonthKeys():[];
+   for(const v of local||[])if(VALID_MONTH.test(v)&&v<first)first=v;
+   startDate=first+"-01";endDate=todayDay;
+  }
+  const first=startDate.slice(0,7),last=endDate.slice(0,7);
+  return {scope,months:monthsBetween(first,last),first,last,startDate,endDate,preset};
  }
  async function start(onlyDevice=false){
   if(busy)return;
@@ -222,7 +313,7 @@ function open(options){
    await Promise.all(Array.from({length:concurrent},()=>worker()));
    check();lastBatches=out;lastRange=range;
    const result=buildXml({kind,scope:range.scope,firstMonth:range.first,lastMonth:range.last,
-    months:out,fields:options.fields||[],context:options.context||{},mode:onlyDevice?"device":"server-and-device"});
+    startDate:range.startDate,endDate:range.endDate,preset:range.preset,months:out,fields:options.fields||[],context:options.context||{},mode:onlyDevice?"device":"server-and-device"});
    if(firstError&&!onlyDevice){
     partial.hidden=false;
     setProgress(out.length,out.length,"서버 조회 실패("+result.failed.length+"개월): "+firstError+
@@ -242,7 +333,7 @@ function open(options){
   try{
    check();
    const result=buildXml({kind,scope:lastRange.scope,firstMonth:lastRange.first,lastMonth:lastRange.last,
-    months:lastBatches,fields:options.fields||[],context:options.context||{},mode:"partial"});
+    startDate:lastRange.startDate,endDate:lastRange.endDate,preset:lastRange.preset,months:lastBatches,fields:options.fields||[],context:options.context||{},mode:"partial"});
    const name=download(kind,lastRange.scope+"-partial",result);
    lastDownload=result;lastDownloadScope=lastRange.scope+"-partial";again.hidden=false;
    status.textContent=name+" · "+result.recordCount+"일치 추출 · 서버 미확인 월 "+result.failed.length+"개";
@@ -256,5 +347,5 @@ function open(options){
  go.addEventListener("click",()=>{void start();});
  return {close};
 }
-root.YuhaHistoryExport=Object.freeze({open,buildXml,monthsBetween,safeXml});
+root.YuhaHistoryExport=Object.freeze({open,buildXml,monthsBetween,presetDates,validDate,safeXml});
 })(window);
