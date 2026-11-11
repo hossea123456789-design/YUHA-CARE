@@ -91,7 +91,7 @@ function buildXml(doc){
   attr("requestedMonths",batches.length)+'/>\n'+
   '    <source'+attr("mode",doc.mode||"server-and-device")+
   attr("failedMonths",failed.join(","))+attr("recordCount",sorted.length)+'/>\n'+
-  '    <interpretation>기록 날짜는 개별 일자의 기준일입니다. serverVersion과 deviceVersion은 같은 날짜의 서로 다른 저장본일 수 있으며, 중복 날짜로 합산하지 마세요. pending은 미동기화 변경, conflict는 비교 필요한 원본입니다. 내보내기 과정은 원본을 수정하지 않습니다.</interpretation>\n'+
+  '    <interpretation>기록 날짜는 개별 일자의 기준일입니다. serverVersion과 deviceVersion은 같은 날짜의 서로 다른 저장본일 수 있으며, 중복 날짜로 합산하지 마세요. pending은 미동기화 변경, conflict는 비교 필요한 원본입니다. complete 속성은 요청한 월의 서버 조회 성공 여부만 뜻하며 미동기화 기록이 없다는 의미는 아닙니다. 내보내기 과정은 원본을 수정하지 않습니다.</interpretation>\n'+
   (doc.kind==="sleep"?
    '    <analysisNote>수면 기록의 bedTime/asleepTime은 해당 날짜 밤이며, wakeTime은 해당 날짜 아침입니다. 해당 날짜 총수면은 전날 asleepTime과 당일 wakeTime 및 당일 낮잠 구간을 이용해 계산하세요. XML에는 계산으로 만든 추정값을 실측 시각으로 넣지 않았습니다.</analysisNote>\n':
    '    <analysisNote>점수는 사용자의 주관적인 0~10 자기평가이며 의학적 진단이 아닙니다. memo와 husbandLetter는 원문으로 보존합니다. PIN이나 서버 접속 정보는 포함하지 않습니다.</analysisNote>\n')+
@@ -156,7 +156,13 @@ function open(options){
  const status=cover.querySelector("[data-status]"),bar=cover.querySelector("[data-bar]");
  const progress=cover.querySelector("[data-progress]");
  const radios=[...cover.querySelectorAll('input[name="historyScope"]')];
- radios.forEach(r=>r.addEventListener("change",()=>{monthInput.disabled=radios.find(x=>x.checked)?.value!=="month";}));
+ radios.forEach(r=>r.addEventListener("change",()=>{
+  monthInput.disabled=radios.find(x=>x.checked)?.value!=="month";
+  partial.hidden=true;lastBatches=null;lastRange=null;
+ }));
+ monthInput.addEventListener("change",()=>{
+  partial.hidden=true;lastBatches=null;lastRange=null;
+ });
  const close=()=>{cancelled=true;cover.remove();};
  cover.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",close));
  cover.addEventListener("click",e=>{if(e.target===cover&&!busy)close();});
