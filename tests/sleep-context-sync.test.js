@@ -43,6 +43,7 @@ function sliceFunction(first,last){
   withFailureHandler(fn){this.failure=fn;return this},
   getSleepMonth(){this.success(result);}
  }}};
+ c.window=c;
  vm.runInNewContext(sliceFunction("sleepRecordHasData","persistSleepMonth")+
   sliceFunction("fetchSleepMonthFor","fetchSleepMonth")+
   "globalThis.__fetch=fetchSleepMonthFor;",c,{filename:"old-backend-read.js"});
