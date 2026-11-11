@@ -315,33 +315,81 @@ const SLEEP_FIELDS_ = Object.freeze({
   napEnd: 6,
   wakeTime: 7,
   nap2Start: 12,
-  nap2End: 13
+  nap2End: 13,
+  nightAwakeMinutes: 14,
+  nightWakings: 15,
+  napSource: 16,
+  onsetState: 17,
+  specialFlags: 18,
+  morningCondition: 19
 });
+const SLEEP_META_FIELDS_ = Object.freeze({
+  nightAwakeMinutes:1,nightWakings:1,napSource:1,onsetState:1,specialFlags:1,morningCondition:1
+});
+const SLEEP_META_HEADERS_ = Object.freeze([
+  '밤중 깨어 있던 분','밤중 각성 횟수','낮잠 시간 출처','잠들기 전 상태','특별한 날','아침 컨디션'
+]);
+function ensureSleepMetaColumns_(sh) {
+  ensureNap2Columns_(sh);
+  const max=sh.getMaxColumns();
+  if(max<19)sh.insertColumnsAfter(max,19-max);
+  const headers=sh.getRange(1,14,1,6).getDisplayValues()[0];
+  if(headers.some((v,i)=>v && v!==SLEEP_META_HEADERS_[i]))
+    throw new Error('SLEEP_LOG N:S 열의 기존 제목이 달라서 기록을 보호하기 위해 변경을 중단합니다.');
+  if(headers.some((v,i)=>v!==SLEEP_META_HEADERS_[i])){
+    sh.getRange(1,14,1,6).setValues([SLEEP_META_HEADERS_]);
+    sh.getRange(1,14,1,6).setFontWeight('bold').setBackground('#344778').setFontColor('white');
+    sh.getRange('N:S').setNumberFormat('@');sh.setColumnWidths(14,6,135);
+  }
+}
+function validateSleepField_(field,value) {
+  if(field==='nightAwakeMinutes'){
+    if(value!==''&&(!/^(?:0|[1-9]\d{0,2})$/.test(value)||Number(value)>960))
+      throw new Error('밤중 깨어 있던 시간은 0~960분으로 입력하세요.');
+  }else if(field==='nightWakings'){
+    if(value!==''&&(!/^(?:0|[1-9]\d{0,1})$/.test(value)||Number(value)>30))
+      throw new Error('밤중 각성 횟수는 0~30회로 입력하세요.');
+  }else if(field==='napSource'){
+    if(!['','observed','daycare','caregiver'].includes(value))throw new Error('낮잠 기록 출처가 올바르지 않습니다.');
+  }else if(field==='onsetState'){
+    if(!['','calm','fussy','crying'].includes(value))throw new Error('입면 상태가 올바르지 않습니다.');
+  }else if(field==='morningCondition'){
+    if(!['','bright','ordinary','tired','fussy'].includes(value))throw new Error('아침 컨디션이 올바르지 않습니다.');
+  }else if(field==='specialFlags'){
+    const parts=value?value.split(','):[];
+    const allowed=['none','travel','illness','unusual'];
+    if(parts.length>3||parts.some(x=>!allowed.includes(x))||
+      new Set(parts).size!==parts.length||(parts.includes('none')&&parts.length>1))
+      throw new Error('특수 상황 항목이 올바르지 않습니다.');
+  }else validateSleepTime_(value);
+}
 const SLEEP_WEEKDAYS_ = ['일', '월', '화', '수', '목', '금', '토'];
 
 function getSleepSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(SLEEP_SHEET_NAME);
   if (sh) {
-    ensureNap2Columns_(sh);
+    ensureSleepMetaColumns_(sh);
     return sh;
   }
   // 다른 스프레드시트에 설치하는 경우에도 자동 생성
   sh = ss.insertSheet(SLEEP_SHEET_NAME);
-  sh.getRange(1,1,1,13).setValues([[
+  sh.getRange(1,1,1,19).setValues([[
     '기준일', '요일', '침대 입실', '실제 잠든 시각', '낮잠 시작',
     '낮잠 종료', '기상 (당일 아침)', '밤잠 시간', '낮잠 시간',
-    '총 수면', '최종 수정', '2차 낮잠 시작', '2차 낮잠 종료'
+    '총 수면', '최종 수정', '2차 낮잠 시작', '2차 낮잠 종료',
+    ...SLEEP_META_HEADERS_
   ]]);
-  sh.getRange(1,1,1,13).setFontWeight('bold').setBackground('#344778').setFontColor('white');
+  sh.getRange(1,1,1,19).setFontWeight('bold').setBackground('#344778').setFontColor('white');
   sh.setFrozenRows(1);
   sh.getRange('A:A').setNumberFormat('@');
   sh.getRange('C:G').setNumberFormat('@');
-  sh.getRange('L:M').setNumberFormat('@');
+  sh.getRange('L:S').setNumberFormat('@');
   sh.getRange('H:J').setNumberFormat('[h]:mm');
   sh.setColumnWidth(1,125);
   sh.setColumnWidths(3,5,125);
   sh.setColumnWidths(12,2,125);
+  sh.setColumnWidths(14,6,135);
   return sh;
 }
 
@@ -396,27 +444,32 @@ function getSleepMonth(year, month) {
   const records = {};
   if (last > 1) {
     // 기존 C:G 및 추가된 L:M을 읽어 과거 기록도 그대로 지원합니다.
-    const rows = sheet.getRange(2,1,last-1,13).getDisplayValues();
+    const rows = sheet.getRange(2,1,last-1,19).getDisplayValues();
     rows.forEach(row => {
       const dateKey = String(row[0]).trim();
       if (!dateKey.startsWith(prefix)) return;
       const payload = {
         bedTime:row[2] || '', asleepTime:row[3] || '',
         napStart:row[4] || '', napEnd:row[5] || '', wakeTime:row[6] || '',
-        nap2Start:row[11] || '', nap2End:row[12] || ''
+        nap2Start:row[11] || '', nap2End:row[12] || '',
+        nightAwakeMinutes:row[13] || '', nightWakings:row[14] || '',
+        napSource:row[15] || '', onsetState:row[16] || '',
+        specialFlags:row[17] || '', morningCondition:row[18] || ''
       };
       // 날짜만 미리 배치한 빈 날짜는 요약에서 기록된 날로 세지 않습니다.
       if (Object.keys(payload).some(key=>payload[key])) records[dateKey] = payload;
     });
   }
-  return {ok:true, year:y, month:m, records, birthDate:getChildBirthDate_(), nap2Supported:true, schemaVersion:2};
+  return {ok:true, year:y, month:m, records, birthDate:getChildBirthDate_(), nap2Supported:true, metadataSupported:true, schemaVersion:3};
 }
 
 // 날짜·칸 단위 저장: 체크리스트 JSON이나 다른 수면 칸을 덮어쓰지 않습니다.
 // LockService.waitLock()는 사용하지 않아 기존 잠금 시간초과 오류와 분리합니다.
 function sleepNightFormula_(row) {
   const prev=`IFERROR(INDEX($D$2:$D,MATCH(TEXT(DATEVALUE(A${row})-1,"yyyy-mm-dd"),$A$2:$A,0)),"")`;
-  return `=IF(OR(G${row}="",${prev}=""),"",IF(MOD(TIMEVALUE(G${row})-TIMEVALUE(${prev}),1)<=16/24,MOD(TIMEVALUE(G${row})-TIMEVALUE(${prev}),1),""))`;
+  const raw=`MOD(TIMEVALUE(G${row})-TIMEVALUE(${prev}),1)`;
+  const awake=`IFERROR(VALUE(N${row})/1440,0)`;
+  return `=IF(OR(G${row}="",${prev}=""),"",IF(${raw}<=16/24,MAX(0,${raw}-${awake}),""))`;
 }
 
 function saveSleepField(payload) {
@@ -424,7 +477,7 @@ function saveSleepField(payload) {
   const dateKey = payload.date, field = payload.field, value = payload.value;
   validateSleepDate_(dateKey);
   if (!Object.prototype.hasOwnProperty.call(SLEEP_FIELDS_,field)) throw new Error('알 수 없는 수면 입력란');
-  validateSleepTime_(value);
+  validateSleepField_(field,value);
 
   const sheet = getSleepSheet_();
   const last = sheet.getLastRow();
@@ -452,6 +505,7 @@ function saveSleepField(payload) {
     ]]);
   }
   sheet.getRange(rowIndex,SLEEP_FIELDS_[field]).setNumberFormat('@').setValue(value);
+  if(field==='nightAwakeMinutes')sheet.getRange(rowIndex,8).setFormula(sleepNightFormula_(rowIndex));
   sheet.getRange(rowIndex,11).setValue(now);
   return {ok:true,date:dateKey,field,value,updatedAt:now};
 }
@@ -507,7 +561,7 @@ function syncSleepChanges(payload) {
     else {
       validateSleepDate_(date);
       if (!Object.prototype.hasOwnProperty.call(SLEEP_FIELDS_, field)) throw new Error('지원되지 않는 수면 항목');
-      validateSleepTime_(value);
+      validateSleepField_(field,value);
     }
     return {date, field, value, expectedValue:op.expectedValue === null || op.expectedValue === undefined ? null : String(op.expectedValue), force:op.force === true};
   });
@@ -519,7 +573,7 @@ function syncSleepChanges(payload) {
   if (!lock.tryLock(2500)) return {ok:false, busy:true, message:'다른 기기가 저장 중입니다. 다시 시도해 주세요.'};
   try {
     const sheet = getSleepSheet_();
-    const existing = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,13).getDisplayValues() : [];
+    const existing = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,19).getDisplayValues() : [];
     const rowByDate = Object.create(null);
     existing.forEach((row,i)=>{const key=String(row[0]||'').trim();if(key && !rowByDate[key])rowByDate[key]={index:i+2,values:row};});
     const profileSheet = getChildSettingsSheet_();
@@ -551,17 +605,19 @@ function syncSleepChanges(payload) {
           const parts=op.date.split('-').map(Number);
           const day=SLEEP_WEEKDAYS_[new Date(Date.UTC(parts[0],parts[1]-1,parts[2])).getUTCDay()];
           sheet.getRange(next,1,1,7).setNumberFormat('@');
-          sheet.getRange(next,12,1,2).setNumberFormat('@');
+          sheet.getRange(next,12,1,8).setNumberFormat('@');
           sheet.getRange(next,1,1,2).setValues([[op.date,day]]);
           sheet.getRange(next,8,1,3).setNumberFormat('[h]:mm').setFormulas([[
             sleepNightFormula_(next),
             sleepNapFormula_(next),
             `=IF(COUNT(H${next}:I${next})=0,\"\",SUM(H${next}:I${next}))`
           ]]);
-          rec={index:next,values:[op.date,day,'','','','','','','','','','','']};
+          rec={index:next,values:[op.date,day,...Array(17).fill('')]};
           rowByDate[op.date]=rec;
         }
         sheet.getRange(rec.index,SLEEP_FIELDS_[op.field]).setNumberFormat('@').setValue(op.value);
+        if(op.field==='nightAwakeMinutes')
+          sheet.getRange(rec.index,8).setFormula(sleepNightFormula_(rec.index));
         sheet.getRange(rec.index,11).setValue(now);
         rec.values[SLEEP_FIELDS_[op.field]-1]=op.value;
       }
