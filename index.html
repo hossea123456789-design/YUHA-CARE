@@ -2639,6 +2639,11 @@
           input.value=String(getSleepRecord(date)[field]||"");
           return;
         }
+        if(field==="nightAwakeMinutes"&&raw!==""&&nightDurationGross(date)!==null&&
+           Number(raw)>nightDurationGross(date)){
+          alert("밤중 깨어 있던 시간이 해당 밤의 수면 구간보다 깁니다. 다시 확인해 주세요.");
+          input.value=String(getSleepRecord(date)[field]||"");return;
+        }
         const value=raw===""?"":(["nightWakings","nightAwakeMinutes"].includes(field)?String(Number(raw)):raw);
         if(String(getSleepRecord(date)[field]??"")!==value)updateSleepField(date,field,value);
       }));
