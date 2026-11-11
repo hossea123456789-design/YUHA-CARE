@@ -2484,6 +2484,8 @@
         item('평균 잠든 시각',report.asleepClock.clock,report.asleepClock.count+'일 기준')+
         item('평균 기상 시각',report.wakeClock.clock,report.wakeClock.count+'일 기준')+
         item('입실→잠듦 평균',report.latencyAverage===null?'기록 없음':report.latencyAverage+'분',report.latencySamples+'일 기준')+
+        item('밤중 각성 평균',report.wakingCountAverage===null?'미기록':report.wakingCountAverage+'회',report.wakingCountSamples+'일 기준')+
+        item('각성 지속 평균',report.awakeMinutesAverage===null?'미기록':report.awakeMinutesAverage+'분',report.awakeMinutesSamples+'일 기준')+
         '</div>';
       if(report.recommendedCount){
         output+='<div class="sleep-monthly-guideline"><div class="sleep-monthly-guideline-lead">'+
@@ -2569,6 +2571,14 @@
         ["nap2End","2차 낮잠 종료"],["bedTime","해당 날짜 밤 침대 입실"],
         ["asleepTime","해당 날짜 밤 실제 잠듦"]
       ].map(([key,label])=>({key,label,unit:"HH:mm (24-hour local clock)"}));
+      fields.push(
+        {key:"nightAwakeMinutes",label:"밤중 깨어 있던 총시간",unit:"minutes / morning date"},
+        {key:"nightWakings",label:"밤중 각성 횟수",unit:"count / morning date"},
+        {key:"napSource",label:"낮잠 기록 출처",unit:"observed/daycare/caregiver"},
+        {key:"onsetState",label:"잠들기 전 상태",unit:"calm/fussy/crying / bedtime date"},
+        {key:"specialFlags",label:"특수 상황",unit:"none/travel/illness/unusual, comma separated"},
+        {key:"morningCondition",label:"아침 기상 컨디션",unit:"bright/ordinary/tired/fussy"}
+      );
       const since=/^20\d{2}-\d{2}-\d{2}$/.test(birthDate)?birthDate.slice(0,7):"2025-03";
       window.YuhaHistoryExport.open({
         kind:"sleep",month:sleepMonthKey(sleepViewYear,sleepViewMonth),
@@ -2577,7 +2587,8 @@
           clock:"Asia/Seoul local HH:mm; no date-offset in raw timestamps",
           dateConvention:"Bed/asleep are night of the listed date; wake is morning of the listed date",
           observation:"Only manually saved times. Empty value means unknown, not zero.",
-          sleepFormula:"24-hour duration on day D = night(D-1 asleepTime to D wakeTime) + naps(D)"
+          sleepFormula:"24-hour duration on day D = night(D-1 asleepTime to D wakeTime) - D nightAwakeMinutes (only if recorded) + naps(D)",
+          observationNote:"Missing nightAwakeMinutes is unknown, not an observed zero; specialFlags mark excluded ordinary rhythm comparisons; napSource distinguishes daycare estimates."
         },
         authorized:()=>true,
         localMonthKeys:sleepExportMonthKeys,
@@ -2832,7 +2843,7 @@
       detail.innerHTML=
         '<div class="sleep-detail-head"><div><div class="sleep-detail-date">'+m+'월 '+day+'일 ('+dayName+')</div>'+
         '<div class="sleep-detail-subtitle">'+escapeHtml(q.score===null?q.label:q.label+
-          ' · 평가 반영률 '+q.coverage+'% · 수면 패턴 참고 점수')+'</div></div>'+
+          ' · 평가 반영률 '+q.coverage+'% · 기록 기반 생활 리듬 참고 점수')+'</div></div>'+
         '<div class="sleep-detail-grade quality-'+q.level+'"><strong>'+(q.score===null?'—':q.score)+
         '</strong><small>/100</small></div></div>'+
         metrics+observationText+
