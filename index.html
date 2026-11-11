@@ -1893,6 +1893,13 @@
         updateSleepRecoveryNotice();
         return;
       }
+      if(!window.google?.script?.run){
+        sleepFetchHealth[key]={state:"error",message:"기록 서버 연결 통로가 아직 준비되지 않았습니다."};
+        delete sleepLoadTokens[key];
+        setSleepStatus("수면 기록 서버 연결 실패 · 기존 시트 원본은 삭제되지 않았습니다","error");
+        updateSleepRecoveryNotice();
+        return;
+      }
       sleepFetchHealth[key]={state:"loading"};
       updateSleepRecoveryNotice();
       showAppProgress("sleep-fetch-"+key, "수면 기록 불러오는 중", "busy");
