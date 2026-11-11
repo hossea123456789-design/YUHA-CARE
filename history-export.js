@@ -91,6 +91,7 @@ function buildXml(doc){
    '    <analysisNote>점수는 사용자의 주관적인 0~10 자기평가이며 의학적 진단이 아닙니다. memo와 husbandLetter는 원문으로 보존합니다. PIN이나 서버 접속 정보는 포함하지 않습니다.</analysisNote>\n')+
   '  </metadata>\n';
  const defs=Array.isArray(doc.fields)?doc.fields:[];
+ if(doc.context&&typeof doc.context==='object')xml+=node('context',doc.context,2);
  xml+='  <fieldDefinitions>\n'+defs.map(f=>
   '    <field'+attr("key",f.key)+attr("label",f.label)+
   (f.unit?attr("unit",f.unit):"")+'/>\n').join("")+'  </fieldDefinitions>\n';
@@ -208,7 +209,7 @@ function open(options){
    await Promise.all(Array.from({length:concurrent},()=>worker()));
    check();lastBatches=out;lastRange=range;
    const result=buildXml({kind,scope:range.scope,firstMonth:range.first,lastMonth:range.last,
-    months:out,fields:options.fields||[],mode:onlyDevice?"device":"server-and-device"});
+    months:out,fields:options.fields||[],context:options.context||{},mode:onlyDevice?"device":"server-and-device"});
    if(firstError&&!onlyDevice){
     partial.hidden=false;
     setProgress(out.length,out.length,"서버 조회 실패("+result.failed.length+"개월): "+firstError+
@@ -227,7 +228,7 @@ function open(options){
   try{
    check();
    const result=buildXml({kind,scope:lastRange.scope,firstMonth:lastRange.first,lastMonth:lastRange.last,
-    months:lastBatches,fields:options.fields||[],mode:"partial"});
+    months:lastBatches,fields:options.fields||[],context:options.context||{},mode:"partial"});
    const name=download(kind,lastRange.scope+"-partial",result);
    status.textContent=name+" · "+result.recordCount+"일치 추출 · 서버 미확인 월 "+result.failed.length+"개";
   }catch(err){status.textContent="부분 추출 실패: "+String(err?.message||err);}
