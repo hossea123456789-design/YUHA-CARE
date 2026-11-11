@@ -1728,6 +1728,8 @@
     let nap2ReturnDate=null;
     const SLEEP_MONTH_CACHE = "yuha_sleep_month_v5_"; // 기상일 기준 스키마
     const SLEEP_SERVER_CACHE = "yuha_sleep_server_v5_";
+    const SLEEP_RESCUE_CACHE = "yuha_sleep_rescue_20261111_";
+    const sleepRecoveryState=Object.create(null);
     const SLEEP_PENDING_KEY = "yuha_sleep_pending_v5";
     const SLEEP_CACHE_MODE_KEY = "yuha_sleep_cache_mode_v3";
     const SLEEP_BIRTH_KEY = "yuha_sleep_birth_v3";
@@ -1815,6 +1817,54 @@
       });
       return sleepMonths[key];
     }
+    function sleepRecordHasData(row) {
+      return !!row&&typeof row==="object"&&SLEEP_KEYS.some(k=>String(row[k]??"").trim()!=="");
+    }
+    function cleanSleepSnapshot(records,key) {
+      if(!records||typeof records!=="object"||Array.isArray(records))return {};
+      const copy={};
+      Object.entries(records).forEach(([date,row])=>{
+        if(!date.startsWith(key+"-")||!sleepRecordHasData(row))return;
+        copy[date]=Object.fromEntries(SLEEP_KEYS.map(field=>[field,String(row[field]??"")]));
+      });
+      return copy;
+    }
+    function rescueSleepSnapshot(key,records,slot) {
+      const cleaned=cleanSleepSnapshot(records,key);
+      if(!Object.keys(cleaned).length)return false;
+      const prefix=SLEEP_RESCUE_CACHE+key+"_"+slot;
+      try {
+        // Once created the original snapshot is immutable. Subsequent edits
+        // update a different 'recent' key; an empty response cannot erase it.
+        if(!localStorage.getItem(prefix+"_original"))
+          localStorage.setItem(prefix+"_original",JSON.stringify(cleaned));
+        localStorage.setItem(prefix+"_recent",JSON.stringify(cleaned));
+        return true;
+      }catch(e){setSleepStatus("기기 백업 저장공간 확인 필요: "+e.message,"error");return false;}
+    }
+    function mergeSleepMonthWithoutErasing(key,serverRows,deviceRows) {
+      const server=cleanSleepSnapshot(serverRows,key);
+      const device=cleanSleepSnapshot(deviceRows,key);
+      const combined={},mismatches=[];
+      for(const day of new Set([...Object.keys(server),...Object.keys(device)])){
+        const incoming=server[day]||{},stored=device[day]||{};
+        const row=defaultSleepRecord();
+        SLEEP_KEYS.forEach(field=>{
+          const serverValue=String(incoming[field]??"");
+          const localValue=String(stored[field]??"");
+          if(localValue!==""&&serverValue!==""&&localValue!==serverValue){
+            // Display the device value, but preserve both source versions
+            // in their separate snapshots. No implicit cloud overwrite.
+            mismatches.push({date:day,field,serverValue,localValue});
+          }
+          row[field]=localValue!==""?localValue:serverValue;
+        });
+        if(sleepRecordHasData(row))combined[day]=row;
+      }
+      return {records:combined,deviceOnly:Object.keys(device).filter(d=>!server[d]).length,
+        serverOnly:Object.keys(server).filter(d=>!device[d]).length,mismatches,
+        serverCount:Object.keys(server).length,deviceCount:Object.keys(device).length};
+    }
     function persistSleepMonth(key) {
       try{localStorage.setItem(SLEEP_MONTH_CACHE+key,JSON.stringify(sleepMonths[key]||{}));}catch(_){}
     }
@@ -1849,22 +1899,27 @@
           sleepSessionOnline=true;
           sleepServerNap2Ready=result.nap2Supported===true;
           sleepServerMetaReady=result.metadataSupported===true&&Number(result.schemaVersion)>=3;
-          // Old backend responses do not contain the new columns. Preserve local
-          // observations without replacing server-owned time fields.
+          // Snapshot BOTH versions before any fetch may touch cached records.
+          // Merge by date/field; never treat an empty or partial server
+          // response as an instruction to erase a non-empty device field.
           const cachedBefore=ensureSleepMonth(year,month);
-          const localMeta=Object.create(null);
-          if(!sleepServerMetaReady)Object.entries(cachedBefore).forEach(([date,row])=>{
-            if(row&&SLEEP_META_KEYS.some(f=>String(row[f]??"")!==""))
-              localMeta[date]=Object.fromEntries(SLEEP_META_KEYS.map(f=>[f,String(row[f]??"")]));
-          });
-          sleepServerMonths[key]=result.records||{};
-          try{localStorage.setItem(SLEEP_SERVER_CACHE+key,JSON.stringify(sleepServerMonths[key]));}catch(_){}
-          sleepMonths[key]=JSON.parse(JSON.stringify(sleepServerMonths[key]));
-          if(!sleepServerMetaReady)Object.entries(localMeta).forEach(([date,extra])=>{
-            const row=sleepMonths[key][date]||defaultSleepRecord();
-            SLEEP_META_KEYS.forEach(field=>{if(extra[field]!=="")row[field]=extra[field];});
-            sleepMonths[key][date]=row;
-          });
+          rescueSleepSnapshot(key,cachedBefore,"device");
+          rescueSleepSnapshot(key,sleepServerMonths[key],"server");
+          const incoming=result.records&&typeof result.records==="object"&&!Array.isArray(result.records)?
+            result.records:{};
+          const oldServerCount=Object.keys(cleanSleepSnapshot(sleepServerMonths[key],key)).length;
+          const merged=mergeSleepMonthWithoutErasing(key,incoming,cachedBefore);
+          sleepRecoveryState[key]=merged;
+          if(merged.serverCount===0&&oldServerCount>0){
+            // A suddenly blank server read is suspicious: do not wipe the
+            // previously verified cloud baseline used for conflict checks.
+            setSleepStatus("서버가 빈 기록을 반환했습니다 · 기존 기록 보존 중","error");
+          }else{
+            sleepServerMonths[key]=cleanSleepSnapshot(incoming,key);
+            rescueSleepSnapshot(key,sleepServerMonths[key],"server");
+            try{localStorage.setItem(SLEEP_SERVER_CACHE+key,JSON.stringify(sleepServerMonths[key]));}catch(_){}
+          }
+          sleepMonths[key]=merged.records;
           sleepPending.forEach(op=>{
             if(sleepMonthOfDate(op.date)!==key || !SLEEP_KEYS.includes(op.field))return;
             const row=sleepMonths[key][op.date]||defaultSleepRecord();
@@ -1877,15 +1932,22 @@
             if(!pendingBirth) birthDate=birthServerBase;
             localStorage.setItem(SLEEP_BIRTH_KEY,birthDate);
           }
-          showAppProgress("sleep-fetch-"+key, "수면 기록 갱신 완료", "done");
+          const hasRecoveryWarning=merged.deviceOnly>0||merged.mismatches.length>0||
+            (merged.serverCount===0&&merged.deviceCount>0);
+          showAppProgress("sleep-fetch-"+key,
+            hasRecoveryWarning?"서버·기기 기록 차이 · 기기 원본 보존":"수면 기록 갱신 완료",
+            hasRecoveryWarning?"pending":"done");
           const waitingNap2=sleepPending.some(op=>op.field==="nap2Start"||op.field==="nap2End");
           const waitingMeta=sleepPending.some(op=>SLEEP_META_KEYS.includes(op.field));
-          setSleepStatus(waitingMeta&&!sleepServerMetaReady?
+          setSleepStatus(hasRecoveryWarning?
+            "기기 기록 "+merged.deviceCount+"일 · 서버 기록 "+merged.serverCount+
+              "일 · 차이 "+(merged.deviceOnly+merged.mismatches.length)+"건 보존 중 (원본 삭제 없음)":
+            waitingMeta&&!sleepServerMetaReady?
             "새 수면 관찰 기록은 기기에 보관 중 · Apps Script Code.gs v3 배포 후 자동 동기화":
             waitingNap2&&!sleepServerNap2Ready?
             "2차 낮잠은 기기에 보관 중 · Apps Script Code.gs 새 버전 배포 필요":
             sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:"자동 저장 연결됨",
-            waitingMeta&&!sleepServerMetaReady||waitingNap2&&!sleepServerNap2Ready?"error":sleepPending.length?"":"saved");
+            hasRecoveryWarning||waitingMeta&&!sleepServerMetaReady||waitingNap2&&!sleepServerNap2Ready?"error":sleepPending.length?"":"saved");
           if(currentTab==="sleep") renderSleepTab();
           if(currentTab==="settings") {
             const bd=document.getElementById("sleepBirthDateSettings");
@@ -1918,8 +1980,10 @@
       } else {
         const key=sleepMonthOfDate(dateKey);
         const records=ensureSleepMonth(Number(key.slice(0,4)),Number(key.slice(5,7)));
+        rescueSleepSnapshot(key,records,"device");
         const row=records[dateKey]||defaultSleepRecord();row[field]=value;records[dateKey]=row;
         persistSleepMonth(key);
+        rescueSleepSnapshot(key,records,"device");
       }
       storeSleepPending();
       setSleepStatus(navigator.onLine?"기기 저장됨 · 서버 자동 저장 중":"오프라인 · 기기에 저장됨", navigator.onLine?"":"error");
