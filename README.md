@@ -253,3 +253,14 @@
 - 자동 종합 검토: **AASM 2016·WHO 2019의 월령별 24시간 총수면(낮잠 포함) 권고**, 수면·기상 규칙성 관찰, 기록 부족에 따른 해석 제한, 소아청소년과 관찰 포인트. 이 자동 분석은 의사의 개별 진단이나 의학적으로 검증된 수면 점수가 아닙니다.
 - 기록된 모든 완료일을 월별로 자동 재집계합니다. 기존 SLEEP_LOG, Apps Script 배포, 민감 기록, 회복·체크리스트 화면, 수면 참고 점수 산식은 변경하지 않습니다. 정적 프론트엔드 파일 `sleep-monthly.js`를 새로 배포합니다.
 - 근거: [AASM 연령별 수면 권고](https://pmc.ncbi.nlm.nih.gov/articles/PMC4877308/), [WHO 영유아 생활·수면 지침](https://www.who.int/en/news/item/24-04-2019-to-grow-up-healthy-children-need-to-sit-less-and-play-more), [수면 규칙성 연구 검토](https://pubmed.ncbi.nlm.nih.gov/35014925/), [AAP 수면무호흡 관찰](https://www.healthychildren.org/English/ages-stages/baby/sleep/Pages/Sleep-Apnea-Detection.aspx).
+
+
+## 히스토리 XML 추출 (2026-11-11)
+
+- **수면 기록** 및 **아내 회복** 탭의 `XML 기록 추출` 버튼을 누르면 범위 선택 팝업이 열립니다. **전체 히스토리**가 기본 선택이고 `특정 월`을 선택하면 YYYY-MM 월별 추출이 가능합니다. 버튼을 누르면 서버 월별 조회와 기기에 남은 기록을 안전하게 병합하지 않고 구분한 **UTF-8 XML**을 내려받습니다.
+- 파일 예시: `yuha-sleep-history-all-YYYY-MM-DD.xml`, `yuha-mental-history-2026-11-YYYY-MM-DD.xml` (현재 구현에서 월별도 파일명의 scope는 `month`이며 실제 선택 연월은 XML `<period>`에 표기됩니다). 각 날짜별 `<record>` 안에 `<serverVersion>`·`<deviceVersion>`을 별도 보존하고, `<pendingChanges>`·`<conflictVersions>`은 필요할 때만 출력합니다. 날짜를 중복 집계하지 않도록 메타데이터가 설명합니다. 필드 이름, 단위, 수면 계산상 날짜 의미, 주관적인 회복점수의 한계 등을 함께 기록합니다.
+- 전체 히스토리는 수면 생년월일(기본 2025-03) 또는 회복 기록 기준 2025-03부터 현재까지 매월 **기존 `getSleepMonth` / `getMentalMonth` 읽기 API**를 조회해 수집합니다. 현 기기에서 더 이른 날짜 기록이 발견되면 시작 범위를 확장합니다. 서버 API에는 전체 기간 조회 메서드가 없어 월별로 최대 3개씩 동시에 조회합니다. 다운로드 과정은 SLEEP_LOG/MENTAL_LOG 원본, 로컬 큐/동기화 상태를 수정하지 않습니다.
+- 일부 월의 서버 조회에 실패하면 **완전한 전체 파일로 조용히 다운로드하지 않습니다.** 실패한 월과 이유를 팝업에 보여 주고, 사용자가 별도로 `부분 기록만 다운로드`를 누른 경우에만 `complete=false`와 `failedMonths`를 표기한 불완전 XML을 내려받습니다. 다른 기기에만 저장되어 서버로 보내지지 않은 기록은 현재 기기에서 수집할 수 없습니다.
+- 아내 회복 추출은 기존 4자리 PIN 잠금 해제 화면 **안에만 표시**됩니다. 추출 중 잠기거나 인증 세션이 바뀌면 다운로드를 중단합니다. 점수·개인 메모·남편 편지 등 민감정보는 다운로드된 XML에 원문으로 포함되지만, PIN/계정 비밀번호/Google Apps Script URL·토큰/기기 진단 ID를 추출하지 않습니다. **XML은 암호화되지 않으므로 안전한 위치에 보관하고 불필요한 공유를 피하세요.** 이 기능 자체는 외부 분석 서버로 업로드하지 않습니다.
+- `history-export.js`는 XML 1.0 특수문자 이스케이프, 구조화된 배열·객체·숫자·문자·참/거짓·null 표현, 출처/기간/누락 상태/필드 정의를 제공합니다. `tests/history-export.test.js`는 Python ElementTree 실제 파싱까지 CI 검증하고, `tests/history-export-ui.test.js`는 팝업 범위 기본값과 월 전환, 실패 시 부분 추출, 잠금 권한 차단을 검증합니다.
+- Google Apps Script 새 배포나 스프레드시트 구조 변경은 필요하지 않습니다.
