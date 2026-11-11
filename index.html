@@ -320,7 +320,7 @@
       .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
     }
   </style>
-  <link rel="stylesheet" href="design.css?v=20261111-sleep-rescue-v2" />
+  <link rel="stylesheet" href="design.css?v=20261111-sleep-timeline-v1" />
   <link rel="stylesheet" href="mental.css?v=20261030-heart-progress1">
 </head>
 
@@ -2704,25 +2704,52 @@
       const awake=String(rec.nightAwakeMinutes??"");
       const wakes=String(rec.nightWakings??"");
       el.innerHTML=
-        '<div class="sleep-observation-title"><div><span class="sleep-monthly-eyebrow">수면 질·맥락 기록</span>'+
-        '<h3>'+date+' · 관찰 메모</h3></div><span class="sleep-observation-tip">달력에서 날짜 선택</span></div>'+
-        '<p class="sleep-observation-intro">밤중 각성과 아침 상태는 <b>이날 아침</b>, 입면 상태는 <b>이날 밤</b>의 기록입니다. 입력한 값만 분석에 반영합니다.</p>'+
-        '<fieldset class="sleep-observation-flags"><legend>특별한 상황</legend><div class="sleep-observation-flags-row">'+
+        '<div class="sleep-observation-title"><div><span class="sleep-monthly-eyebrow">수면 퀄리티 체크</span>'+
+        '<h3>'+date+' · 하루 수면 체크</h3></div><span class="sleep-observation-tip">달력에서 날짜 선택</span></div>'+
+        '<p class="sleep-observation-intro">선택한 날짜를 기준으로 <b>전날 밤 → 오늘 아침 → 오늘 낮잠 → 오늘 밤</b> 순서입니다. 각 기록은 실제 경험한 시점에 맞춰 저장됩니다.</p>'+
+        '<div class="sleep-observation-timeline">'+
+          '<section class="sleep-observation-stage" data-sleep-period="overnight">'+
+            '<div class="sleep-observation-stage-head"><span class="sleep-observation-stage-num">01</span><div>'+
+            '<h4>밤사이 각성</h4><p>전날 밤 잠든 뒤부터 '+date+' 아침에 일어나기 전까지</p></div></div>'+
+            '<div class="sleep-observation-grid">'+
+              '<label><span>밤중 깬 횟수 · 오늘 아침 기준</span>'+
+                '<input type="number" data-sleep-observe="nightWakings" min="0" max="30" step="1" inputmode="numeric" placeholder="미기록" value="'+escapeAttr(wakes)+'"></label>'+
+              '<label><span>밤중 깨어 있던 총시간 · 분</span>'+
+                '<input type="number" data-sleep-observe="nightAwakeMinutes" min="0" max="960" step="1" inputmode="numeric" placeholder="미기록" value="'+escapeAttr(awake)+'"></label>'+
+            '</div>'+
+          '</section>'+
+          '<section class="sleep-observation-stage" data-sleep-period="morning">'+
+            '<div class="sleep-observation-stage-head"><span class="sleep-observation-stage-num">02</span><div>'+
+            '<h4>오늘 아침</h4><p>'+date+' 기상 직후 컨디션</p></div></div>'+
+            '<div class="sleep-observation-grid">'+
+              '<label class="sleep-observation-wide"><span>일어났을 때 상태</span>'+
+                options("morningCondition",SLEEP_MORNING_STATES)+'</label>'+
+            '</div>'+
+          '</section>'+
+          '<section class="sleep-observation-stage" data-sleep-period="nap">'+
+            '<div class="sleep-observation-stage-head"><span class="sleep-observation-stage-num">03</span><div>'+
+            '<h4>오늘 낮잠</h4><p>'+date+' 낮잠 시간의 확인 방법</p></div></div>'+
+            '<div class="sleep-observation-grid">'+
+              '<label class="sleep-observation-wide"><span>낮잠 시간 기록 출처</span>'+
+                options("napSource",SLEEP_NAP_SOURCES)+'</label>'+
+            '</div>'+
+          '</section>'+
+          '<section class="sleep-observation-stage" data-sleep-period="evening">'+
+            '<div class="sleep-observation-stage-head"><span class="sleep-observation-stage-num">04</span><div>'+
+            '<h4>오늘 밤 · 잠들기 전</h4><p>'+date+' 밤에 잠드는 과정 (다음 날 아침이 아님)</p></div></div>'+
+            '<div class="sleep-observation-grid">'+
+              '<label class="sleep-observation-wide"><span>잠들기 전 상태 · 오늘 밤</span>'+
+                options("onsetState",SLEEP_ONSET_STATES)+'</label>'+
+            '</div>'+
+          '</section>'+
+        '</div>'+
+        '<fieldset class="sleep-observation-flags"><legend>오늘 하루의 특별한 상황 · 별도 표시</legend>'+
+          '<div class="sleep-observation-flags-row">'+
           [['none','평소와 같음'],...Object.entries(SLEEP_SITUATIONS)].map(([id,label])=>
             '<label class="sleep-observation-flag"><input type="checkbox" data-sleep-special="'+id+'"'+
             (chosen.has(id)?' checked':'')+'><span>'+label+'</span></label>').join("")+
-        '</div></fieldset>'+
-        '<div class="sleep-observation-grid">'+
-          '<label><span>잠들기 전 상태 · 이날 밤</span>'+options("onsetState",SLEEP_ONSET_STATES)+'</label>'+
-          '<label><span>낮잠 시간 기록 출처</span>'+options("napSource",SLEEP_NAP_SOURCES)+'</label>'+
-          '<label><span>밤중 각성 횟수 · 이날 아침</span>'+
-            '<input type="number" data-sleep-observe="nightWakings" min="0" max="30" step="1" inputmode="numeric" placeholder="미기록" value="'+escapeAttr(wakes)+'"></label>'+
-          '<label><span>밤중 깨어 있던 총시간 · 분</span>'+
-            '<input type="number" data-sleep-observe="nightAwakeMinutes" min="0" max="960" step="1" inputmode="numeric" placeholder="미기록" value="'+escapeAttr(awake)+'"></label>'+
-          '<label class="sleep-observation-wide"><span>아침 기상 컨디션</span>'+
-            options("morningCondition",SLEEP_MORNING_STATES)+'</label>'+
-        '</div>'+
-        '<p class="sleep-observation-help">밤잠 = 전날 실제 잠든 시각부터 오늘 기상까지 − <b>밤중 깨어 있던 분</b>. 각성 시간을 모르면 비워 두세요(0분은 실제 각성이 없음을 확인한 경우). 어린이집 낮잠은 추정 여부를 함께 기록합니다. 여행·질병·특별 일정은 평소 리듬 비교에서 따로 구분합니다.</p>'+
+          '</div></fieldset>'+
+        '<p class="sleep-observation-help">밤잠은 <b>전날 밤 잠든 시각 → 오늘 아침 기상</b>을 기준으로 계산하고, 확인된 각성 시간(분)만 차감합니다. 각성 시간을 모르면 비워 두세요. 0분은 실제로 깨어 있지 않았음을 확인한 경우입니다. 오늘 밤의 입면 상태는 <b>내일 아침 밤잠 평가</b>에 연결됩니다. 어린이집 추정 낮잠과 여행·질병·특별 일정은 별도 맥락으로 표시합니다.</p>'+
         (!sleepServerMetaReady&&sleepSessionOnline?
           '<p class="sleep-observation-server-note">새 항목은 이 기기에 보호 중입니다. 기기 간 동기화하려면 새 Apps Script Code.gs(v3)를 배포해야 합니다.</p>':'');
       el.querySelectorAll("[data-sleep-observe]").forEach(input=>input.addEventListener("change",()=>{
@@ -2840,8 +2867,6 @@
           </div>
         </div>
         <div class="sleep-summary" id="sleepSummary"></div>
-        <section class="sleep-card sleep-observation-card" id="sleepObservationCard" aria-label="날짜별 수면 상태 및 특별 상황 기록"></section>
-        <section class="sleep-card sleep-monthly-card" id="sleepMonthlySummary" aria-label="월별 수면 평균과 근거 기반 해석"></section>
         <div class="sleep-card">
           <div class="sleep-card-title"><span>${weekTitle} 수면 입력</span>
             <div class="sleep-map-nav"><button type="button" id="sleepPrevWeek" aria-label="이전 주">〈</button>
@@ -2860,7 +2885,9 @@
           <p class="sleep-day-sequence-note">아침 기상 → 낮잠 → 밤 입실·취침 순서입니다. 총수면은 전날 밤잠과 이날 낮잠을 합산합니다.</p>
           <div class="sleep-status ${sleepStatusKind}" id="sleepStatus" role="status" aria-live="polite">${escapeHtml(sleepStatusText)}</div>
           <div class="sleep-sync-mini"><span id="sleepPendingCount">${sleepPending.length?`임시 보관 ${sleepPending.length}건`:"자동 저장"}</span><button type="button" id="sleepRetry" style="${sleepPending.length?"":"display:none"}">동기화 재시도</button></div>
-        </div>`;
+        </div>
+        <section class="sleep-card sleep-observation-card" id="sleepObservationCard" aria-label="수면 퀄리티 체크 · 전날 밤부터 오늘 밤까지 시간순 기록"></section>
+        <section class="sleep-card sleep-monthly-card" id="sleepMonthlySummary" aria-label="월별 수면 평균과 근거 기반 해석"></section>`;
       document.getElementById("sleepHistoryExport").addEventListener("click",openSleepHistoryExport);
       document.getElementById("sleepRecoveryRefresh").addEventListener("click",()=>{
         setSleepStatus("기존 기록 서버 재조회 중 · 기기 원본 덮어쓰기 없음");
