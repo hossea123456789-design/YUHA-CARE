@@ -316,12 +316,12 @@ const SLEEP_FIELDS_ = Object.freeze({
   wakeTime: 7,
   nap2Start: 12,
   nap2End: 13,
-  nightAwakeMinutes: 14,
-  nightWakings: 15,
-  napSource: 16,
-  onsetState: 17,
-  specialFlags: 18,
-  morningCondition: 19
+  nightAwakeMinutes: 16,
+  nightWakings: 17,
+  napSource: 18,
+  onsetState: 19,
+  specialFlags: 20,
+  morningCondition: 21
 });
 const SLEEP_META_FIELDS_ = Object.freeze({
   nightAwakeMinutes:1,nightWakings:1,napSource:1,onsetState:1,specialFlags:1,morningCondition:1
@@ -332,14 +332,16 @@ const SLEEP_META_HEADERS_ = Object.freeze([
 function ensureSleepMetaColumns_(sh) {
   ensureNap2Columns_(sh);
   const max=sh.getMaxColumns();
-  if(max<19)sh.insertColumnsAfter(max,19-max);
-  const headers=sh.getRange(1,14,1,6).getDisplayValues()[0];
+  if(max<21)sh.insertColumnsAfter(max,21-max);
+  // N:O already contain legacy duplicate 2nd-nap headers in production.
+  // Never rename or reuse those columns. New observation fields begin at P.
+  const headers=sh.getRange(1,16,1,6).getDisplayValues()[0];
   if(headers.some((v,i)=>v && v!==SLEEP_META_HEADERS_[i]))
-    throw new Error('SLEEP_LOG N:S 열의 기존 제목이 달라서 기록을 보호하기 위해 변경을 중단합니다.');
+    throw new Error('SLEEP_LOG P:U 열에 기존 데이터가 있어 보존을 위해 변경을 중단합니다.');
   if(headers.some((v,i)=>v!==SLEEP_META_HEADERS_[i])){
-    sh.getRange(1,14,1,6).setValues([SLEEP_META_HEADERS_]);
-    sh.getRange(1,14,1,6).setFontWeight('bold').setBackground('#344778').setFontColor('white');
-    sh.getRange('N:S').setNumberFormat('@');sh.setColumnWidths(14,6,135);
+    sh.getRange(1,16,1,6).setValues([SLEEP_META_HEADERS_]);
+    sh.getRange(1,16,1,6).setFontWeight('bold').setBackground('#344778').setFontColor('white');
+    sh.getRange('P:U').setNumberFormat('@');sh.setColumnWidths(16,6,135);
   }
 }
 function validateSleepField_(field,value) {
@@ -374,22 +376,22 @@ function getSleepSheet_() {
   }
   // 다른 스프레드시트에 설치하는 경우에도 자동 생성
   sh = ss.insertSheet(SLEEP_SHEET_NAME);
-  sh.getRange(1,1,1,19).setValues([[
+  sh.getRange(1,1,1,21).setValues([[
     '기준일', '요일', '침대 입실', '실제 잠든 시각', '낮잠 시작',
     '낮잠 종료', '기상 (당일 아침)', '밤잠 시간', '낮잠 시간',
     '총 수면', '최종 수정', '2차 낮잠 시작', '2차 낮잠 종료',
-    ...SLEEP_META_HEADERS_
+    '', '', ...SLEEP_META_HEADERS_
   ]]);
-  sh.getRange(1,1,1,19).setFontWeight('bold').setBackground('#344778').setFontColor('white');
+  sh.getRange(1,1,1,21).setFontWeight('bold').setBackground('#344778').setFontColor('white');
   sh.setFrozenRows(1);
   sh.getRange('A:A').setNumberFormat('@');
   sh.getRange('C:G').setNumberFormat('@');
-  sh.getRange('L:S').setNumberFormat('@');
+  sh.getRange('L:U').setNumberFormat('@');
   sh.getRange('H:J').setNumberFormat('[h]:mm');
   sh.setColumnWidth(1,125);
   sh.setColumnWidths(3,5,125);
   sh.setColumnWidths(12,2,125);
-  sh.setColumnWidths(14,6,135);
+  sh.setColumnWidths(16,6,135);
   return sh;
 }
 
@@ -444,7 +446,7 @@ function getSleepMonth(year, month) {
   const records = {};
   if (last > 1) {
     // 기존 C:G 및 추가된 L:M을 읽어 과거 기록도 그대로 지원합니다.
-    const rows = sheet.getRange(2,1,last-1,19).getDisplayValues();
+    const rows = sheet.getRange(2,1,last-1,21).getDisplayValues();
     rows.forEach(row => {
       const dateKey = String(row[0]).trim();
       if (!dateKey.startsWith(prefix)) return;
@@ -452,9 +454,9 @@ function getSleepMonth(year, month) {
         bedTime:row[2] || '', asleepTime:row[3] || '',
         napStart:row[4] || '', napEnd:row[5] || '', wakeTime:row[6] || '',
         nap2Start:row[11] || '', nap2End:row[12] || '',
-        nightAwakeMinutes:row[13] || '', nightWakings:row[14] || '',
-        napSource:row[15] || '', onsetState:row[16] || '',
-        specialFlags:row[17] || '', morningCondition:row[18] || ''
+        nightAwakeMinutes:row[15] || '', nightWakings:row[16] || '',
+        napSource:row[17] || '', onsetState:row[18] || '',
+        specialFlags:row[19] || '', morningCondition:row[20] || ''
       };
       // 날짜만 미리 배치한 빈 날짜는 요약에서 기록된 날로 세지 않습니다.
       if (Object.keys(payload).some(key=>payload[key])) records[dateKey] = payload;
@@ -468,7 +470,7 @@ function getSleepMonth(year, month) {
 function sleepNightFormula_(row) {
   const prev=`IFERROR(INDEX($D$2:$D,MATCH(TEXT(DATEVALUE(A${row})-1,"yyyy-mm-dd"),$A$2:$A,0)),"")`;
   const raw=`MOD(TIMEVALUE(G${row})-TIMEVALUE(${prev}),1)`;
-  const awake=`IFERROR(VALUE(N${row})/1440,0)`;
+  const awake=`IFERROR(VALUE(P${row})/1440,0)`;
   return `=IF(OR(G${row}="",${prev}=""),"",IF(AND(${raw}<=16/24,${awake}<=${raw}),MAX(0,${raw}-${awake}),""))`;
 }
 
@@ -573,7 +575,7 @@ function syncSleepChanges(payload) {
   if (!lock.tryLock(2500)) return {ok:false, busy:true, message:'다른 기기가 저장 중입니다. 다시 시도해 주세요.'};
   try {
     const sheet = getSleepSheet_();
-    const existing = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,19).getDisplayValues() : [];
+    const existing = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,21).getDisplayValues() : [];
     const rowByDate = Object.create(null);
     existing.forEach((row,i)=>{const key=String(row[0]||'').trim();if(key && !rowByDate[key])rowByDate[key]={index:i+2,values:row};});
     const profileSheet = getChildSettingsSheet_();
@@ -605,14 +607,14 @@ function syncSleepChanges(payload) {
           const parts=op.date.split('-').map(Number);
           const day=SLEEP_WEEKDAYS_[new Date(Date.UTC(parts[0],parts[1]-1,parts[2])).getUTCDay()];
           sheet.getRange(next,1,1,7).setNumberFormat('@');
-          sheet.getRange(next,12,1,8).setNumberFormat('@');
+          sheet.getRange(next,12,1,10).setNumberFormat('@');
           sheet.getRange(next,1,1,2).setValues([[op.date,day]]);
           sheet.getRange(next,8,1,3).setNumberFormat('[h]:mm').setFormulas([[
             sleepNightFormula_(next),
             sleepNapFormula_(next),
             `=IF(COUNT(H${next}:I${next})=0,\"\",SUM(H${next}:I${next}))`
           ]]);
-          rec={index:next,values:[op.date,day,...Array(17).fill('')]};
+          rec={index:next,values:[op.date,day,...Array(19).fill('')]};
           rowByDate[op.date]=rec;
         }
         sheet.getRange(rec.index,SLEEP_FIELDS_[op.field]).setNumberFormat('@').setValue(op.value);
