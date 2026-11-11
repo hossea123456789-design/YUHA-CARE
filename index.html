@@ -2586,6 +2586,67 @@
       });
     }
 
+    function drawSleepObservation(){
+      const el=document.getElementById("sleepObservationCard");if(!el)return;
+      const date=sleepSelectedDate,rec=getSleepRecord(date);
+      const chosen=new Set(String(rec.specialFlags||"").split(","));
+      const options=(field,labels)=>'<select data-sleep-observe="'+field+'" aria-label="'+
+        (field==="napSource"?"낮잠 기록 출처":field==="onsetState"?"입면 상태":"아침 컨디션")+'">'+
+        '<option value="">미기록</option>'+
+        Object.entries(labels).map(([value,title])=>
+          '<option value="'+value+'"'+(rec[field]===value?' selected':'')+'>'+title+'</option>').join("")+
+        '</select>';
+      const awake=String(rec.nightAwakeMinutes??"");
+      const wakes=String(rec.nightWakings??"");
+      el.innerHTML=
+        '<div class="sleep-observation-title"><div><span class="sleep-monthly-eyebrow">수면 질·맥락 기록</span>'+
+        '<h3>'+date+' · 관찰 메모</h3></div><span class="sleep-observation-tip">달력에서 날짜 선택</span></div>'+
+        '<p class="sleep-observation-intro">밤중 각성과 아침 상태는 <b>이날 아침</b>, 입면 상태는 <b>이날 밤</b>의 기록입니다. 입력한 값만 분석에 반영합니다.</p>'+
+        '<fieldset class="sleep-observation-flags"><legend>특별한 상황</legend><div class="sleep-observation-flags-row">'+
+          [['none','평소와 같음'],...Object.entries(SLEEP_SITUATIONS)].map(([id,label])=>
+            '<label class="sleep-observation-flag"><input type="checkbox" data-sleep-special="'+id+'"'+
+            (chosen.has(id)?' checked':'')+'><span>'+label+'</span></label>').join("")+
+        '</div></fieldset>'+
+        '<div class="sleep-observation-grid">'+
+          '<label><span>잠들기 전 상태 · 이날 밤</span>'+options("onsetState",SLEEP_ONSET_STATES)+'</label>'+
+          '<label><span>낮잠 시간 기록 출처</span>'+options("napSource",SLEEP_NAP_SOURCES)+'</label>'+
+          '<label><span>밤중 각성 횟수 · 이날 아침</span>'+
+            '<input type="number" data-sleep-observe="nightWakings" min="0" max="30" step="1" inputmode="numeric" placeholder="미기록" value="'+escapeAttr(wakes)+'"></label>'+
+          '<label><span>밤중 깨어 있던 총시간 · 분</span>'+
+            '<input type="number" data-sleep-observe="nightAwakeMinutes" min="0" max="960" step="1" inputmode="numeric" placeholder="미기록" value="'+escapeAttr(awake)+'"></label>'+
+          '<label class="sleep-observation-wide"><span>아침 기상 컨디션</span>'+
+            options("morningCondition",SLEEP_MORNING_STATES)+'</label>'+
+        '</div>'+
+        '<p class="sleep-observation-help">밤잠 = 전날 실제 잠든 시각부터 오늘 기상까지 − <b>밤중 깨어 있던 분</b>. 각성 시간을 모르면 비워 두세요(0분은 실제 각성이 없음을 확인한 경우). 어린이집 낮잠은 추정 여부를 함께 기록합니다. 여행·질병·특별 일정은 평소 리듬 비교에서 따로 구분합니다.</p>'+
+        (!sleepServerMetaReady&&sleepSessionOnline?
+          '<p class="sleep-observation-server-note">새 항목은 이 기기에 보호 중입니다. 기기 간 동기화하려면 새 Apps Script Code.gs(v3)를 배포해야 합니다.</p>':'');
+      el.querySelectorAll("[data-sleep-observe]").forEach(input=>input.addEventListener("change",()=>{
+        const field=input.dataset.sleepObserve,raw=String(input.value||"");
+        if(["nightWakings","nightAwakeMinutes"].includes(field)&&raw!==""&&
+           (!/^\d+$/.test(raw)||Number(raw)>(field==="nightWakings"?30:960))){
+          alert(field==="nightWakings"?"밤중 각성 횟수는 0~30회입니다.":"밤중 깨어 있던 시간은 0~960분입니다.");
+          input.value=String(getSleepRecord(date)[field]||"");
+          return;
+        }
+        const value=raw===""?"":(["nightWakings","nightAwakeMinutes"].includes(field)?String(Number(raw)):raw);
+        if(String(getSleepRecord(date)[field]??"")!==value)updateSleepField(date,field,value);
+      }));
+      el.querySelectorAll("[data-sleep-special]").forEach(input=>input.addEventListener("change",()=>{
+        const original=String(getSleepRecord(date).specialFlags||"").split(",").filter(Boolean);
+        const next=new Set(original),id=input.dataset.sleepSpecial;
+        if(id==="none"){
+          if(input.checked){next.clear();next.add("none");}
+          else next.delete("none");
+        }else{
+          next.delete("none");
+          if(input.checked)next.add(id);else next.delete(id);
+        }
+        const value=[...next].sort().join(",");
+        if(String(getSleepRecord(date).specialFlags||"")!==value)
+          updateSleepField(date,"specialFlags",value);
+      }));
+    }
+
     function renderSleepTab() {
       const y=sleepViewYear,m=sleepViewMonth;
       const weekDates=getSleepWeekDates(sleepSelectedDate);
@@ -2609,6 +2670,7 @@
           </div>
         </div>
         <div class="sleep-summary" id="sleepSummary"></div>
+        <section class="sleep-card sleep-observation-card" id="sleepObservationCard" aria-label="날짜별 수면 상태 및 특별 상황 기록"></section>
         <section class="sleep-card sleep-monthly-card" id="sleepMonthlySummary" aria-label="월별 수면 평균과 근거 기반 해석"></section>
         <div class="sleep-card">
           <div class="sleep-card-title"><span>${weekTitle} 수면 입력</span>
@@ -2645,7 +2707,7 @@
       });
       document.getElementById("sleepWeekBtn").addEventListener("click",()=>{sleepViewMode="week";renderSleepTab();});
       document.getElementById("sleepMonthBtn").addEventListener("click",()=>{sleepViewMode="month";renderSleepTab();});
-      drawSleepCalendar();drawSleepTable();updateSleepSummaries();drawSleepMonthlySummary();fetchSleepMonth();
+      drawSleepCalendar();drawSleepTable();updateSleepSummaries();drawSleepObservation();drawSleepMonthlySummary();fetchSleepMonth();
     }
 
     function changeSleepWeek(delta) {
