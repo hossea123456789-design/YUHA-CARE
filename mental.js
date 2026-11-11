@@ -397,6 +397,78 @@ function exportMentalBackup(){
   setState("기기 원본 백업 생성됨 · 민감정보 파일 보관 주의");
  }catch(err){setState("기기 원본 백업 실패: "+String(err?.message||err),true);}
 }
+function mentalExportLocalMonth(k){
+ const data={},queue={},unresolved={};
+ for(const [date,row] of Object.entries(records)){
+  if(date.startsWith(k+"-"))data[date]=normalize(date,row);
+ }
+ for(const [date,item] of Object.entries(pending)){
+  if(!date.startsWith(k+"-"))continue;
+  // Include pending snapshots to avoid losing entries that have not reached the cloud.
+  queue[date]={entry:normalize(date,item.entry||records[date]),
+    expectedRevision:item.expectedRevision||"",letterOnly:!!item.letterOnly,
+    letterAction:item.letterAction||""};
+  if(!data[date])data[date]=queue[date].entry;
+ }
+ for(const [date,c] of Object.entries(conflicts)){
+  if(date.startsWith(k+"-"))unresolved[date]={
+   serverOriginal:c.server,deviceOriginal:c.local,
+   serverRevision:c.revision||"",phase:c.phase||"review"};
+ }
+ for(const [date,row] of Object.entries(protectedServerRows)){
+  if(!date.startsWith(k+"-"))continue;
+  unresolved[date]=unresolved[date]||{};
+  unresolved[date].protectedServerOriginal=normalize(date,row);
+ }
+ return {records:data,pending:queue,conflicts:unresolved};
+}
+function mentalExportMonths(){
+ return [...new Set([...Object.keys(records),...Object.keys(pending),...Object.keys(conflicts)]
+   .filter(date=>/^20\d{2}-\d{2}-\d{2}$/.test(date)).map(monthKey))];
+}
+function mentalFetchExportMonth(k,epoch){
+ if(!unlocked||cloudEpoch!==epoch||!cloudCode)
+  return Promise.reject(Error("비공개 회복 기록 잠금 해제 상태를 확인해야 합니다."));
+ const pass=cloudCode,[y,m]=k.split("-").map(Number);
+ return new Promise((resolve,reject)=>{
+  cloudCall("getMentalMonth",[pass,y,m,diagMeta()],result=>{
+   if(!unlocked||cloudEpoch!==epoch)return reject(Error("회복 기록 잠금 상태가 변경되었습니다."));
+   if(result?.ok)resolve(result);
+   else reject(Error("회복 기록 서버 월별 조회 실패"));
+  },err=>reject(Error(String(err?.message||err))));
+ });
+}
+function openMentalHistoryExport(){
+ if(!unlocked)return;
+ if(!window.YuhaHistoryExport){setState("XML 추출 기능을 불러오지 못했습니다",true);return;}
+ const epoch=cloudEpoch;
+ const fields=[
+  ...FIELDS.map(f=>({key:"scores."+f.id,label:f.name,unit:"self-report 0–10, null means not recorded"})),
+  {key:"offDutyMinutes",label:"개인 자유시간",unit:"minutes"},
+  {key:"offDutyType",label:"개인 시간 활동 항목"},
+  {key:"basicNeedsDelayed",label:"미뤄진 기본 욕구"},
+  {key:"contexts",label:"그날의 환경 및 육아 맥락"},
+  {key:"memo",label:"오늘의 개인 메모 원문"},
+  {key:"husbandLetter",label:"남편 편지 원문"},
+  {key:"husbandLetterStatus",label:"편지 봉인/열람 상태"},
+  {key:"husbandLetterOpenedAt",label:"편지 최초 열람 시각"},
+  {key:"husbandLetterLiked",label:"편지 좋아요 0/1"},
+  {key:"revision",label:"서버 기록 버전"}
+ ];
+ window.YuhaHistoryExport.open({
+  kind:"mental",month,fromMonth:"2025-03",fields,
+  context:{
+   privacy:"Contains sensitive mental health self-report and private correspondence.",
+   scoreScale:"7 self-reported categories, 0–10 each; no clinical diagnostic interpretation",
+   statuses:"pendingChanges = not synced; reviewVersions = different cloud/device originals",
+   note:"No authentication PIN, device identifier, access token, audit log or config secret is included."
+  },
+  authorized:()=>unlocked&&cloudEpoch===epoch&&Boolean(cloudCode),
+  localMonthKeys:mentalExportMonths,
+  localMonth:mentalExportLocalMonth,
+  fetchMonth:k=>mentalFetchExportMonth(k,epoch)
+ });
+}
 function list(start,end){
  return Object.entries(records).filter(([date])=>date>=start&&date<=end)
    .map(([date,v])=>({date,row:v,metric:scoresOf(v)})).sort((a,b)=>a.date.localeCompare(b.date));
@@ -1295,6 +1367,7 @@ function view(){
   mainSummary()+
   '<div class="mental-actions-row"><a href="#mentalToday" class="mental-primary-action" id="mentalJumpToday">오늘 기록</a>'+
   '<button type="button" class="mental-primary-action" id="mentalExportBackup">기기 원본 백업</button>'+
+  '<button type="button" class="mental-primary-action" id="mentalHistoryExport">XML 기록 추출</button>'+
   '<span>'+E(warning)+'</span></div>'+
   '<section class="sleep-card mental-month-card"><div class="mental-section-head"><h3>'+y+'년 '+m+'월 · 상태 히트맵</h3>'+
     '<div class="sleep-map-nav"><button type="button" data-month-step="-1" aria-label="이전 달">‹</button>'+
@@ -1421,6 +1494,7 @@ function bind(){
  bindSyncSafety();
  bindDiagnostics();
  screen.querySelector("#mentalExportBackup")?.addEventListener("click",exportMentalBackup);
+ screen.querySelector("#mentalHistoryExport")?.addEventListener("click",openMentalHistoryExport);
  screen.querySelectorAll("[data-month-step]").forEach(b=>b.addEventListener("click",()=>{
   const step=Number(b.dataset.monthStep);
   letterEditing=false;letterEditDate="";letterDraft="";
