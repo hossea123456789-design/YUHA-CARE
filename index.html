@@ -464,7 +464,7 @@
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental.js?v=20261111-history-xml1"></script>
   <script src="sleep-monthly.js?v=20261111-sleep-observations-v1"></script>
-  <script src="history-export.js?v=20261111-history-range2"></script>
+  <script src="history-export.js?v=20261111-sleep-observations1"></script>
   <script>
     const CLIENT_CACHE_KEY = "yuha_shared_checklist_client_cache_v1";
     const tabOrder = ["daycare", "sleep", "mental", "outing", "daily", "weekly", "settings"];
@@ -2617,7 +2617,7 @@
       Object.entries(source||{}).forEach(([day,row])=>{
         if(!day.startsWith(k+"-")||!row||typeof row!=="object")return;
         if(SLEEP_KEYS.some(key=>String(row[key]||"")!==""))
-          records[day]=Object.fromEntries(SLEEP_KEYS.map(key=>[key,String(row[key]||"")]));
+          records[day]=Object.fromEntries(SLEEP_KEYS.map(key=>[key,String(row[key]??"")]));
       });
       const pending={},conflicts={};
       sleepPending.forEach(op=>{
