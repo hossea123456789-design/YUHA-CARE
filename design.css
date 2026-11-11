@@ -1383,3 +1383,36 @@ header .header-status-group .app-progress[data-source="mental"][data-state="load
  border-radius:9px;color:#33627e;background:#fff;cursor:pointer}
 .sleep-recovery-actions>button:first-child{color:#fff;border-color:#387d9d;background:#387d9d}
 .sleep-recovery-actions>button:focus-visible{outline:2px solid #377e9e;outline-offset:2px}
+
+
+/* Chronological day structure for the sleep quality check. */
+.sleep-observation-timeline{
+ display:flex;flex-direction:column;gap:0;
+ border:1px solid #dfece3;border-radius:13px;
+ background:#fcfefc;overflow:hidden;margin:10px 0 14px;
+}
+.sleep-observation-stage{padding:12px 13px 13px;min-width:0}
+.sleep-observation-stage+.sleep-observation-stage{border-top:1px solid #e6eee8}
+.sleep-observation-stage-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.sleep-observation-stage-num{
+ display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 27px;width:27px;height:27px;
+ border-radius:9px;background:#eaf5ed;color:#377457;
+ font-size:11px;font-weight:850;font-variant-numeric:tabular-nums;
+}
+.sleep-observation-stage-head>div{min-width:0;flex:1}
+.sleep-observation-stage-head h4{font-size:12px;font-weight:850;color:#2b5e47;line-height:1.5;margin:0}
+.sleep-observation-stage-head p{font-size:10.5px;color:#71877a;line-height:1.55;margin:2px 0 0}
+.sleep-observation-stage .sleep-observation-grid{padding-left:37px}
+.sleep-observation-card .sleep-observation-flags{
+ margin:0 0 14px;padding:12px 3px 0;border-top:1px solid #e8eee9;
+}
+.sleep-observation-card .sleep-observation-flags legend{
+ padding-top:7px;margin-bottom:6px;font-size:11px;
+}
+@media(max-width:420px){
+ .sleep-observation-stage{padding:11px 10px}
+ .sleep-observation-stage-head{gap:8px}
+ .sleep-observation-stage-num{flex-basis:25px;width:25px;height:25px}
+ .sleep-observation-stage .sleep-observation-grid{padding-left:0}
+}
