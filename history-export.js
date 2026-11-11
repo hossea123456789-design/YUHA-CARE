@@ -44,7 +44,13 @@ function node(name,value,indent){
  }
  return pad+"<"+name+attr("type",typeof value)+">"+safeXml(value)+"</"+name+">\n";
 }
-function isSame(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+function canonical(value){
+ if(Array.isArray(value))return value.map(canonical);
+ if(value&&typeof value==="object")
+  return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));
+ return value;
+}
+function isSame(a,b){return JSON.stringify(canonical(a))===JSON.stringify(canonical(b));}
 function buildXml(doc){
  if(!SPEC[doc.kind])throw Error("지원하지 않는 기록 유형입니다.");
  const date=new Date().toISOString();
