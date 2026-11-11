@@ -78,6 +78,7 @@ function fixture(){
  assert.deepEqual(read,["2026-11"]);
  assert.equal(f.downloads.length,1);
  assert((await f.downloads[0].file.text()).includes('scope="month"'));
+ assert(f.downloads[0].name.includes("2026-11"),"Month-specific download filename must contain selected month");
  console.log("PASS popup: monthly option reads only the selected month");
 })();
 (async()=>{
