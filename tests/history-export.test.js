@@ -116,7 +116,10 @@ assert(x&&typeof x.buildXml==="function"&&typeof x.open==="function");
  const doc={kind:"sleep",scope:"range",firstMonth:"2026-08",lastMonth:"2026-09",
    startDate:"2026-08-15",endDate:"2026-09-02",preset:"custom",
    months:[
-    {month:"2026-08",server:{"2026-08-14":{napEnd:"14:00"},"2026-08-15":{napEnd:"14:25"},"2026-08-31":{napEnd:"14:30"}}},
+    {month:"2026-08",server:{"2026-08-14":{napEnd:"14:00"},"2026-08-15":{napEnd:"14:25"},"2026-08-31":{napEnd:"14:30"}},
+     device:{"2026-08-10":{memo:"outside-device-1"},"2026-08-15":{napEnd:"14:25"}},
+     pending:{"2026-08-11":{napEnd:{value:"outside-pending-2"}}},
+     conflicts:{"2026-08-12":{memo:"outside-conflict-3"}}},
     {month:"2026-09",server:{"2026-09-01":{napEnd:"14:20"},"2026-09-02":{napEnd:"14:10"},"2026-09-03":{napEnd:"14:55"}}}
    ]};
  const result=x.buildXml(doc);
@@ -125,7 +128,12 @@ assert(x&&typeof x.buildXml==="function"&&typeof x.open==="function");
  assert(result.xml.includes('preset="custom"'));
  assert(!result.xml.includes('record date="2026-08-14"'));
  assert(!result.xml.includes('record date="2026-09-03"'));
+ assert(!result.xml.includes("outside-device-1"));
+ assert(!result.xml.includes("outside-pending-2"));
+ assert(!result.xml.includes("outside-conflict-3"));
  assert(result.xml.includes('record date="2026-08-15"'));
  assert(result.xml.includes('record date="2026-09-02"'));
+ assert.throws(()=>x.buildXml({...doc,endDate:"2026-02-31"}),/날짜/);
+ assert.throws(()=>x.buildXml({...doc,startDate:"2026-09-03",endDate:"2026-09-02"}),/범위/);
  console.log("PASS XML: exact inclusive range, rolling-year/six-/three-month presets and leap-year dates");
 })();
