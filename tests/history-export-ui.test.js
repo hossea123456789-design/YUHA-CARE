@@ -18,10 +18,10 @@ function fixture(){
  const all=el(),month=el(),monthInput=el();
  all.value="all";all.checked=true;month.value="month";month.checked=false;
  monthInput.disabled=true;monthInput.value="2026-11";
- const run=el(),partial=el(),status=el(),bar=el(),progress=el(),cancel=el();
- partial.hidden=true;
+ const run=el(),partial=el(),again=el(),status=el(),bar=el(),progress=el(),cancel=el();
+ partial.hidden=true;again.hidden=true;
  const els={
-  '[data-month]':monthInput,'[data-run]':run,'[data-partial]':partial,
+  '[data-month]':monthInput,'[data-run]':run,'[data-partial]':partial,'[data-again]':again,
   '[data-status]':status,'[data-bar]':bar,'[data-progress]':progress
  };
  const cover=el();
@@ -44,7 +44,7 @@ function fixture(){
  a.click=()=>downloads.push({name:a.download,file});
  vm.runInNewContext(script,sandbox,{filename:"history-export.js"});
  const flush=()=>new Promise(resolve=>setImmediate(resolve));
- return {api:sandbox.window.YuhaHistoryExport,cover,all,month,monthInput,run,partial,status,
+ return {api:sandbox.window.YuhaHistoryExport,cover,all,month,monthInput,run,partial,again,status,
   downloads,flush};
 }
 (async()=>{
@@ -59,6 +59,9 @@ function fixture(){
  f.run.click();await f.flush();await f.flush();
  assert.deepEqual(read,["2026-10","2026-11"]);
  assert.equal(f.downloads.length,1);
+ assert.equal(f.again.hidden,false);
+ f.again.click();
+ assert.equal(f.downloads.length,2,"Explicit user click should re-download without repeating API calls");
  const xml=await f.downloads[0].file.text();
  assert(xml.includes('scope="all" complete="true"'));
  assert(xml.includes('startMonth="2026-10" endMonth="2026-11"'));
