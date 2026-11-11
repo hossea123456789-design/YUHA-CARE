@@ -64,9 +64,11 @@ const safe=c.__safe;
  grid[13]="2차 낮잠 시작";grid[14]="2차 낮잠 종료"; // N:O in actual existing sheet
  const sh={
   getMaxColumns(){return 23;},
+  getLastRow(){return 43;},
   insertColumnsAfter(){throw Error("Existing sheet already has sufficient columns");},
   getRange(row,col,rows,cols){
    if(row==="P:U")return {setNumberFormat(){return this;}};
+   if(row===2&&col===16)return {getDisplayValues(){return Array.from({length:rows},()=>Array(6).fill(""));}};
    assert.equal(row,1);
    return {
     getDisplayValues(){return [grid.slice(col-1,col-1+cols)];},
