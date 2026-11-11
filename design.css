@@ -1365,3 +1365,21 @@ header .header-status-group .app-progress[data-source="mental"][data-state="load
  .sleep-observation-flags-row{gap:5px}
  .sleep-observation-flag{padding:6px 8px;font-size:10.5px}
 }
+
+/* Sleep recovery notice for previously entered records: never equate fetch failure with deletion. */
+.sleep-recovery-tools{
+ border:1px solid #d4e2eb;background:#f6fafc;border-radius:13px;
+ padding:12px;margin:9px 0 14px;box-shadow:0 1px 4px #204a6411;
+}
+.sleep-recovery-tools>strong{font-size:12px;font-weight:850;color:#33596c}
+.sleep-recovery-notice{margin:8px 0 10px;font-size:11px;line-height:1.72;
+ color:#546f80;overflow-wrap:anywhere}
+.sleep-recovery-notice.error{color:#a55038;font-weight:700}
+.sleep-recovery-notice.warning{color:#916329}
+.sleep-recovery-notice.ok{color:#326c55}
+.sleep-recovery-actions{display:flex;flex-wrap:wrap;gap:7px}
+.sleep-recovery-actions>button{font:inherit;font-size:11px;line-height:1.3;
+ font-weight:760;min-height:35px;padding:8px 10px;border:1px solid #c5dae4;
+ border-radius:9px;color:#33627e;background:#fff;cursor:pointer}
+.sleep-recovery-actions>button:first-child{color:#fff;border-color:#387d9d;background:#387d9d}
+.sleep-recovery-actions>button:focus-visible{outline:2px solid #377e9e;outline-offset:2px}
