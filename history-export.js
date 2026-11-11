@@ -117,10 +117,11 @@ function buildXml(doc){
   xml+="    </record>\n";
  }
  xml+="  </records>\n</yuhaCareHistory>\n";
- return {xml,recordCount:sorted.length,failed,complete};
+ return {xml,recordCount:sorted.length,failed,complete,scope:doc.scope,firstMonth:doc.firstMonth,lastMonth:doc.lastMonth};
 }
 function download(kind,scope,out){
- const filename="yuha-"+SPEC[kind].filename+"-history-"+scope+"-"+new Date().toISOString().slice(0,10)+".xml";
+ const rangeLabel=out.scope==="month"?out.firstMonth+(scope.includes("partial")?"-partial":""):scope;
+ const filename="yuha-"+SPEC[kind].filename+"-history-"+rangeLabel+"-"+new Date().toISOString().slice(0,10)+".xml";
  const blob=new Blob([out.xml],{type:"application/xml;charset=utf-8"});
  const url=URL.createObjectURL(blob);
  const link=document.createElement("a");link.href=url;link.download=filename;
