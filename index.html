@@ -464,6 +464,7 @@
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental.js?v=20261030-amber-load-v2"></script>
   <script src="sleep-monthly.js?v=20261104-monthly-evidence1"></script>
+  <script src="history-export.js?v=20261111-history-xml-v1"></script>
   <script>
     const CLIENT_CACHE_KEY = "yuha_shared_checklist_client_cache_v1";
     const tabOrder = ["daycare", "sleep", "mental", "outing", "daily", "weekly", "settings"];
@@ -2452,6 +2453,78 @@
       el.innerHTML=output;
     }
 
+    function sleepExportLocalMonth(k) {
+      const [y,m]=k.split("-").map(Number);
+      const source=ensureSleepMonth(y,m);
+      const records={};
+      Object.entries(source||{}).forEach(([day,row])=>{
+        if(!day.startsWith(k+"-")||!row||typeof row!=="object")return;
+        if(SLEEP_KEYS.some(key=>String(row[key]||"")!==""))
+          records[day]=Object.fromEntries(SLEEP_KEYS.map(key=>[key,String(row[key]||"")]));
+      });
+      const pending={},conflicts={};
+      sleepPending.forEach(op=>{
+        if(op.date.startsWith(k+"-")&&SLEEP_KEYS.includes(op.field)){
+          pending[op.date]=pending[op.date]||{};
+          pending[op.date][op.field]={value:op.value,expectedServerValue:op.expectedValue};
+        }
+      });
+      sleepConflicts.forEach(c=>{
+        if(c.date?.startsWith(k+"-")){
+          conflicts[c.date]=conflicts[c.date]||{};
+          conflicts[c.date][c.field]={serverValue:c.serverValue,deviceValue:c.localValue};
+        }
+      });
+      return {records,pending,conflicts};
+    }
+    function sleepExportMonthKeys(){
+      const keys=new Set([...Object.keys(sleepMonths)]);
+      for(let i=0;i<localStorage.length;i++){
+        const key=localStorage.key(i);
+        if(key?.startsWith(SLEEP_MONTH_CACHE))keys.add(key.slice(SLEEP_MONTH_CACHE.length));
+      }
+      sleepPending.forEach(op=>{if(op.date!=="@profile")keys.add(op.date.slice(0,7));});
+      return [...keys];
+    }
+    function sleepFetchExportMonth(k){
+      if(!navigator.onLine||!window.google?.script?.run)
+        return Promise.reject(Error("수면 서버 연결을 확인할 수 없습니다."));
+      const [year,m]=k.split("-").map(Number);
+      return new Promise((resolve,reject)=>{
+        // Read-only export: never update sleepMonths, pending edits or Sheets.
+        try{
+          window.google.script.run.withSuccessHandler(result=>{
+            if(result?.ok)resolve(result);
+            else reject(Error("서버 월별 조회 실패"));
+          }).withFailureHandler(err=>reject(Error(String(err?.message||err)))).getSleepMonth(year,m);
+        }catch(err){reject(err);}
+      });
+    }
+    function openSleepHistoryExport(){
+      if(!window.YuhaHistoryExport){alert("XML 추출 기능을 불러오지 못했습니다. 새로고침해 주세요.");return;}
+      const fields=[
+        ["wakeTime","해당 날짜 아침 기상"],["napStart","1차 낮잠 시작"],
+        ["napEnd","1차 낮잠 종료"],["nap2Start","2차 낮잠 시작"],
+        ["nap2End","2차 낮잠 종료"],["bedTime","해당 날짜 밤 침대 입실"],
+        ["asleepTime","해당 날짜 밤 실제 잠듦"]
+      ].map(([key,label])=>({key,label,unit:"HH:mm (24-hour local clock)"}));
+      const since=/^20\d{2}-\d{2}-\d{2}$/.test(birthDate)?birthDate.slice(0,7):"2025-03";
+      window.YuhaHistoryExport.open({
+        kind:"sleep",month:sleepMonthKey(sleepViewYear,sleepViewMonth),
+        fromMonth:since,fields,context:{
+          childBirthDate:birthDate,
+          clock:"Asia/Seoul local HH:mm; no date-offset in raw timestamps",
+          dateConvention:"Bed/asleep are night of the listed date; wake is morning of the listed date",
+          observation:"Only manually saved times. Empty value means unknown, not zero.",
+          sleepFormula:"24-hour duration on day D = night(D-1 asleepTime to D wakeTime) + naps(D)"
+        },
+        authorized:()=>true,
+        localMonthKeys:sleepExportMonthKeys,
+        localMonth:sleepExportLocalMonth,
+        fetchMonth:sleepFetchExportMonth
+      });
+    }
+
     function renderSleepTab() {
       const y=sleepViewYear,m=sleepViewMonth;
       const weekDates=getSleepWeekDates(sleepSelectedDate);
@@ -2461,7 +2534,8 @@
       const main=document.getElementById("main");
       main.innerHTML=`
         <div class="panel-head sleep-heading"><div><h2 class="panel-title">수면 기록</h2>
-          <span class="count">유하 · ${ageLabel(ageAtSleepDate(localDateKey(new Date())))}</span></div></div>
+          <span class="count">유하 · ${ageLabel(ageAtSleepDate(localDateKey(new Date())))}</span></div>
+          <button type="button" class="history-export-trigger" id="sleepHistoryExport">XML 기록 추출</button></div>
         <div class="sleep-card sleep-map-card">
           <div class="sleep-card-title"><span>${y}년 ${m}월</span>
             <div class="sleep-map-nav"><button type="button" id="sleepPrev" aria-label="이전 달">〈</button>
@@ -2494,6 +2568,7 @@
           <div class="sleep-status ${sleepStatusKind}" id="sleepStatus" role="status" aria-live="polite">${escapeHtml(sleepStatusText)}</div>
           <div class="sleep-sync-mini"><span id="sleepPendingCount">${sleepPending.length?`임시 보관 ${sleepPending.length}건`:"자동 저장"}</span><button type="button" id="sleepRetry" style="${sleepPending.length?"":"display:none"}">동기화 재시도</button></div>
         </div>`;
+      document.getElementById("sleepHistoryExport").addEventListener("click",openSleepHistoryExport);
       document.getElementById("sleepPrevWeek").addEventListener("click",()=>changeSleepWeek(-1));
       document.getElementById("sleepNextWeek").addEventListener("click",()=>changeSleepWeek(1));
       document.getElementById("sleepToday").addEventListener("click",()=>{
