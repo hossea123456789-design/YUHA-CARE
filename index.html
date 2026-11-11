@@ -1974,10 +1974,15 @@
           }
           sleepRetryCount=0;
           settleSleepEdits(snapshot);
-          showAppProgress("sleep-save",sleepPending.length?"추가 수면 기록 저장 중":"수면 기록 저장 완료",
-            sleepPending.length?"busy":"done");
-          setSleepStatus(sleepPending.length?`자동 저장 중 · 남은 ${sleepPending.length}건`:"자동 저장 완료","saved");
-          if(sleepPending.some(isSyncable))requestSleepSync(false);
+          const readyMore=sleepPending.some(isSyncable);
+          const metaWaiting=!sleepServerMetaReady&&sleepPending.some(op=>SLEEP_META_KEYS.includes(op.field));
+          showAppProgress("sleep-save",readyMore?"추가 수면 기록 저장 중":
+            metaWaiting?"새 수면 관찰 기록은 기기에 보관 중":"수면 기록 저장 완료",
+            readyMore?"busy":metaWaiting?"pending":"done");
+          setSleepStatus(metaWaiting?"새 수면 관찰 기록은 기기에 보관 중 · Apps Script Code.gs v3 배포 필요":
+            readyMore?`자동 저장 중 · 남은 ${sleepPending.length}건`:"자동 저장 완료",
+            metaWaiting?"error":"saved");
+          if(readyMore)requestSleepSync(false);
           if(currentTab==="sleep")renderSleepTab();
         })
         .withFailureHandler(err=>{
