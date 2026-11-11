@@ -107,8 +107,8 @@ function make(){
  vm.runInNewContext(gs.slice(start,end)+
   "globalThis.__meta={fields:SLEEP_FIELDS_,headers:SLEEP_META_HEADERS_,validate:validateSleepField_};",ctx);
  const m=ctx.__meta;
- for(const [key,n] of Object.entries({nightAwakeMinutes:14,nightWakings:15,
-  napSource:16,onsetState:17,specialFlags:18,morningCondition:19}))
+ for(const [key,n] of Object.entries({nightAwakeMinutes:16,nightWakings:17,
+  napSource:18,onsetState:19,specialFlags:20,morningCondition:21}))
   assert.equal(m.fields[key],n);
  assert.equal(m.headers.length,6);
  for(const [key,value] of [
@@ -123,10 +123,10 @@ function make(){
   ["napSource","unverified"],["onsetState","unverified"],["morningCondition","unverified"]])
   assert.throws(()=>m.validate(key,value),key+" should reject "+value);
  assert(gs.includes("metadataSupported:true, schemaVersion:3"));
- assert(gs.includes("getRange(2,1,last-1,19).getDisplayValues()"));
- assert(gs.includes("getRange(2,1,sheet.getLastRow()-1,19).getDisplayValues()"));
+ assert(gs.includes("getRange(2,1,last-1,21).getDisplayValues()"));
+ assert(gs.includes("getRange(2,1,sheet.getLastRow()-1,21).getDisplayValues()"));
  assert(gs.includes("ensureSleepMetaColumns_(sh)"));
- assert(gs.includes("IFERROR(VALUE(N")&&gs.includes("/1440,0)"));
+ assert(gs.includes("IFERROR(VALUE(P")&&gs.includes("/1440,0)"));
  assert(gs.includes("if(op.field==='nightAwakeMinutes')"));
  console.log("PASS sleep: appended N:S metadata columns and server validation");
 })();
