@@ -919,3 +919,16 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 시작 시각을 실제 변경·저장할 때에는 오늘의 이미 유효한 수동 종료값을 바꾸지 않는다. 오늘 기존 종료 시각이 시작과 역전/불합리하면 전날 실제 종료 시각이 유효한지 먼저 확인하여 보정하고, 그렇지 않을 때만 +30분. 오늘 종료 항목이 아직 비어 있으면 시작만 저장하고 종료를 임의 생성하지 않는다(사용자가 종료 모달에서 어제 값을 확인하고 저장). 정상 데이터의 일괄 덮어쓰기나 시트/Apps Script 수정 없음.
 - 자정 넘기는 밤 입면은 허용하되 말이 안 되는 오전 08:00 시작/07:00 종료를 23시간으로 취급하지 않는다. 2차 낮잠은 1차 종료 이후 입력하는 기존 검증을 유지. 모달 힌트가 어제 실제값 추천과 어제 기록이 맞지 않는 경우의 30분 보정을 명확히 구분하여 안내한다.
 - tests/sleep-time-link.test.js에서 14:25 전일 종료 추천, 오늘 14:25 시작 시 14:55 보정, 전일 오전 기상 기본값, 수동 실제 종료 보존, 새 시작 변경 시 어제 기록 반영, 종료 공란 시 잘못된 자동 저장 방지, 월 경계(11월 1일 → 10월 31일) 확인. GitHub Actions Pages 파이프라인에 반영.
+
+
+## 43. 2026-11-11 — 수면·아내 회복 히스토리 XML 다운로드
+
+- 요청: 두 탭에 `XML 기록 추출` 버튼. 누르면 `전체 히스토리` 기본 선택, `특정 월` 라디오와 월 선택 입력이 있는 팝업. 전체/월별 하나의 UTF-8 `.xml` 파일로 추출. 월별 파일명에는 선택 월 포함.
+- 설계: public `history-export.js`에는 개인 데이터, API URL, PIN, 시트 원문이 없음. 버튼을 누를 때만 브라우저에서 기존 Google Apps Script `getSleepMonth(year,month)` 또는 PIN-인증 `getMentalMonth(pin,year,month,diagMeta)`로 월별 조회. `XML` 생성과 다운로드는 브라우저 Blob URL로만 수행하며 새 원격 저장·서버 전송·제3자 분석 서비스 업로드는 없음. 기존 Apps Script 재배포 불필요. 읽기 API는 기존 내부 진단 로그는 작성할 수 있으나 기록 본문에 쓰기 요청은 하지 않는다.
+- 전체 범위: 수면은 birthDate 월(일반적으로 2025-03), 아내 회복은 초기 보수적 기준 2025-03부터 오늘의 현지 월까지. 현재 기기의 캐시에 더 이른 월이 있으면 시작일 앞당김. 월별 조회는 선택한 월만. 서버 API에 전체 조회 엔드포인트가 없어서 `history-export.js`는 월별 요청을 최대 3개 동시 처리하고 진행률을 팝업에 표시한다.
+- XML schema `yuhaCareHistory` v1: category/scope/complete, exportedAt, period, source mode + failedMonths, `context`(아이 생년월일/기준일 정의·회복척도), `fieldDefinitions`(항목명·단위), 날짜별 `record`에 `serverVersion`, `deviceVersion`, `pendingChanges`, `conflictVersions`를 중복 날짜 없이 중첩한다. 수면 분석은 전날 asleepTime + 당일 wakeTime + 낮잠을 이해할 수 있도록 명시한다. 회복 점수는 주관적 자기보고이며 메모, 편지 및 좋아요 상태를 원문 보존. XML 이스케이프 &amp; &lt; &gt; &quot; &apos; / invalid control characters sanitization. 데이터 타입 숫자, 불리언, null, 배열, 객체 구분.
+- 사용자 기기의 미전송 수면 편집 큐, 회복 pending 및 원본 충돌, 보호된 서버원본 정보도 XML에 포함. 다른 기기에만 남아 서버 업로드되지 않은 기록은 현재 기기에서 가져올 수 없다. 같은 날짜의 서버/기기 버전은 합산되지 않도록 `reviewVersions` 플래그와 XML 해석 설명을 제공한다. `complete=true`는 요청 월의 서버 조회가 모두 성공했음을 의미할 뿐 pending/conflict가 없음을 보증하지 않는다.
+- 서버 조회 실패 월 발생 시 자동 정상 다운로드를 막고 오류 월을 표시한다. **사용자가 별도로 `부분 기록만 다운로드`를 선택하면** 포함된 서버/기기 정보로 `complete=false` 및 failedMonths가 명시된 XML을 만든다. 백그라운드 저장/자동 충돌 해결/덮어쓰기를 하지 않는다.
+- 아내 회복에서 PIN 잠금 해제 후에만 추출 버튼 노출. export 함수를 호출할 때마다 `unlocked && cloudEpoch===시작 epoch && cloudCode` 확인하며, 잠금 또는 세션 교체 후 다운로드 차단. XML에는 PIN/앱 secret/기기 감사로그 포함하지 않는다. 그러나 **개인 기록·편지가 포함된 평문 XML**이므로 파일 유출에 유의해야 한다.
+- UI: index.html 수면 헤더 버튼, mental.js 회복 액션 옆 버튼, 공용 history-export.js 팝업, design.css 반응형 스타일, index.html 캐시무효화. 기존 수면·회복 동기화 및 히트맵 코드는 변경하지 않음.
+- 테스트: tests/history-export.test.js는 XML 인코딩·복수 버전·미전송·충돌·부분·범위 확인, CI Python xml.etree.ElementTree 실제 파싱. tests/history-export-ui.test.js는 전체 기본/월별 한 달 조회/부분 다운로드 명시 승인/PIN 거부. 기존 모든 JS·수면·회복 자동 테스트와 Pages 검증 통과 확인 후에만 배포 완료 보고. 실제 휴대폰 다운로드 UX는 자동 테스트만으로 보장할 수 없음.
