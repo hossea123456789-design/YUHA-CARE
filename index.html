@@ -2196,14 +2196,31 @@
       return n.complete?n.total:null;
     }
 
-    function nightDuration(dateKey) {
+    function nightDurationGross(dateKey) {
       const today=getSleepRecord(dateKey);
       const yesterday=getSleepRecord(shiftSleepDate(dateKey,-1));
       const asleep=sleepMinutes(yesterday.asleepTime), wake=sleepMinutes(today.wakeTime);
       if(asleep===null||wake===null)return null;
-      // 전날 저녁 취침 -> 해당 날짜 아침 기상. 00시 이후 취침도 처리.
-      let mins=(wake-asleep+1440)%1440;
-      return mins>=240&&mins<=960?mins:null; // 비현실적인 20시간 잠은 평가에서 제외
+      const mins=(wake-asleep+1440)%1440;
+      return mins>=240&&mins<=960?mins:null;
+    }
+    function sleepObservedAwake(dateKey) {
+      const text=String(getSleepRecord(dateKey).nightAwakeMinutes??"");
+      if(!/^(?:0|[1-9]\\d{0,2})$/.test(text))return null;
+      const value=Number(text);
+      return value>=0&&value<=960?value:null;
+    }
+    function nightDuration(dateKey) {
+      const gross=nightDurationGross(dateKey);
+      if(gross===null)return null;
+      const awake=sleepObservedAwake(dateKey);
+      // Missing awakening is unknown, not an explicit report of 0. It cannot
+      // be subtracted until a duration is recorded.
+      if(awake!==null&&awake>gross)return null;
+      return gross-(awake??0);
+    }
+    function sleepSpecialDay(row){
+      return String(row?.specialFlags||"").split(",").some(k=>["travel","illness","unusual"].includes(k));
     }
 
     function formatDuration(minutes) {
@@ -2285,22 +2302,30 @@
       const today=getSleepRecord(dateKey);
       const yesterday=getSleepRecord(shiftSleepDate(dateKey,-1));
       const night=nightDuration(dateKey);
+      const awakeMinutes=sleepObservedAwake(dateKey);
+      const grossNight=nightDurationGross(dateKey);
       const napData=napIntervals(today);
       const nap=napData.complete?napData.total:null;
       const total=night!==null&&nap!==null?night+nap:null;
       const partial=(night||0)+(nap||0);
       const rec=sleepRecommendation(dateKey);
       const hasAny=[today.napStart,today.napEnd,today.nap2Start,today.nap2End,
-        today.wakeTime,yesterday.asleepTime,yesterday.bedTime].some(Boolean);
+        today.wakeTime,yesterday.asleepTime,yesterday.bedTime,
+        ...SLEEP_META_KEYS.map(k=>today[k])].some(Boolean);
       const asleep=sleepMinutes(yesterday.asleepTime),bed=sleepMinutes(yesterday.bedTime);
       const rawLatency=asleep!==null&&bed!==null?(asleep-bed+1440)%1440:null;
       const latency=rawLatency!==null&&rawLatency<=180?rawLatency:null;
       const missing=[];
-      if(night===null) missing.push("전날 실제 취침과 오늘 아침 기상");
+      if(night===null)missing.push(awakeMinutes!==null&&grossNight!==null&&awakeMinutes>grossNight?
+        "밤중 깨어 있던 분이 밤잠 전체보다 큽니다 · 각성 시간을 수정하세요":
+        "전날 실제 취침과 오늘 아침 기상");
       if(nap===null) missing.push(napData.error||"오늘 낮잠");
       const empty={level:hasAny?"partial":"empty",label:hasAny?"부분 기록":"미기록",
         total:null,night,nap,partial:partial||null,score:null,latency,rec,
-        napCount:napData.intervals.length,breakdown:[],missing,notes:[
+        grossNight,awakeMinutes,nightWakings:today.nightWakings,
+        napSource:today.napSource,onsetState:yesterday.onsetState,
+        morningCondition:today.morningCondition,
+        specialFlags:today.specialFlags,napCount:napData.intervals.length,breakdown:[],missing,notes:[
           hasAny?"확인할 기록: "+missing.join(" · "):"아직 입력된 기록이 없습니다."
         ]};
       if(total===null)return empty;
@@ -2339,6 +2364,7 @@
         const day=shiftSleepDate(dateKey,-i);
         const row=getSleepRecord(day);
         const nightBefore=getSleepRecord(shiftSleepDate(day,-1));
+        if(sleepSpecialDay(row)||sleepSpecialDay(nightBefore))continue;
         const a=sleepMinutes(nightBefore.asleepTime);
         const w=sleepMinutes(row.wakeTime);
         if(a!==null)priorAsleep.push(a);
@@ -2353,7 +2379,8 @@
         return sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;
       };
       const wake=sleepMinutes(today.wakeTime);
-      if(asleep!==null&&wake!==null&&priorAsleep.length>=3&&priorWake.length>=3){
+      if(!sleepSpecialDay(today)&&!sleepSpecialDay(yesterday)&&
+         asleep!==null&&wake!==null&&priorAsleep.length>=3&&priorWake.length>=3){
         const asleepDeviation=median(priorAsleep.map(t=>clockGap(asleep,t)));
         const wakeDeviation=median(priorWake.map(t=>clockGap(wake,t)));
         const avgGap=Math.round((asleepDeviation+wakeDeviation)/2);
@@ -2401,7 +2428,16 @@
       const notes=breakdown.filter(x=>x.penalty>0).map(x=>x.title+" −"+x.penalty+"/"+x.max+"점");
       if(!notes.length)notes.push("평가 가능한 항목에서 감점 없음");
       if(coverage<75)notes.push("입력된 정보가 제한적이어서 점수의 신뢰도가 낮습니다.");
+      if(sleepSpecialDay(today)||sleepSpecialDay(yesterday))
+        notes.push("여행·질병·특별 일정 기록 · 평소 수면 리듬 규칙성 점수에서 제외");
+      if(today.napSource==="daycare")notes.push("낮잠 시간은 어린이집 추정 · 정확한 관찰값으로 단정하지 않음");
+      if(today.napSource==="caregiver")notes.push("낮잠 시간은 보호자 전달값 · 관찰 출처 별도 표시");
+      if(awakeMinutes!==null&&awakeMinutes>0)
+        notes.push("밤중 깨어 있던 "+awakeMinutes+"분을 실제 밤잠에서 차감");
       return {level,label,total,night,nap,partial:total,score,coverage,earned,available,
+        grossNight,awakeMinutes,nightWakings:today.nightWakings,
+        napSource:today.napSource,onsetState:yesterday.onsetState,
+        morningCondition:today.morningCondition,specialFlags:today.specialFlags,
         deductions:available-earned,latency,rec,napCount:intervals.length,gaps,breakdown,missing:[],notes};
     }
 
@@ -2690,6 +2726,19 @@
           '</div></div>'
         : '';
       const formattedMinute=x=>x===null?"—":formatDuration(x);
+      const observations=[
+        q.grossNight!==null&&q.awakeMinutes!==null?
+          "밤잠 "+formatDuration(q.grossNight)+" 중 각성 "+q.awakeMinutes+"분 차감":null,
+        q.nightWakings!==""&&q.nightWakings!==undefined?"밤중 각성 "+q.nightWakings+"회":null,
+        q.napSource?("낮잠 기록 출처: "+(SLEEP_NAP_SOURCES[q.napSource]||q.napSource)):null,
+        q.onsetState?("전날 입면: "+(SLEEP_ONSET_STATES[q.onsetState]||q.onsetState)):null,
+        q.morningCondition?("아침 상태: "+(SLEEP_MORNING_STATES[q.morningCondition]||q.morningCondition)):null,
+        q.specialFlags&&q.specialFlags!=="none"?"특수 상황: "+
+          q.specialFlags.split(",").map(k=>SLEEP_SITUATIONS[k]||k).join(" · "):null
+      ].filter(Boolean);
+      const observationText=observations.length?
+        '<p class="sleep-observation-context">'+observations.map(escapeHtml).join(" · ")+'</p>':
+        '<p class="sleep-observation-context">밤중 각성·낮잠 출처·입면 상태·아침 컨디션은 아직 미기록입니다.</p>';
       const metrics='<div class="sleep-detail-metrics">'+
         '<div><span>밤잠</span><strong>'+formattedMinute(q.night)+'</strong></div>'+
         '<div><span>낮잠</span><strong>'+formattedMinute(q.nap)+(q.napCount?' <small>('+q.napCount+'회)</small>':'')+'</strong></div>'+
@@ -2724,7 +2773,7 @@
           ' · 평가 반영률 '+q.coverage+'% · 수면 패턴 참고 점수')+'</div></div>'+
         '<div class="sleep-detail-grade quality-'+q.level+'"><strong>'+(q.score===null?'—':q.score)+
         '</strong><small>/100</small></div></div>'+
-        metrics+
+        metrics+observationText+
         '<details class="sleep-score-details" '+(sleepDetailExpanded?"open":"")+'>'+
           '<summary>점수 계산 근거 <span>자세히 보기</span></summary>'+nightTimingText+calculation+
         (maybeAm?'<p class="sleep-day-warning">전날 취침 시각이 오전으로 입력되어 있습니다. 저녁 취침이었다면 다시 확인해 주세요.</p>':'')+
@@ -2735,7 +2784,7 @@
         '<a href="https://pubmed.ncbi.nlm.nih.gov/26602742/" target="_blank" rel="noopener noreferrer">18개월 영아 입면 시각 관찰연구</a> · '+
         '<a href="https://pubmed.ncbi.nlm.nih.gov/42874417/" target="_blank" rel="noopener noreferrer">낮잠 전환 연구</a>. '+
         '세부 가중치와 깨시 관찰 구간은 앱 자체 참고 규칙이며 수면의 질을 진단하는 점수가 아닙니다. '+
-        '밤중 각성 횟수·수면 무호흡·낮 컨디션은 기록하지 않아 점수에 포함되지 않습니다.</p></details>';
+        '밤중 각성 분은 기입한 경우 밤잠에서 차감하며, 횟수·입면 상태·아침 상태는 관찰 근거로만 표시합니다. 특별 일정은 평소 규칙성 비교에서 제외합니다. 수면호흡 문제는 이 점수로 판정할 수 없습니다.</p></details>';
     }
 
     function drawSleepTable() {
