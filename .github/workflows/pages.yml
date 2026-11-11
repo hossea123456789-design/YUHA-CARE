@@ -40,6 +40,7 @@ jobs:
           node tests/sleep-context.test.js
           node tests/sleep-context-sync.test.js
           node tests/sleep-data-rescue.test.js
+          node tests/sleep-quality-order.test.js
           node tests/history-export.test.js
           node tests/history-export-ui.test.js
           python3 -c "import xml.etree.ElementTree as ET; r=ET.parse('/tmp/yuha-history-export-fixture.xml').getroot(); assert r.tag=='yuhaCareHistory'; assert len(r.findall('./records/record'))==3; print('PASS XML parsed by ElementTree')"
