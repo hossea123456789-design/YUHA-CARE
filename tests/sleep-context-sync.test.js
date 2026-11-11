@@ -12,6 +12,7 @@ function sliceFunction(first,last){
   wakeTime:"06:30",nightAwakeMinutes:"40",nightWakings:"2",
   napSource:"daycare",specialFlags:"travel",morningCondition:"tired",onsetState:"crying"
  };
+ const captured={};
  const c={
   sleepMonths:{[month]:{[day]:{...cached}}},
   sleepServerMonths:{},sleepLoadTokens:{},sleepPending:[
@@ -19,12 +20,13 @@ function sliceFunction(first,last){
   SLEEP_META_KEYS:["nightAwakeMinutes","nightWakings","napSource","onsetState","specialFlags","morningCondition"],
   SLEEP_KEYS:["wakeTime","nightAwakeMinutes","nightWakings","napSource","specialFlags","morningCondition","onsetState"],
   SLEEP_SERVER_CACHE:"yuha_sleep_server_v5_",SLEEP_BIRTH_KEY:"yuha_sleep_birth_v3",
+  SLEEP_RESCUE_CACHE:"yuha_sleep_rescue_20261111_",sleepRecoveryState:{},
   sleepMonthKey:(y,m)=>y+"-"+String(m).padStart(2,"0"),
   sleepMonthOfDate:date=>date.slice(0,7),
   ensureSleepMonth:()=>c.sleepMonths[month],
   defaultSleepRecord:()=>({}),
   persistSleepMonth:key=>{c.persisted=key;},
-  localStorage:{setItem(){}},
+  localStorage:{setItem(k,v){captured[k]=v;},getItem(k){return captured[k]||null;}},
   navigator:{onLine:true},showAppProgress(){},setSleepStatus(message){c.status=message;},
   sleepServerNap2Ready:false,sleepServerMetaReady:true,sleepSessionOnline:false,
   sleepCacheOnly:true,currentTab:"settings",
@@ -40,14 +42,18 @@ function sliceFunction(first,last){
   withFailureHandler(fn){this.failure=fn;return this},
   getSleepMonth(){this.success(result);}
  }}};
- vm.runInNewContext(sliceFunction("fetchSleepMonthFor","fetchSleepMonth")+
+ vm.runInNewContext(sliceFunction("sleepRecordHasData","persistSleepMonth")+
+  sliceFunction("fetchSleepMonthFor","fetchSleepMonth")+
   "globalThis.__fetch=fetchSleepMonthFor;",c,{filename:"old-backend-read.js"});
  c.__fetch(2026,11,true);
  assert.equal(c.sleepServerMetaReady,false);
- assert.equal(c.sleepMonths[month][day].wakeTime,"06:45");
+ assert.equal(c.sleepMonths[month][day].wakeTime,"06:30","locally entered time must remain visible until versions are reviewed");
+ assert.equal(c.sleepServerMonths[month][day].wakeTime,"06:45","verified cloud stays separately available");
+ assert.equal(c.sleepRecoveryState[month].mismatches.length,1);
+ assert(captured["yuha_sleep_rescue_20261111_2026-11_device_original"]);
  for(const key of c.SLEEP_META_KEYS)assert.equal(c.sleepMonths[month][day][key],cached[key]);
  assert.equal(c.sleepPending.length,1);
- assert(c.status.includes("기기에 보관"));
+ assert(c.status.includes("차이"));
  assert.equal(c.persisted,month);
  console.log("PASS compatibility: old Apps Script read cannot erase new local qualitative observations");
 })();
