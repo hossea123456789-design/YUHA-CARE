@@ -97,3 +97,35 @@ assert(x&&typeof x.buildXml==="function"&&typeof x.open==="function");
  assert(workflow.includes("history-export.js public-site/"));
  console.log("PASS XML: all default/month popup, locked mental guard, API/server loading and CI wiring");
 })();
+
+(function testPresetsAndExactDayFiltering(){
+ const p=x.presetDates;
+ assert.deepEqual(JSON.parse(JSON.stringify(p("thisYear","2026-11-11"))),
+  {startDate:"2026-01-01",endDate:"2026-11-11",preset:"thisYear"});
+ assert.deepEqual(JSON.parse(JSON.stringify(p("last12","2026-11-11"))),
+  {startDate:"2025-11-12",endDate:"2026-11-11",preset:"last12"});
+ assert.deepEqual(JSON.parse(JSON.stringify(p("last6","2026-11-11"))),
+  {startDate:"2026-05-12",endDate:"2026-11-11",preset:"last6"});
+ assert.deepEqual(JSON.parse(JSON.stringify(p("last3","2026-11-11"))),
+  {startDate:"2026-08-12",endDate:"2026-11-11",preset:"last3"});
+ // Month/day clamping around February and leap years.
+ assert.equal(p("last12","2024-02-29").startDate,"2023-03-01");
+ assert.equal(x.validDate("2026-02-30"),false);
+ assert.equal(x.validDate("2024-02-29"),true);
+ assert.throws(()=>p("unknown","2026-11-11"));
+ const doc={kind:"sleep",scope:"range",firstMonth:"2026-08",lastMonth:"2026-09",
+   startDate:"2026-08-15",endDate:"2026-09-02",preset:"custom",
+   months:[
+    {month:"2026-08",server:{"2026-08-14":{napEnd:"14:00"},"2026-08-15":{napEnd:"14:25"},"2026-08-31":{napEnd:"14:30"}}},
+    {month:"2026-09",server:{"2026-09-01":{napEnd:"14:20"},"2026-09-02":{napEnd:"14:10"},"2026-09-03":{napEnd:"14:55"}}}
+   ]};
+ const result=x.buildXml(doc);
+ assert.equal(result.recordCount,4);
+ assert(result.xml.includes('startDate="2026-08-15" endDate="2026-09-02"'));
+ assert(result.xml.includes('preset="custom"'));
+ assert(!result.xml.includes('record date="2026-08-14"'));
+ assert(!result.xml.includes('record date="2026-09-03"'));
+ assert(result.xml.includes('record date="2026-08-15"'));
+ assert(result.xml.includes('record date="2026-09-02"'));
+ console.log("PASS XML: exact inclusive range, rolling-year/six-/three-month presets and leap-year dates");
+})();
