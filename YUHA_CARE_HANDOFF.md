@@ -932,3 +932,12 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS
 - 아내 회복에서 PIN 잠금 해제 후에만 추출 버튼 노출. export 함수를 호출할 때마다 `unlocked && cloudEpoch===시작 epoch && cloudCode` 확인하며, 잠금 또는 세션 교체 후 다운로드 차단. XML에는 PIN/앱 secret/기기 감사로그 포함하지 않는다. 그러나 **개인 기록·편지가 포함된 평문 XML**이므로 파일 유출에 유의해야 한다.
 - UI: index.html 수면 헤더 버튼, mental.js 회복 액션 옆 버튼, 공용 history-export.js 팝업, design.css 반응형 스타일, index.html 캐시무효화. 기존 수면·회복 동기화 및 히트맵 코드는 변경하지 않음.
 - 테스트: tests/history-export.test.js는 XML 인코딩·복수 버전·미전송·충돌·부분·범위 확인, CI Python xml.etree.ElementTree 실제 파싱. tests/history-export-ui.test.js는 전체 기본/월별 한 달 조회/부분 다운로드 명시 승인/PIN 거부. 기존 모든 JS·수면·회복 자동 테스트와 Pages 검증 통과 확인 후에만 배포 완료 보고. 실제 휴대폰 다운로드 UX는 자동 테스트만으로 보장할 수 없음.
+
+
+## 44. 2026-11-11 — XML 히스토리 추출에 기간 지정 프리셋 도입
+
+- 사용자 추가 요구: 기존 **전체 (기본 선택)** / **특정 월** 외에 **기간 지정** 옵션. 기간 지정 UI에는 **이번 년도만**, **최근 1년**, **최근 6개월**, **최근 3개월**, **직접 지정** 프리셋을 제공한다. 프리셋을 누르면 시작/끝 `input[type=date]`가 채워지고 임의 수정 가능. 입력을 수동 변경하면 activePreset은 custom이다. 범위/프리셋 변경 시 이전 불완전 다운로드 버튼과 재다운로드 결과를 폐기한다.
+- 오늘은 실행하는 브라우저의 현지 날짜. 올해 프리셋은 해당 년도 1월 1일 ~ 오늘. 최근 12/6/3달은 현지 오늘 날짜를 기준으로 달력상 N개월을 거슬러 올라가 1일을 더한 날짜 ~ 오늘(양 끝 날짜 포함). 예: 2026-11-11 기준 최근 1년 2025-11-12~2026-11-11, 최근 6개월 2026-05-12~2026-11-11, 최근 3개월 2026-08-12~2026-11-11. 달력 월말 및 윤년일을 처리하도록 UTC 날짜 연산을 사용한다. 다음/이전 월의 정확한 일수 차이는 고정 30일 가정하지 않는다.
+- `history-export.js`: `presetDates`, `validDate`, start/end 날짜 검증, month-scoped `fetchMonth`는 기존 그대로 사용하며 선택 기간과 겹치는 월만 호출한다. `buildXml`의 record 루프 4개(서버, 기기, pending, conflict) 모두 `validDate(day) && day >= startDate && day <= endDate` 필터를 적용. 선택한 실제 일자와 preset 값은 XML `<period startDate endDate preset ...>`과 `range` 파일명에 포함된다. 범위 밖 개인기록/메모/편지/충돌이 XML에 혼입되지 않게 차단한다.
+- 이번 년도/최근 1년/최근 6개월/최근 3개월 모두 원본 데이터는 조회만 하고 변경하지 않는다. 아내 회복 PIN 잠금/권한 변경 시 취소, 원격 월 조회 실패 시 자동으로 완전 XML 다운로드하지 않고 부분 XML만 명시 선택 가능, 기기 기록 보호는 기존과 같다.
+- `design.css`는 `.history-export-presets/.history-export-dates` 버튼 및 시작일~종료일 반응형 UI를 추가. `index.html`의 history-export.js/design.css cache query 갱신 필요. `tests/history-export-ui.test.js`는 year-to-date, rolling-6, 직접 수정 날짜 범위/실제 XML 일자 필터링, 시작>종료 거절 테스트. `tests/history-export.test.js`는 1년/6개월/3개월·윤년, 서버/기기/pending/conflict 범위 외 불포함 테스트. GitHub Actions Pages CI가 자동 실행한다.
