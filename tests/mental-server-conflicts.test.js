@@ -83,8 +83,8 @@ function setup(opts={}){
 (function testSchemaVersion(){
  const env=setup();
  const response=vm.runInContext('getMentalMonth',env.context)('0000',2026,10);
- assert.equal(response.schemaVersion,6);
- console.log('PASS server: v6 capability is exposed to the frontend');
+ assert.equal(response.schemaVersion,7);
+ console.log('PASS server: v7 daily-ease capability is exposed to the frontend');
 })();
 
 (function testLikeWithoutTouchingRecoveryRecord(){
@@ -120,4 +120,23 @@ function setup(opts={}){
  assert.equal(reply.conflict,true);
  assert.equal(JSON.parse(env.sheet.rows[1][1]).husbandLetterLiked,undefined);
  console.log('PASS server: different or unopened letter cannot receive a stale heart');
+})();
+
+(function testEaseIsPersistedWithoutChangingLegacyJSON(){
+ const env=setup();
+ // Preexisting seven-score rows remain readable and return a missing eighth field.
+ const read=vm.runInContext('getMentalMonth',env.context)('0000',2026,10);
+ assert.equal(read.records['2026-10-27'].scores.ease,null);
+ const next=env.row('same private memo, new ease observation');next.scores.ease=0;
+ const reply=vm.runInContext('syncMentalEntry',env.context)({
+  passphrase:'0000',entry:next,expectedRevision:'2026-10-27T22:01:00Z',
+  diagnostics:{deviceId:'aaaaaaaaaaaaaaaaaaaaaaaa'}
+ });
+ assert.equal(reply.ok,true);
+ assert.equal(JSON.parse(env.sheet.rows[1][1]).scores.ease,0);
+ const again=vm.runInContext('getMentalMonth',env.context)('0000',2026,10);
+ assert.equal(again.records['2026-10-27'].scores.ease,0);
+ const invalid={...next,scores:{...next.scores,ease:10.25}};
+ assert.throws(()=>vm.runInContext('mentalValidateEntry_',env.context)(invalid),/0.5점/);
+ console.log('PASS server: old records retain seven scores; ease=0 roundtrips; fractional invalid score rejected');
 })();
