@@ -46,7 +46,8 @@ const FIELDS=[
  {id:"tolerance",name:"돌발상황 인내력",short:"인내력",question:"예상 밖 상황을 얼마나 여유 있게 넘길 수 있었나요?",low:"작은 일도 버거움",high:"차분히 대응"},
  {id:"rest",name:"죄책감 없는 휴식",short:"휴식",question:"쉬는 동안 마음까지 편하게 쉴 수 있었나요?",low:"쉬어도 불편함",high:"편안히 쉼"},
  {id:"selfAction",name:"나를 위한 실제 행동",short:"나를 위한 행동",question:"의무가 아닌, 내가 원한 행동을 실제로 했나요?",low:"하지 못함",high:"충분히 했음"},
- {id:"self",name:"나다운 감각",short:"나다운 감각",question:"오늘 역할을 떠나 그냥 나답게 존재하는 느낌이 있었나요?",low:"내가 없는 느낌",high:"충분히 나다움"}
+ {id:"self",name:"나다운 감각",short:"나다운 감각",question:"오늘 역할을 떠나 그냥 나답게 존재하는 느낌이 있었나요?",low:"내가 없는 느낌",high:"충분히 나다움"},
+ {id:"ease",name:"하루 체감 수월도",short:"하루 수월도",question:"오늘 하루 육아·일·가사 등을 실제로 얼마나 수월하게 보낼 수 있었나요?",low:"매우 버거웠음",high:"매우 수월했음"}
 ];
 const CORE=["control","rest","self"];
 const CHOICES=[{v:2,l:"매우 힘듦"},{v:4,l:"힘듦"},{v:5.5,l:"보통"},{v:7,l:"괜찮음"},{v:9,l:"좋음"}];
@@ -84,14 +85,17 @@ function normalize(date,item){
  x.revision=String(a.revision||"");
  return x;
 }
+// A single composite: legacy 7-field average 70% plus recorded ease 30%.
+// Missing ease preserves the previous 7-field score (unknown is not zero).
 function scoresOf(entry){
  if(!entry)return null;
- const nums=FIELDS.map(f=>entry.scores?.[f.id]);
- if(nums.some(x=>!validScore(x)))return null;
- const m=mean(nums);
- const recovery=entry.scores.control*.3+entry.scores.rest*.25+entry.scores.self*.25+
-   entry.scores.energy*.1+entry.scores.tolerance*.1;
- return {mental:m,recovery,core:mean(CORE.map(k=>entry.scores[k])),by:entry.scores,score100:m*10};
+ const original=FIELDS.filter(f=>f.id!=="ease");
+ const values=original.map(f=>entry.scores?.[f.id]);
+ if(values.some(x=>!validScore(x)))return null;
+ const oldMean=mean(values);
+ const hasEase=validScore(entry.scores?.ease);
+ const m=hasEase?oldMean*.70+entry.scores.ease*.30:oldMean;
+ return {mental:m,legacy:!hasEase,by:entry.scores,score100:m*10};
 }
 function level(value){
  if(!validScore(value))return "empty";
@@ -104,7 +108,7 @@ let records={};let pending={};let viewing=iso(new Date()),selected=viewing;
 let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloudError="",cloudSaving=false;
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
 let screen=null,unlocked=false,unlockBusy=false;
-let letterEditing=false,letterEditDate="",letterDraft="",letterBackendSupported=false;
+let letterEditing=false,letterEditDate="",letterDraft="",letterBackendSupported=false,mentalEaseBackendSupported=false;
 let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0;
 const loadedMentalMonths=new Set(),loadingMentalMonths=new Set(); // per-page throttling; not cryptographic brute-force protection.
 const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
@@ -320,6 +324,13 @@ function mergeCloudMonth(incoming){
  archiveMental("before-cloud-read");
  for(const [date,value] of Object.entries(incoming||{})){
   const server=normalize(date,value);
+  // Old Apps Script v6 cannot represent the new ease score. Protect local
+  // originals instead of treating a stripped field as a cloud conflict.
+  if(!mentalEaseBackendSupported&&validScore(records[date]?.scores?.ease)){
+   locallyProtectedDates.add(date);
+   protectedServerRows[date]=server;
+   continue;
+  }
   if(!pending[date]){
    const local=records[date];
    // Fix the opposite direction of the original data-loss guard:
@@ -527,6 +538,7 @@ function cloudCall(method,args,onSuccess,onFail){
 }
 function activate(pass){
  if(!pass)return;
+ mentalEaseBackendSupported=false;
  traceMental('CLOUD_SESSION_START',{localCount:Object.keys(records).length,pendingCount:Object.keys(pending).length});
  letterBackendSupported=false;
  const epoch=++cloudEpoch;
@@ -548,6 +560,7 @@ function activate(pass){
    diag()?.setBackendSupport(Number(result.schemaVersion)>=4);
    conflictArchiveSupported=Number(result.schemaVersion)>=5;
    reactionBackendSupported=Number(result.schemaVersion)>=6;
+  mentalEaseBackendSupported=Number(result.schemaVersion)>=7;
    traceMental('CLOUD_MONTH_SUCCESS',{month:k,requestId:req.requestId,serverCount:Object.keys(result.records||{}).length,schema:Number(result.schemaVersion)});
    mergeCloudMonth(result.records);
    loadedMentalMonths.add(k);
@@ -584,6 +597,7 @@ function fetchMentalMonthIfNeeded(k){
   diag()?.setBackendSupport(Number(result.schemaVersion)>=4);
    conflictArchiveSupported=Number(result.schemaVersion)>=5;
    reactionBackendSupported=Number(result.schemaVersion)>=6;
+  mentalEaseBackendSupported=Number(result.schemaVersion)>=7;
   traceMental('CLOUD_MONTH_SUCCESS',{month:k,requestId:req.requestId,serverCount:Object.keys(result.records||{}).length,schema:Number(result.schemaVersion)});
   mergeCloudMonth(result.records);
   loadedMentalMonths.add(k);
@@ -624,12 +638,15 @@ function syncNext(){
  if(!dates.length)return;
  const date=dates.find(d=>(!conflicts[d]||Boolean(pending[d].resolution)) &&
   (!pending[d].resolution||conflictArchiveSupported) &&
+  (mentalEaseBackendSupported||!validScore(pending[d].entry.scores?.ease)||pending[d].letterOnly) &&
   (letterBackendSupported||(!pending[d].letterOnly&&!pending[d].entry.husbandLetter)) &&
   (reactionBackendSupported||(!pending[d].entry.husbandLetterLiked&&pending[d].letterAction!=='like')));
  if(!date){
   if(Object.keys(conflicts).length)setState(
     conflictArchiveSupported?'기록 충돌 · 비교 후 원본을 선택하고 저장해 주세요':
     '안전 보관 서버(v5) 배포 필요 · 충돌 기록은 기기에 보관 중',true);
+  else if(dates.some(d=>validScore(pending[d].entry.scores?.ease)&&!mentalEaseBackendSupported))
+   setState('하루 수월도는 기기에 보관 중 · Apps Script v7 배포 후 동기화',true);
   else if(dates.some(d=>pending[d].letterAction==='like'||pending[d].entry.husbandLetterLiked))
    setState('하트는 기기에 저장됨 · 편지 반응 서버(v6) 배포 대기',true);
   else setState('편지 전송 대기 · 최신 Apps Script Code.gs 배포 필요 · 기기 기록 보관',true);
