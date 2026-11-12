@@ -773,7 +773,7 @@ function warningPatterns(end=iso(new Date())){
   out.push({kind:"watch",title:"기본적인 돌봄이 밀린 날",detail:"식사·수분·위생·수면 중 무엇을 대신 맡거나 줄일 수 있을지 검토해 보세요."});
  const t=trend(end);
  if(t.delta!==null&&t.delta>=.3)
-  out.push({kind:"good",title:"이번 주 평균 점수가 나아졌습니다",detail:"지난주보다 "+fixed(t.delta)+"점 높습니다. 어떤 환경 변화가 있었는지 기록을 함께 보세요."});
+  out.push({kind:"good",title:"이번 주 평균 점수가 나아졌습니다",detail:"지난주보다 "+fixed(t.delta*10)+"점 높습니다. 어떤 환경 변화가 있었는지 기록을 함께 보세요."});
  for(const key of ["control","rest","self","tolerance"]){
   if(t.cur.length>=4&&t.prior.length>=4){
    const a=avgKey(t.cur,key),b=avgKey(t.prior,key);
@@ -817,7 +817,7 @@ function monthlyHeat(){
   const date=month+"-"+String(day).padStart(2,"0"),score=scoresOf(records[date]),v=score?.mental??null;
   html+='<button class="sleep-heat-square mental-day '+heatStyle(v)+(date===selected?' selected':'')+
    (date===iso(new Date())?' today':'')+'" type="button" data-mental-date="'+date+'" aria-label="'+
-   day+'일 '+(v===null?'미기록':fixed(v)+'점')+'">'+
+   day+'일 '+(v===null?'미기록':Math.round(v*10)+'점')+'">'+
    '<span class="sleep-heat-day">'+day+'</span><span class="sleep-heat-score">'+
    (v===null?'—':Math.round(v*10))+'</span></button>';
  }
@@ -914,8 +914,8 @@ function insightHTML(){
  const a=s.assessment;
  const week=s.t.cur.length>=4?'<div class="mental-week-card">'+
   '<div class="mental-week-head"><strong>이번 주 돌아보기</strong><span>'+s.t.cur.length+'일 기록</span></div>'+
-  '<div class="mental-week-grid"><span>7일 평균</span><strong>'+fixed(s.t.currAvg)+'/10</strong>'+
-  '<span>14일 평균</span><strong>'+fixed(s.average14)+'/10</strong>'+
+  '<div class="mental-week-grid"><span>7일 평균</span><strong>'+(s.t.currAvg===null?'—':Math.round(s.t.currAvg*10)+'점')+'</strong>'+
+  '<span>14일 평균</span><strong>'+(s.average14===null?'—':Math.round(s.average14*10)+'점')+'</strong>'+
   '<span>기본욕구 미룸 평균</span><strong>'+fixed(s.needDelayAvg)+'개/기록일</strong>'+
   '<span>개인시간</span><strong>'+Math.floor(s.offDuty/60)+'시간 '+s.offDuty%60+'분</strong>'+
   '<span>기본욕구를 미룬 날</span><strong>'+s.delayed+'일</strong>'+
@@ -1374,7 +1374,7 @@ function cloudPanel(){
 function view(){
  const [y,m]=month.split("-").map(Number),s=summary();
  const warning=s.t.delta===null?"이번 주와 지난주에 각각 4일 이상 기록되면 비교합니다.":
- (s.t.delta>=0?"지난주보다 "+fixed(s.t.delta)+"점 높습니다.":"지난주보다 "+fixed(Math.abs(s.t.delta))+"점 낮습니다.");
+ (s.t.delta>=0?"지난주보다 "+fixed(s.t.delta*10)+"점 높습니다.":"지난주보다 "+fixed(Math.abs(s.t.delta)*10)+"점 낮습니다.");
  return '<div class="mental-root"><div class="panel-head"><div><h2 class="panel-title">아내 회복</h2>'+
   '<span class="count">Wife Mental Recovery · 개인 기록</span></div></div>'+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
@@ -1440,7 +1440,7 @@ function render(){
 }
 function refreshOverview(){
  if(!screen||!unlocked)return;
- // Update computed elements without recreating the seven input rows.
+ // Update computed elements without recreating the eight input rows.
  const temp=document.createElement("div");temp.innerHTML=mainSummary();
  for(const name of ["mental-top-cards","mental-core-cards"]){
   const replacement=temp.querySelector("."+name),existing=screen.querySelector("."+name);
@@ -1453,7 +1453,7 @@ function refreshOverview(){
   monthDay.className="sleep-heat-square mental-day mental-"+level(val)+
     (selected===iso(new Date())?" today":"")+" selected";
   monthDay.querySelector(".sleep-heat-score").textContent=val===null?"—":Math.round(val*10);
-  monthDay.setAttribute("aria-label",selected+" "+(val===null?"미기록":fixed(val)+"점"));
+  monthDay.setAttribute("aria-label",selected+" "+(val===null?"미기록":Math.round(val*10)+"점"));
  }
  const weekday=weekDays(selected);
  if(weekday.includes(selected)){
