@@ -38,7 +38,7 @@ function mental(env){
  let src=fs.readFileSync('mental.js','utf8');
  const marker='window.YuhaMental={render,lock,activate';
  assert(src.includes(marker));
- src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,hydrate,conflicts,conflictChoices,progressViewState,markMonth:k=>loadedMentalMonths.add(k),setMonth:k=>month=k,setCloudBusy:v=>cloudBusy=v,setCloudReady:v=>cloudReady=v,setCloudSaving:v=>cloudSaving=v,setArchiveSupport:v=>conflictArchiveSupported=v,setReactionSupport:v=>reactionBackendSupported=v,setSelectedDate:d=>selected=d,changes,husbandLetterHTML,syncSafetyHTML,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
+ src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,hydrate,conflicts,conflictChoices,progressViewState,markMonth:k=>loadedMentalMonths.add(k),setMonth:k=>month=k,setCloudBusy:v=>cloudBusy=v,setCloudReady:v=>cloudReady=v,setCloudSaving:v=>cloudSaving=v,setArchiveSupport:v=>conflictArchiveSupported=v,setReactionSupport:v=>reactionBackendSupported=v,setEaseSupport:v=>mentalEaseBackendSupported=v,scoresOf,mainSummary,dateEditor,weeklyMatrix,setSelectedDate:d=>selected=d,changes,husbandLetterHTML,syncSafetyHTML,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
  env.win.YuhaMentalDiagnostics={emit:()=>{},metadata:()=>({requestId:'test'}),flush:()=>{},setBackendSupport:()=>{}};
  vm.runInNewContext(src,env.ctx,{filename:'mental.js'});
  return env.win.__test;
@@ -300,4 +300,53 @@ function rpc(env,save,read){
  assert(!html.includes('(state==="busy"?"~"'), 'Progress percentage must not look negative');
  assert(html.includes('state==="loading"?"…":pct+"%"'), 'In-flight numeric percentage has no minus-like prefix');
  console.log('PASS: header uses orange incomplete, blue fetched, green verified save');
+})();
+
+
+(function testOneCompositeAndNewEase(){
+ const date='2026-11-12',e=env(),t=mental(e);
+ const basic=record(date);
+ const legacy=t.normalize(date,basic);
+ const weighted=t.normalize(date,{...basic,scores:{...basic.scores,ease:10}});
+ const oldAvg=(7+6+6+6+5+7+8)/7;
+ assert.equal(t.scoresOf(legacy).legacy,true);
+ assert(Math.abs(t.scoresOf(legacy).mental-oldAvg)<1e-10);
+ assert.equal(t.scoresOf(weighted).legacy,false);
+ assert(Math.abs(t.scoresOf(weighted).mental-(oldAvg*.7+3))<1e-10);
+ assert.equal(t.scoresOf(t.normalize(date,{...basic,scores:{...basic.scores,ease:0}})).legacy,false,
+  'Real zero must not be treated as missing');
+ assert.equal(e.win.YuhaMental.fields.length,8);
+ assert.equal(t.scoresOf(t.normalize(date,{...basic,scores:{...basic.scores,energy:null,ease:10}})),null,
+  'Incomplete original 7 must not become a fabricated total');
+ t.setRecords({[date]:weighted});t.setSelectedDate(date);
+ const editor=t.dateEditor();
+ assert(editor.includes('data-score-row="ease"'));
+ assert(editor.includes('8개 항목 입력'));
+ assert(editor.includes('하루 체감 수월도 30%'));
+ const matrix=t.weeklyMatrix();
+ assert(matrix.includes('종합 점수'));
+ assert(matrix.includes('data-score-row="ease"')===false);
+ assert(!matrix.includes('총점 7.9'));
+ console.log('PASS mental: 8th ease question and one weighted score; legacy and real zero remain intact');
+})();
+(function testOldBackendNeverDropsNewEase(){
+ const date='2026-11-12',e=env(),t=mental(e);
+ const local=t.normalize(date,{...record(date),
+  scores:{...record(date).scores,ease:9}});
+ t.setRecords({[date]:local});
+ t.setPending({[date]:{entry:local,expectedRevision:'',letterOnly:false,letterAction:''}});
+ t.setSession();
+ let saves=0;
+ rpc(e,()=>{saves++;return {ok:true,revision:'v7'}},
+  ()=>({ok:true,records:{[date]:{...local,revision:'v7'}}}));
+ t.syncNext();
+ assert.equal(saves,0,'v6 server cannot receive and strip the eighth metric');
+ assert(t.getPending()[date],'the eighth score stays locally queued');
+ t.mergeCloudMonth({[date]:{...record(date),revision:'old-server',scores:{...record(date).scores}}});
+ assert.equal(t.getRecords()[date].scores.ease,9,'v6 read may not erase local eighth metric');
+ t.setEaseSupport(true);
+ t.syncNext();
+ assert.equal(saves,1,'v7 permits writing the eighth score');
+ assert.equal(Object.keys(t.getPending()).length,0,'v7 readback can acknowledge the eighth score');
+ console.log('PASS mental: v6 queue protects ease score, v7 sync verifies and clears pending');
 })();
