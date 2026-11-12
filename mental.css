@@ -319,3 +319,15 @@
 .mental-screen-reader-only{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important}
 .mental-recovery-action{padding:10px;background:#fff9ef;border:1px solid #ead5ae;border-radius:11px}
 .mental-recovery-action button{min-height:44px;border:1px solid #b99575;border-radius:8px;background:white;color:#785739;padding:9px 12px;font-weight:750}
+
+/* One displayed daily composite score; 7-day trend is context, not another metric. */
+.mental-single-score-layout{display:flex;flex-direction:column;gap:7px}
+.mental-primary-score{background:linear-gradient(135deg,#f0f9f4,#fff);border-color:#b9dfc9;padding:15px 17px}
+.mental-primary-score>span{font-size:12px;color:#416c57}
+.mental-primary-score>strong{font-size:clamp(36px,10vw,48px);line-height:1.2;color:#237151}
+.mental-primary-score>strong small{font-size:14px;font-weight:700;color:#749587}
+.mental-primary-score>small{font-size:11px}
+.mental-score-trend{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f5f8f6;border-radius:10px;padding:10px 12px;font-size:11px;color:#5f776b}
+.mental-score-trend b{color:#355f4b;font-variant-numeric:tabular-nums}
+.mental-score-row[data-score-row="ease"]{border-color:#adddc0;background:#f4faf6}
+.mental-formula-note{margin:10px 1px 0;line-height:1.6}
