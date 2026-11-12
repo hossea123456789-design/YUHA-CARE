@@ -829,15 +829,16 @@ function weeklyMatrix(){
  s+='<div class="mental-matrix-caption">지표</div>';
  d.forEach(date=>s+='<div class="mental-matrix-day '+(date===selected?'is-selected':'')+'">'+
   ['일','월','화','수','목','금','토'][at(date).getDay()]+'<small>'+Number(date.slice(-2))+'</small></div>');
- const rows=[...FIELDS,{id:"total",name:"총점",short:"총점"}];
+ const rows=[...FIELDS,{id:"total",name:"종합 점수",short:"종합"}];
  rows.forEach(f=>{
   s+='<div class="mental-matrix-label" title="'+E(f.name)+'">'+E(f.short)+'</div>';
   d.forEach(date=>{
    const metric=scoresOf(records[date]);
    const value=f.id==="total"?(metric?.mental??null):(validScore(records[date]?.scores?.[f.id])?records[date].scores[f.id]:null);
+   const display=value===null?'·':f.id==="total"?Math.round(value*10):fixed(value);
    s+='<button type="button" class="mental-matrix-cell '+heatStyle(value)+(date===selected?' is-selected':'')+
-     '" data-mental-date="'+date+'" aria-label="'+E(f.name)+' '+date+' '+(value===null?'미기록':fixed(value)+'점')+'">'+
-     (value===null?'·':fixed(value))+'</button>';
+     '" data-mental-date="'+date+'" aria-label="'+E(f.name)+' '+date+' '+(value===null?'미기록':display+'점')+'">'+
+     display+'</button>';
   });
  });
  return s+"</div></div>";
@@ -890,21 +891,22 @@ function summary(end=iso(new Date())){
   startEffect,exposed:exposed.length,controls:controls.length};
 }
 function scoreCard(name,val,detail){
- return '<div class="mental-score-card"><span>'+E(name)+'</span><strong>'+ (val===null?'—':fixed(val))+
- '</strong><small>'+E(detail)+'</small></div>';
+ return '<div class="mental-score-card mental-primary-score"><span>'+E(name)+'</span><strong>'+
+  (val===null?'—':Math.round(val*10))+'<small> / 100</small></strong><small>'+E(detail)+'</small></div>';
 }
 function mainSummary(){
- const s=summary(),day=s.today;
- return '<div class="mental-top-cards">'+
-  scoreCard("오늘 상태",day?.mental??null,day?levelName(day.mental):"미기록")+
-  scoreCard("가중 회복",day?.recovery??null,"통제감·휴식·나다움 중심")+
-  scoreCard("7일 평균",s.t.currAvg,s.t.cur.length+'일 기록')+
-  scoreCard("지난주 대비",s.t.delta,s.t.delta===null?"각 주 4일 이상 필요":(s.t.delta>0?"상승":s.t.delta<0?"하락":"동일"))+
+ const s=summary(),day=s.today,delta=s.t.delta;
+ const mixed=new Set([...s.t.cur,...s.t.prior].map(x=>x.metric.legacy)).size>1;
+ const detail=day?(day.legacy?"기존 7항목 기준 · 수월도 미입력":
+  "기존 7개 지표 평균 70% + 하루 수월도 30%"):"아직 기록되지 않았습니다";
+ return '<div class="mental-top-cards mental-single-score-layout">'+
+  scoreCard("오늘의 종합 점수",day?.mental??null,detail)+
+  '<div class="mental-score-trend">'+
+   '<span>7일 평균 <b>'+(s.t.currAvg===null?'—':Math.round(s.t.currAvg*10)+'점')+'</b></span>'+
+   '<span>지난주 대비 <b>'+(delta===null?'—':(delta>0?'+':'')+fixed(delta*10)+'점')+'</b></span>'+
   '</div>'+
-  '<div class="mental-core-cards">'+CORE.map(k=>{
-    const f=FIELDS.find(x=>x.id===k),v=avgKey(s.t.cur,k);
-    return '<div class="mental-core"><span>'+E(f.short)+'</span><strong>'+fixed(v)+'</strong><small>7일 평균</small></div>';
-  }).join('')+'</div>';
+  (mixed?'<p class="mental-muted">기존·신규 계산 방식이 섞인 기간의 추세는 참고용입니다.</p>':'')+
+  '</div>';
 }
 function insightHTML(){
  const s=summary();
@@ -938,7 +940,7 @@ function dateEditor(){
  const d=selected,r=entry(d),metric=scoresOf(r),complete=FIELDS.filter(x=>validScore(r.scores[x.id])).length;
  let h='<div class="mental-editor-head"><div><h3>'+Number(d.slice(5,7))+'월 '+Number(d.slice(-2))+'일 기록</h3>'+
    '<p>본인이 느낀 상태를 기록해 주세요. 아기를 사랑하는 정도나 역할 수행 능력의 평가가 아닙니다. 같은 점수를 다시 누르면 선택이 취소됩니다.</p></div>'+
-   '<strong class="mental-editor-score">'+(metric?fixed(metric.mental):complete+'/7')+'</strong></div>';
+   '<strong class="mental-editor-score">'+(metric?Math.round(metric.mental*10)+'점':complete+'/'+FIELDS.length)+'</strong></div>';
  h+='<div class="mental-score-list">';
  for(const f of FIELDS){
    const v=r.scores[f.id];
@@ -953,7 +955,7 @@ function dateEditor(){
     '<button type="button" data-mental-adjust="'+f.id+'" data-step="0.5" aria-label="'+E(f.short)+' 0.5점 증가">+</button>'+
     '</div><span>'+E(f.high)+'</span></div></div>';
  }
- h+='</div><details class="mental-context-details" '+(contextsOpen?'open':'')+' id="mentalContextDetails"><summary>오늘의 상황 · 선택 입력 <span>개인시간·가족지원·기본욕구·메모</span></summary>'+
+ h+='</div><p class="mental-muted mental-formula-note">종합 점수 = 기존 7개 지표 평균 70% + 하루 체감 수월도 30%. 수월도 미입력일은 기존 7항목 점수를 유지합니다.</p><details class="mental-context-details" '+(contextsOpen?'open':'')+' id="mentalContextDetails"><summary>오늘의 상황 · 선택 입력 <span>개인시간·가족지원·기본욕구·메모</span></summary>'+
    '<div class="mental-context-inner">'+
    '<label class="mental-minute-label">의무 없이 사용한 개인시간 <span><input type="number" inputmode="numeric" min="0" max="1440" step="10" id="mentalOffDuty" value="'+r.offDutyMinutes+'"/>분</span></label>'+
    '<p class="mental-muted">분 단위 기록은 선택사항입니다. 시간과 휴식의 질은 따로 평가합니다.</p>'+
@@ -966,7 +968,7 @@ function dateEditor(){
    '<details class="mental-memo-full" id="mentalMemoFullDetails"><summary>저장된 메모 원문 전체 보기</summary><div id="mentalMemoFullText" class="mental-memo-full-body">'+(r.memo?E(r.memo):"저장된 메모가 없습니다.")+'</div></details>'+
    '</div></details>';
  h+='<div class="mental-local-note"><span class="mental-save-state mental-screen-reader-only" id="mentalStatus" aria-live="polite">'+E(stateText())+'</span>'+
-  '<span>'+complete+'/7개 항목 입력</span></div>';
+  '<span>'+complete+'/'+FIELDS.length+'개 항목 입력</span></div>';
   return h;
 }
 function tags(arr,values,kind){
@@ -1181,7 +1183,7 @@ function conflictPanelHTML(){
    }).join("");
    const remaining=differing.filter(f=>!["local","server"].includes(choices[f.key])).length;
    return '<article class="mental-conflict-date"><h4>'+E(date)+' · '+differing.length+'개 항목 차이</h4>'+
-    '<p>기기 원본 '+numberFilled(l)+'/7개 입력 · 서버 원본 '+numberFilled(c.server)+'/7개 입력. '+
+    '<p>기기 원본 '+numberFilled(l)+'/'+FIELDS.length+'개 입력 · 서버 원본 '+numberFilled(c.server)+'/'+FIELDS.length+'개 입력. '+
     '원본 JSON 백업 후 선택값을 적용합니다.</p>'+
     (c.phase==="resolving"?'<p class="mental-conflict-wait">서버의 원본 보관·저장 재조회 결과를 확인 중입니다.</p>':
      rows+'<p>미선택 항목: '+remaining+'개</p>')+
@@ -1400,12 +1402,9 @@ function view(){
    '<button type="button" data-week-step="1" aria-label="다음 주">›</button></div></div>'+
    weeklyMatrix()+'<p class="mental-muted">각 칸을 누르면 해당 날짜를 입력하거나 상세 기록을 확인할 수 있습니다.</p></section>'+
   '<section class="sleep-card mental-insight-card"><h3>회복 방향과 주간 요약</h3>'+insightHTML()+'</section>'+
-  '<section class="sleep-card mental-chart-card"><h3>월간 변화</h3>'+
-    sparkline("멘탈 점수",r=>scoresOf(r)?.mental??null,"#527cae")+
-    sparkline("회복 핵심 · 통제감/휴식/나다움",r=>scoresOf(r)?.core??null,"#358b78")+
-    '<div class="mental-two-line">'+sparkline("신체 에너지",r=>validScore(r?.scores?.energy)?r.scores.energy:null,"#bc8260")+
-    sparkline("전체 멘탈",r=>scoresOf(r)?.mental??null,"#527cae")+'</div>'+
-   '<p class="mental-muted">그래프는 기록된 날짜만 표시하고 미기록일을 0으로 연결하지 않습니다.</p></section>'+
+  '<section class="sleep-card mental-chart-card"><h3>월간 종합 점수 변화</h3>'+
+    sparkline("하루 종합 점수",r=>scoresOf(r)?.mental??null,"#527cae")+
+   '<p class="mental-muted">하나의 종합 점수만 표시합니다. 이전·신규 계산 방식이 바뀐 날짜는 추세 해석에 주의하세요. 미기록은 0점이 아닙니다.</p></section>'+
   '<section class="sleep-card mental-input-card" id="mentalToday">'+dateEditor()+'</section>'+
   cloudPanel()+
   '<p class="mental-footer">이 점수는 개인 baseline과 장기 변화 관찰을 위한 참고값입니다. 낮은 점수가 모성애나 양육 능력을 뜻하지 않습니다. 지속적인 어려움이 있다면 의료·상담 전문가의 도움을 고려할 수 있습니다.</p>'+
@@ -1461,10 +1460,10 @@ function refreshOverview(){
   const metric=scoresOf(entry(selected));
   const cells=[...screen.querySelectorAll('.mental-matrix-cell[data-mental-date="'+selected+'"]')];
   cells.forEach((cell,i)=>{
-    const f=FIELDS[i],v=i===7?(metric?.mental??null):
+    const f=FIELDS[i],v=i===FIELDS.length?(metric?.mental??null):
       validScore(entry(selected).scores[f?.id])?entry(selected).scores[f.id]:null;
     cell.className="mental-matrix-cell mental-"+level(v)+" is-selected";
-    cell.textContent=v===null?"·":fixed(v);
+    cell.textContent=v===null?"·":i===FIELDS.length?Math.round(v*10):fixed(v);
   });
  }
  const replaceBody=(selector,html)=>{
@@ -1472,12 +1471,9 @@ function refreshOverview(){
   if(el)el.innerHTML=html;
  };
  replaceBody(".mental-insight-card",'<h3>회복 방향과 주간 요약</h3>'+insightHTML());
- replaceBody(".mental-chart-card",'<h3>월간 변화</h3>'+
-   sparkline("멘탈 점수",r=>scoresOf(r)?.mental??null,"#527cae")+
-   sparkline("회복 핵심 · 통제감/휴식/나다움",r=>scoresOf(r)?.core??null,"#358b78")+
-   '<div class="mental-two-line">'+sparkline("신체 에너지",r=>validScore(r?.scores?.energy)?r.scores.energy:null,"#bc8260")+
-   sparkline("전체 멘탈",r=>scoresOf(r)?.mental??null,"#527cae")+'</div>'+
-   '<p class="mental-muted">미기록일을 0으로 연결하지 않습니다.</p>');
+ replaceBody(".mental-chart-card",'<h3>월간 종합 점수 변화</h3>'+
+   sparkline("하루 종합 점수",r=>scoresOf(r)?.mental??null,"#527cae")+
+   '<p class="mental-muted">기존·신규 계산 방식의 경계에서는 추세 해석에 주의하세요. 미기록은 0점이 아닙니다.</p>');
 }
 function refreshScores(){
  const row=entry(selected);
@@ -1492,8 +1488,8 @@ function refreshScores(){
  });
  const completed=FIELDS.filter(f=>validScore(row.scores[f.id])).length;
  const metric=scoresOf(row);
- screen.querySelector(".mental-editor-score").textContent=metric?fixed(metric.mental):completed+"/7";
- screen.querySelector(".mental-local-note>span:last-child").textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"서버 전송 대기":locallyProtectedDates.has(selected)?"기기 기록 보호 중":cloudReady&&loadedMentalMonths.has(monthKey(selected))?"서버 조회됨":"기기 기록");
+ screen.querySelector(".mental-editor-score").textContent=metric?Math.round(metric.mental*10)+"점":completed+"/"+FIELDS.length;
+ screen.querySelector(".mental-local-note>span:last-child").textContent=completed+"/"+FIELDS.length+"개 항목 입력 · "+(pending[selected]?"서버 전송 대기":locallyProtectedDates.has(selected)?"기기 기록 보호 중":cloudReady&&loadedMentalMonths.has(monthKey(selected))?"서버 조회됨":"기기 기록");
  refreshOverview();
  status(stateText(),!storageOkay);
 }
@@ -1604,7 +1600,7 @@ function updateIndicators(){
  const saveCount=screen.querySelector(".mental-local-note>span:last-child");
  if(saveCount&&screen.querySelector(".mental-editor-score")){
   const completed=FIELDS.filter(f=>validScore(entry(selected).scores[f.id])).length;
-  saveCount.textContent=completed+"/7개 항목 입력 · "+(pending[selected]?"서버 전송 대기":locallyProtectedDates.has(selected)?"기기 기록 보호 중":cloudReady&&loadedMentalMonths.has(monthKey(selected))?"서버 조회됨":"기기 기록");
+  saveCount.textContent=completed+"/"+FIELDS.length+"개 항목 입력 · "+(pending[selected]?"서버 전송 대기":locallyProtectedDates.has(selected)?"기기 기록 보호 중":cloudReady&&loadedMentalMonths.has(monthKey(selected))?"서버 조회됨":"기기 기록");
  }
  const letterState=screen.querySelector("#mentalLetterSaveState");
  if(letterState)letterState.textContent=pending[selected]?
