@@ -651,7 +651,7 @@ function syncSleepChanges(payload) {
 // ==========================================================
 const MENTAL_SHEET_NAME_ = 'MENTAL_LOG';
 const MENTAL_SECRET_PROP_ = 'YUHA_MENTAL_ACCESS_KEY';
-const MENTAL_SCORE_FIELDS_ = ['energy','control','capacity','tolerance','rest','selfAction','self'];
+const MENTAL_SCORE_FIELDS_ = ['energy','control','capacity','tolerance','rest','selfAction','self','ease'];
 const MENTAL_CONTEXT_KEYS_ = [
   'no_personal_time','personal_under30','personal_30to60','personal_60to120','personal_120to240','personal_over240',
   'care_normal','care_hard','sleep_resistance','meal_stress','outing_tired','behavior_issues','night_wakings',
@@ -708,7 +708,7 @@ function mentalValidateEntry_(item) {
   if(!item || typeof item!=='object')throw new Error('회복 기록 형식 오류');
   const date=mentalValidateDate_(item.date);
   const scores={};
-  if(!item.scores || typeof item.scores!=='object')throw new Error('7개 점수 입력이 필요합니다.');
+  if(!item.scores || typeof item.scores!=='object')throw new Error('회복 점수 입력 객체가 필요합니다.');
   MENTAL_SCORE_FIELDS_.forEach(key=>{
     const v=item.scores[key];
     if(v===null || v===undefined || v===''){scores[key]=null;return;}
@@ -849,8 +849,8 @@ function getMentalMonth(passphrase,year,month,device) {
   });
   const dates=Object.values(records);
   const complete=dates.filter(x=>MENTAL_SCORE_FIELDS_.every(f=>x.scores[f]!==null)).length;
-  mentalWriteAudit_('SERVER_MONTH_READ',device,prefix.slice(0,7),'days='+dates.length+' complete='+complete,'schema=6');
-  return {ok:true,records,year:y,month:m,schemaVersion:6};
+  mentalWriteAudit_('SERVER_MONTH_READ',device,prefix.slice(0,7),'days='+dates.length+' complete='+complete,'schema=7');
+  return {ok:true,records,year:y,month:m,schemaVersion:7};
 }
 
 // Each user-confirmed overwrite archives BOTH full originals in the SAME private workbook.
