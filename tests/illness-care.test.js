@@ -25,7 +25,7 @@ function setup(rpcHandler){
  const context={window,document:{getElementById:id=>id==='main'?root:null},
   localStorage:locals,crypto:require('node:crypto').webcrypto,
   setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,
-  FormData:class{constructor(form){this.values=form.values||{}}get(key){return this.values[key]??null}},
+  FormData:class{constructor(form){this.values=form.values||{}}get(key){const v=this.values[key];return Array.isArray(v)?v[0]??null:v??null}getAll(key){const v=this.values[key];return Array.isArray(v)?v:v===undefined?[]:[v]}},
   Date,Math,JSON,Number,Intl,console};
  vm.runInNewContext(source,context,{filename:'illness-care.js'});
  return {root,window,model:window.YuhaIllness.model,test:window.YuhaIllness._test};
@@ -105,7 +105,7 @@ function intake(at,status='taken',extra={}){
  const e2=setup();
  e2.window.YuhaIllness.render();
  assert.equal(e2.model.cases[id].title,'발열·콧물');
- for(const label of ['새 질병 시작','병원 방문','처방약','복용 기록','체온 기록','히트맵','질병 종료'])assert(e2.root.innerHTML.includes(label),label);
+ for(const label of ['새 질병 시작','병원 방문','처방약','복용 기록','체온 · 열 히트맵','질병 종료'])assert(e2.root.innerHTML.includes(label),label);
  assert(e2.root.innerHTML.includes('가상병원'));
  assert(e2.root.innerHTML.includes('38.2'));
  assert(!e2.root.innerHTML.includes('실제 처방 용량을 자동 제안하지 않습니다.')); // wording can change
@@ -209,3 +209,61 @@ function intake(at,status='taken',extra={}){
  assert.equal(JSON.parse(storage.get('yuha_illness_records_v1'))[id].revision,'r1');
  console.log('PASS illness: tab entry auto-connects, no password prompt, syncs and verifies existing pending');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+
+(function testTemperatureShorthandAndGroupSafety(){
+ const {test}=setup();
+ for(const [raw,expected] of [['385',38.5],['390',39],['375',37.5],['38',38],['38.5',38.5],['420',42]])
+  assert.equal(test.parseTemperature(raw),expected,raw);
+ for(const invalid of ['3850','4','385.5','999','29','43.1','abc',''])
+  assert.equal(test.parseTemperature(invalid),null,invalid);
+ const group={id:'ibundle_01',name:'아침 약',mode:'scheduled',intervalHours:8,active:true,
+  items:[{id:'im_1',name:'약 A',amount:2.5,unit:'mL'},{id:'im_2',name:'약 B',amount:1,unit:'포'}],
+  events:[]};
+ assert.equal(test.groupGuidance(group,new Date('2026-11-14T08:00:00.000Z')).state,'not-started');
+ group.events.push({id:'ie_1',at:'2026-11-14T08:00:00.000Z',status:'taken',items:group.items});
+ const due=test.groupGuidance(group,new Date('2026-11-14T09:00:00.000Z'));
+ assert.equal(due.dueAt,'2026-11-14T16:00:00.000Z');
+ assert.equal(test.groupGuidance({...group,mode:'prn'},new Date('2026-11-14T23:00:00.000Z')).state,'prn');
+ console.log('PASS illness: 385→38.5 temperature, invalid units rejected, group interval only after actual dose');
+})();
+(function testSimpleBundleFormsPreserveLegacyData(){
+ storage.clear();
+ const e=setup(),submit=(type,values)=>{
+  const form={dataset:{form:type},values};
+  e.root.handlers.submit({preventDefault(){},target:{closest:()=>form}});
+ };
+ e.window.YuhaIllness.render();
+ submit('episode',{title:'감기',onset:'2026-11-14T08:00',symptoms:'기침',note:''});
+ const id=Object.keys(e.model.cases)[0],episode=()=>e.model.cases[id];
+ assert.equal(episode().medicationGroups.length,0);
+ submit('group',{groupName:'아침·저녁 묶음',
+  drugName:['챔프','시럽 B'],drugAmount:['3','2.5'],drugUnit:['mL','mL'],
+  mode:'scheduled',intervalHours:'8'});
+ assert.equal(episode().medicationGroups.length,1);
+ assert.deepEqual(Array.from(episode().medicationGroups[0].items.map(x=>x.amount)),[3,2.5]);
+ assert(episode().medicationGroups[0].items.every(x=>!('ingredient' in x)&&!('formulation' in x)));
+ assert(e.root.innerHTML.includes('챔프')&&e.root.innerHTML.includes('3mL'));
+ assert(e.root.innerHTML.includes('시럽 B')&&e.root.innerHTML.includes('2.5mL'));
+ const g=episode().medicationGroups[0];
+ submit('group-dose',{groupId:g.id,at:'2026-11-14T10:00',status:'taken',note:''});
+ assert.equal(episode().medicationGroups[0].events.length,1);
+ assert.equal(episode().medicationGroups[0].events[0].items.length,2);
+ const past=episode().medicationGroups[0].events[0].items[0].amount;
+ // Changing prescription amount preserves the original administration's snapshot.
+ submit('group',{editGroupId:g.id,groupName:'아침·저녁 묶음',
+  drugName:['챔프','시럽 B'],drugAmount:['4','2.5'],drugUnit:['mL','mL'],
+  mode:'scheduled',intervalHours:'8'});
+ assert.equal(episode().medicationGroups[0].items[0].amount,4);
+ assert.equal(episode().medicationGroups[0].events[0].items[0].amount,past);
+ submit('temp',{at:'2026-11-14T11:30',celsius:'385',site:'ear',note:''});
+ assert.equal(episode().temperatures[0].celsius,38.5);
+ submit('temp',{at:'2026-11-14T12:00',celsius:'999',site:'ear',note:''});
+ assert.equal(episode().temperatures.length,1,'invalid temperature must not be stored');
+ submit('close',{recovered:'on',done:'on',note:'완료'});
+ assert.equal(episode().status,'active','active bundle must prevent premature closure');
+ // A preexisting individual medicine must remain intact after bundling.
+ assert.equal(episode().medications.length,0);
+ assert.equal(JSON.parse(storage.get('yuha_illness_records_v1'))[id].medicationGroups.length,1);
+ console.log('PASS illness: two medicines saved as one bundle, historical administered amounts preserved, temp 385 and closure guarded');
+})();
