@@ -455,7 +455,8 @@ function medicationGroupForm(c){
 function groupPanel(c){
  const all=c.medicationGroups.filter(g=>g.active);
  const finished=c.medicationGroups.filter(g=>!g.active);
- if(!all.length&&!finished.length)return card("현재 복용 중인 약 · 묶음",
+ const legacyActive=c.medications.filter(m=>m.active);
+ if(!all.length&&!finished.length&&!legacyActive.length)return card("현재 복용 중인 약 · 묶음",
   '<div class="ill-empty"><strong>등록된 약이 없습니다</strong><p>같이 복용하는 약의 이름과 1회량만 등록하세요. 복용 기록은 묶음 단위로 남깁니다.</p>'+
   '<button class="ill-primary" data-act="go-group" type="button">+ 복용 묶음 만들기</button></div>');
  const renderGroup=g=>{
@@ -490,7 +491,10 @@ function groupPanel(c){
  const sections=all.map(renderGroup).join("");
  const past=finished.length?'<details class="ill-group-past"><summary>복용 종료한 묶음 '+finished.length+'개</summary>'+
    finished.map(renderGroup).join("")+'</details>':'';
- return card("현재 복용 중인 약 · 묶음",sections+past+
+ const oldMedicines=legacyActive.length?'<div class="ill-legacy-active"><strong>이전 등록한 개별 약</strong>'+
+  '<ul class="ill-drug-list">'+legacyActive.map(m=>'<li><span>'+E(m.name)+'</span><strong>'+E(doseLabel(m.doseMl,"mL"))+'</strong></li>').join("")+'</ul>'+
+  '<small>이전 입력 기록은 아래 접이식 목록에서 수정하거나 복용 완료할 수 있습니다.</small></div>':'';
+ return card("현재 복용 중인 약 · 묶음",sections+oldMedicines+past+
  '<p class="ill-muted">‘묶음 전체 복용 완료’는 표시된 약을 모두 실제 복용한 경우에만 누르세요. 일부만 먹었다면 묶음을 나눠서 기록하세요.</p>');
 }
 function legacyPanel(c){
