@@ -329,27 +329,22 @@ function episodeForm(){
  (Object.keys(model.cases).length?'</details>':''));
 }
 function recordHeading(c){
- const temps=c.temperatures.filter(t=>Number.isFinite(t.celsius));
- const latest=temps.sort((a,b)=>at(b.at)-at(a.at))[0];
- const delayed=c.medications.filter(m=>guidance(m).state==="overdue").length;
- return card("현재 질병 기록",
-  '<div class="ill-summary"><strong>'+E(c.title)+'</strong><span class="ill-tag '+c.status+'">'+(c.status==="closed"?"종료":"진행 중")+'</span></div>'+
-  '<p>발생: '+E(displayTime(c.onsetAt))+'</p>'+
-  (c.symptoms?'<p>증상: '+E(c.symptoms)+'</p>':'')+
-  (c.note?'<p>메모: '+E(c.note)+'</p>':'')+
-  '<div class="ill-kpis"><div>병원 방문<strong>'+c.visits.length+'회</strong></div>'+
-  '<div>체온 기록<strong>'+temps.length+'회</strong></div>'+
-  '<div>최근 체온<strong>'+(latest?latest.celsius.toFixed(1)+'℃':'—')+'</strong></div>'+
-  '<div>복약 지연 표시<strong data-ill-overdue>'+delayed+'건</strong></div></div>'+
-  (c.status==="closed"?'<p>종료: '+E(displayTime(c.closedAt))+' · '+E(c.closureNote)+'</p>'+
-   '<button class="ill-secondary" data-act="reopen">이 질병 기록 다시 열기</button>':
-   '<details><summary>질병명 · 발생시점 · 증상 수정</summary>'+
-   '<form data-form="edit-episode" class="ill-fields">'+
-   '<label>질병명<input required maxlength="80" name="title" value="'+attr(c.title)+'"></label>'+
-   '<label>발생 시점<input required name="onset" type="datetime-local" value="'+localInput(c.onsetAt)+'"></label>'+
-   '<label>증상<input maxlength="350" name="symptoms" value="'+attr(c.symptoms)+'"></label>'+
-   '<label>기록 메모<textarea rows="2" name="note" maxlength="1000">'+E(c.note)+'</textarea></label>'+
-   '<button class="ill-secondary" type="submit">수정 저장</button></form></details>'));
+ const delayed=c.medicationGroups.filter(g=>groupGuidance(g).state==="overdue").length+
+  c.medications.filter(m=>guidance(m).state==="overdue").length;
+ const latest=[...c.temperatures].filter(t=>Number.isFinite(t.celsius))
+  .sort((a,b)=>at(b.at)-at(a.at))[0];
+ return '<section class="ill-episode-strip"><div><strong>'+E(c.title)+'</strong> '+
+  '<small>'+(c.status==="closed"?"종료":"진행 중")+' · '+E(fullDate(c.onsetAt))+'</small></div>'+
+  '<div class="ill-episode-facts"><span>최근 '+(latest?latest.celsius.toFixed(1)+'℃':'체온 미기록')+'</span>'+
+  (delayed?'<span class="ill-missed">복약 예정 확인 '+delayed+'건</span>':'')+'</div>'+
+  (c.status==="closed"?'<button class="ill-secondary" data-act="reopen">질병 기록 다시 열기</button>':
+  '<details><summary>질병 발생 시각·증상 수정</summary><form data-form="edit-episode" class="ill-fields">'+
+  '<label>질병명<input required maxlength="80" name="title" value="'+attr(c.title)+'"></label>'+
+  '<label>발생 시점<input required name="onset" type="datetime-local" value="'+localInput(c.onsetAt)+'"></label>'+
+  '<label>증상<input maxlength="350" name="symptoms" value="'+attr(c.symptoms)+'"></label>'+
+  '<label>기록 메모<textarea rows="2" name="note" maxlength="1000">'+E(c.note)+'</textarea></label>'+
+  '<button class="ill-secondary" type="submit">수정 저장</button></form></details>')+
+  '</section>';
 }
 function visitForm(c){
  return card("2. 병원 방문 · 진단",'<details><summary>병원 방문 추가</summary><form data-form="visit" class="ill-fields">'+
@@ -417,6 +412,90 @@ function medicines(c){
    '<button type="submit" class="ill-primary">복용 기록 저장</button></form>':
    '<p class="ill-muted">활성 상태의 처방약이 없어 복용 기록을 추가할 수 없습니다.</p>')+
   '<p class="ill-muted">‘지연’은 입력된 정기 복용 간격과 마지막 실제 기록만 비교합니다. 필요시 약에는 지연 경고를 표시하지 않습니다. 누락된 약을 임의로 두 배 복용하거나, 해열제 간 교차 복용을 앱에서 계산하지 않습니다.</p>');
+}
+function groupGuidance(g,now=new Date()){
+ const anyTaken=g.events?.some(e=>e.status==="taken");
+ if(g.active&&g.mode!=="prn"&&!anyTaken)
+  return {state:"not-started",text:"첫 묶음 복용을 기록하면 다음 예정 시각을 안내합니다.",dueAt:null};
+ return guidance({...g,doses:g.events||[]},now);
+}
+function groupItemRow(item){
+ const values=item||{},unit=MED_UNITS.includes(values.unit)?values.unit:"mL";
+ return '<div class="ill-drug-line" data-group-item>'+
+  '<input aria-label="약 이름" required name="drugName" maxlength="120" placeholder="약 이름 (예: 챔프)" value="'+attr(values.name||"")+'">'+
+  '<input aria-label="1회 투약량" required type="number" inputmode="decimal" min="0.1" max="100" step="0.1" name="drugAmount" placeholder="1회량" value="'+attr(values.amount??"")+'">'+
+  '<select aria-label="투약 단위" name="drugUnit">'+MED_UNITS.map(v=>'<option value="'+v+'"'+(unit===v?" selected":"")+'>'+v+'</option>').join("")+'</select>'+
+  '<button type="button" class="ill-minor" data-act="remove-drug-line" aria-label="이 약 입력 줄 삭제">×</button></div>';
+}
+function medicationGroupForm(c){
+ if(c.status==="closed")return "";
+ const editing=c.medicationGroups.find(g=>g.id===editGroup);
+ const group=editing||{};
+ const visitOptions=c.visits.length?'<label>연결 병원 (선택)<select name="visitId"><option value="">연결하지 않음</option>'+
+  c.visits.map(v=>'<option value="'+attr(v.id)+'"'+(group.visitId===v.id?' selected':'')+'>'+E(v.hospital)+'</option>').join("")+
+  '</select></label>':'';
+ return card("약 묶음 추가",'<details class="ill-group-editor" '+(editing||!c.medicationGroups.length?'open':'')+'><summary>'+
+  (editing?'복용 묶음 수정':'함께 복용하는 약 등록')+'</summary>'+
+  '<form data-form="group" class="ill-fields">'+
+  '<input type="hidden" name="editGroupId" value="'+attr(editing?.id||"")+'">'+
+  '<label>묶음 이름 <small>(선택)</small><input name="groupName" maxlength="80" value="'+attr(group.name||"")+'" placeholder="예: 아침·저녁 약"></label>'+
+  '<div class="ill-group-item-head"><b>같이 복용하는 약 · 1회량</b><small>mg·농도 정보 입력 불필요</small></div>'+
+  '<div class="ill-group-items">'+(group.items?.length?group.items:[{}]).map(groupItemRow).join("")+'</div>'+
+  '<button type="button" class="ill-secondary" data-act="add-drug-line">+ 같이 먹는 약 추가</button>'+
+  '<div class="ill-two">'+
+  '<label>복용 구분<select name="mode"><option value="scheduled"'+(group.mode!=="prn"?' selected':'')+'>정기 복용</option>'+
+  '<option value="prn"'+(group.mode==="prn"?' selected':'')+'>필요시 복용</option></select></label>'+
+  '<label>처방 간격 (시간)<input name="intervalHours" type="number" min="0.5" max="72" step="0.5" inputmode="decimal" value="'+attr(group.intervalHours??"")+'" placeholder="예: 8"></label></div>'+
+  '<details class="ill-advanced"><summary>추가 설정 (선택)</summary>'+
+  visitOptions+
+  '<label>처방 종료 예정 (선택)<input name="endsAt" type="datetime-local" value="'+(group.endsAt?localInput(group.endsAt):"")+'"></label>'+
+  '</details>'+
+  '<p class="ill-muted">1회 투약량은 실제 약 봉투의 숫자로 입력하세요. 약 이름·용량을 자동 추정하지 않습니다. 묶음에 있는 약은 모두 함께 투약할 때 한 번에 기록됩니다.</p>'+
+  '<button type="submit" class="ill-primary">'+(editing?'묶음 변경 저장':'복용 묶음 저장')+'</button>'+
+  (editing?'<button type="button" data-act="cancel-edit-group" class="ill-secondary">수정 취소</button>':'')+
+  '</form></details>');
+}
+function groupPanel(c){
+ const all=[...c.medicationGroups].sort((a,b)=>(b.active?1:0)-(a.active?1:0));
+ if(!all.length)return card("현재 복용 중인 약 · 묶음",
+  '<div class="ill-empty"><strong>등록된 약이 없습니다</strong><p>같이 복용하는 약의 이름과 1회량만 등록하세요.</p>'+
+  '<button class="ill-primary" data-act="go-group" type="button">+ 복용 묶음 만들기</button></div>');
+ const sections=all.map(g=>{
+  const info=groupGuidance(g),history=[...g.events].sort((a,b)=>at(b.at)-at(a.at));
+  const items=g.items.map(item=>'<li><span>'+E(item.name)+'</span><strong>'+E(doseLabel(item.amount,item.unit))+'</strong></li>').join("");
+  return '<article class="ill-group '+info.state+'">'+
+   '<div class="ill-summary"><strong>'+E(g.name||"함께 복용하는 약")+'</strong>'+
+   '<span class="ill-tag">'+(g.active?(g.mode==="prn"?"필요시 복용":"정기 복용"):"복용 종료")+'</span></div>'+
+   '<ul class="ill-drug-list">'+items+'</ul>'+
+   (g.active?'<p class="ill-guidance" role="status">'+E(info.text)+'</p>':'<p class="ill-muted">복용 종료된 묶음</p>')+
+   '<div class="ill-group-actions">'+
+   (g.active?'<button type="button" class="ill-primary" data-act="take-group" data-id="'+attr(g.id)+'">묶음 전체 복용 완료</button>':'')+
+   '<button type="button" class="ill-secondary" data-act="edit-group" data-id="'+attr(g.id)+'">약·용량 수정</button>'+
+   (g.active?'<button type="button" class="ill-secondary" data-act="end-group" data-id="'+attr(g.id)+'">복용 종료</button>':
+      '<button type="button" class="ill-secondary" data-act="resume-group" data-id="'+attr(g.id)+'">복용 재개</button>')+
+   '</div>'+
+   '<details><summary>시간 수정·미복용 기록 / 이력 '+history.length+'건</summary>'+
+   (g.active?'<form data-form="group-dose" class="ill-fields ill-dose-edit">'+
+    '<input type="hidden" name="groupId" value="'+attr(g.id)+'">'+
+    '<label>기록 시각<input required type="datetime-local" name="at" value="'+localInput(nowIso())+'"></label>'+
+    '<label>기록 종류<select name="status"><option value="taken">전체 복용 완료</option>'+
+    '<option value="skipped">정기 복용 건너뜀</option></select></label>'+
+    '<label>메모 (선택)<input name="note" maxlength="300" placeholder="관찰 내용"></label>'+
+    '<button class="ill-secondary" type="submit">해당 시간으로 기록</button></form>':'')+
+   (history.length?'<div class="ill-history">'+history.map(d=>
+    '<div class="ill-history-item">'+E(displayTime(d.at))+' · '+
+    (d.status==="skipped"?"미복용":'<strong>'+E(d.items.map(item=>item.name+" "+doseLabel(item.amount,item.unit)).join(", "))+'</strong>')+
+    (d.note?' · '+E(d.note):'')+
+    '<button type="button" data-act="remove-group-event" data-id="'+attr(d.id)+'" data-group="'+attr(g.id)+'" class="ill-text-danger">삭제</button></div>').join("")+'</div>':'')+
+   '</details></article>';
+ }).join("");
+ return card("현재 복용 중인 약 · 묶음",sections+
+ '<p class="ill-muted">‘묶음 전체 복용 완료’는 표시된 약을 모두 실제 복용한 경우에만 누르세요. 일부만 먹었다면 묶음을 나눠서 기록하세요.</p>');
+}
+function legacyPanel(c){
+ if(!c.medications.length)return "";
+ return '<details class="ill-legacy"><summary>기존 개별 약 기록 '+c.medications.length+'건 (보존)</summary>'+
+  medicines(c)+medicationForm(c)+'</details>';
 }
 function feverHeat(c){
  const [y,m]=month.split("-").map(Number);
