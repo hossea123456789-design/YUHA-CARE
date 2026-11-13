@@ -125,3 +125,11 @@
 .ill-temp-legend span:nth-child(4)::before{background:#ffd1ab}
 .ill-temp-legend span:nth-child(5)::before{background:#ffd0d4}
 @media(max-width:380px){.ill-drug-line{grid-template-columns:minmax(0,1fr) 71px 53px 25px;gap:3px}.ill-drug-line input,.ill-drug-line select{padding:8px 5px!important;font-size:12px!important}.ill-temp-quick>button{padding:7px 12px}.ill-drug-list strong{font-size:15px}}
+
+.ill-legacy-active{border:1px solid #e4e8eb;border-radius:10px;padding:11px;margin:10px 0;background:#fafbfc}
+.ill-legacy-active>strong{font-size:12px;color:#4f6878}
+.ill-legacy-active>small{font-size:10px;color:#738a95;line-height:1.5}
+.ill-legacy-active .ill-drug-list{margin:8px 0}
+.ill-group-past{margin-top:12px;border:1px dashed #cfdee5;border-radius:10px;padding:9px}
+.ill-group-past>summary{color:#627f8a;font-size:12px;font-weight:700;cursor:pointer}
+.ill-group-past .ill-group{margin-top:10px}
