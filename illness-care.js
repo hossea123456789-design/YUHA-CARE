@@ -463,7 +463,7 @@ function groupPanel(c){
  const sections=all.map(g=>{
   const info=groupGuidance(g),history=[...g.events].sort((a,b)=>at(b.at)-at(a.at));
   const items=g.items.map(item=>'<li><span>'+E(item.name)+'</span><strong>'+E(doseLabel(item.amount,item.unit))+'</strong></li>').join("");
-  return '<article class="ill-group '+info.state+'">'+
+  return '<article data-ill-group-id="'+attr(g.id)+'" class="ill-group '+info.state+'">'+
    '<div class="ill-summary"><strong>'+E(g.name||"함께 복용하는 약")+'</strong>'+
    '<span class="ill-tag">'+(g.active?(g.mode==="prn"?"필요시 복용":"정기 복용"):"복용 종료")+'</span></div>'+
    '<ul class="ill-drug-list">'+items+'</ul>'+
@@ -499,7 +499,7 @@ function legacyPanel(c){
 }
 function feverHeat(c){
  const [y,m]=month.split("-").map(Number);
- const days= new Date(y,m,0).getDate(),first=(new Date(y,m-1,1).getDay()+6)%7;
+ const days=new Date(y,m,0).getDate(),first=(new Date(y,m-1,1).getDay()+6)%7;
  const bands=dailyMax(c.temperatures);
  let cells=["월","화","수","목","금","토","일"].map(d=>'<span class="ill-dow">'+d+'</span>').join("");
  for(let i=0;i<first;i++)cells+='<span></span>';
@@ -509,26 +509,31 @@ function feverHeat(c){
    '<strong>'+(v===undefined?"·":v.toFixed(1))+'</strong></div>';
  }
  const rows=[...c.temperatures].sort((a,b)=>at(b.at)-at(a.at));
- return card("5. 체온 기록 · 월간 히트맵",
-  '<div class="ill-heat-head"><button data-act="month-prev" aria-label="이전 달">‹</button><strong>'+y+'년 '+m+'월</strong>'+
-   '<button data-act="month-next" aria-label="다음 달">›</button></div>'+
+ return card("체온 · 열 히트맵",
+  '<div class="ill-heat-head"><button type="button" data-act="month-prev" aria-label="이전 달">‹</button><strong>'+y+'년 '+m+'월</strong>'+
+   '<button type="button" data-act="month-next" aria-label="다음 달">›</button></div>'+
   '<div class="ill-heat-grid">'+cells+'</div>'+
-  '<p class="ill-muted">각 날짜의 최고 실측 체온 · 회색=기록 없음, 초록=37.5℃ 미만, 노랑=37.5~37.9℃, 주황=38.0~38.9℃, 빨강=39.0℃ 이상. 측정 부위에 따라 해석 기준이 달라지는 시각화용 구간이며 진단값이 아닙니다.</p>'+
-  '<form data-form="temp" class="ill-fields"><label>측정 시각<input required type="datetime-local" name="at" value="'+localInput(nowIso())+'"></label>'+
-  '<div class="ill-two"><label>체온 (℃)<input required name="celsius" type="number" inputmode="decimal" min="30" max="43" step="0.1" placeholder="예: 38.3"></label>'+
-  '<label>측정 부위<select name="site">'+siteOpts()+'</select></label></div>'+
-  '<label>측정 메모<input name="note" maxlength="300" placeholder="해열제 전후, 취침 등"></label>'+
-  '<button type="submit" class="ill-primary">체온 기록 저장</button></form>'+
-  (rows.length?'<details><summary>전체 실측 체온 '+rows.length+'건</summary>'+
+  '<div class="ill-temp-legend"><span>미측정</span><span>37.5 미만</span><span>37.5~37.9</span><span>38~38.9</span><span>39 이상</span></div>'+
+  (c.status==="active"?'<form data-form="temp" class="ill-temp-quick">'+
+   '<label>체온 <span>(℃)</span><input required type="text" inputmode="numeric" autocomplete="off" maxlength="4" name="celsius" placeholder="385" aria-describedby="illTempPreview"></label>'+
+   '<button type="submit" class="ill-primary">체온 저장</button>'+
+   '<small id="illTempPreview" data-temp-preview>385 입력 → 38.5℃</small>'+
+   '<details class="ill-temp-details"><summary>측정 시각·부위 수정</summary>'+
+   '<label>측정 시각<input required type="datetime-local" name="at" value="'+localInput(nowIso())+'"></label>'+
+   '<label>측정 부위<select name="site">'+siteOpts()+'</select></label>'+
+   '<label>메모<input name="note" maxlength="300" placeholder="해열제 전후 등"></label></details>'+
+   '</form>':'')+
+  (rows.length?'<details><summary>체온 측정 이력 '+rows.length+'건</summary>'+
   '<div class="ill-history">'+rows.map(t=>'<div class="ill-history-item">'+E(displayTime(t.at))+
    ' · <b>'+E(t.celsius?.toFixed(1))+'℃</b> ('+E(SITES[t.site]) +') '+
-   E(t.note)+' <button class="ill-text-danger" data-act="remove-temp" data-id="'+attr(t.id)+'">삭제</button></div>').join("")+
-  '</div></details>':''));
+   E(t.note)+' <button type="button" class="ill-text-danger" data-act="remove-temp" data-id="'+attr(t.id)+'">삭제</button></div>').join("")+
+   '</div></details>':'')+
+  '<p class="ill-muted">색상은 날짜별 최고 실측값 기준입니다. 측정 부위에 따라 해석이 달라질 수 있습니다.</p>');
 }
 function closure(c){
  if(c.status==="closed")return "";
  const active=c.medications.filter(m=>m.active);
- return card("6. 질병 종료 처리",
+ return card("질병 종료",
   '<p class="ill-muted">열·증상이 정상화되었는지 직접 확인하고, 처방된 복용 과정이 끝났거나 더 이상 복용하지 않아도 된다는 의료진 지시를 확인한 뒤 종료하세요. 체온 하나만 보고 처방약을 중단하지 않습니다.</p>'+
   (active.length?'<p class="ill-alert">아직 복용 중으로 표시된 약 '+active.length+'개가 있습니다. 처방 완료·중단 지시 확인 후 각 약에서 ‘복용 종료 표시’를 진행하세요.</p>':'')+
   '<form data-form="close" class="ill-fields">'+
@@ -559,15 +564,17 @@ function render(){
  root.innerHTML='<div class="ill-root"><div class="ill-heading"><h2>유하 질병 기록</h2>'+
   '<p>질병별 시간순 기록 · 병원·처방·복용·체온</p></div>'+
   '<div class="ill-alert">이 앱은 입력한 처방 간격으로 참고 시각만 계산합니다. 실제 투약 판단은 약 봉투·처방 지시가 우선입니다. 앱을 닫으면 지연 경고를 푸시 알림으로 보내지 않습니다.</div>'+
-  syncPanel()+
-  episodeForm()+
   illnessSelect()+
-  (c?recordHeading(c)+medicines(c)+feverHeat(c)+visitForm(c)+medicationForm(c)+closure(c):
-   card("기록이 없습니다",'<p class="ill-muted">첫 질병의 발생 시각과 증상을 기록해 시작하세요.</p>'))+
+  (c?recordHeading(c)+feverHeat(c)+groupPanel(c)+medicationGroupForm(c)+
+    legacyPanel(c)+visitForm(c)+closure(c):
+   card("기록이 없습니다",'<p class="ill-muted">발생 시각과 증상을 기록해 시작하세요.</p>'))+
+  episodeForm()+
+  syncPanel()+
   conflictsView()+'</div>';
  if(!root.dataset.illnessBound){root.dataset.illnessBound="true";
   root.addEventListener("submit",onSubmit);
   root.addEventListener("click",onClick);
+  root.addEventListener("input",onInput);
  }
  if(!timer)timer=setInterval(()=>{if(root&&root.querySelector(".ill-root"))refreshStatusText();},60000);
  if(!initialFetchStarted){initialFetchStarted=true;void connect();}
@@ -583,12 +590,25 @@ function refreshStatusText(){
   node.className="ill-med "+g.state;
   const status=node.querySelector(".ill-guidance");if(status)status.textContent=g.text;
  });
+ for(const g of c.medicationGroups){
+  const next=groupGuidance(g),node=root.querySelector('[data-ill-group-id="'+g.id+'"]');
+  if(next.state==="overdue")missed++;
+  if(!node)continue;
+  node.className="ill-group "+next.state;
+  const message=node.querySelector(".ill-guidance");if(message)message.textContent=next.text;
+ }
  const count=root.querySelector("[data-ill-overdue]");
  if(count)count.textContent=missed+"건";
 }
 function stop(){if(timer){clearInterval(timer);timer=null;}
  root=null;active=false;initialFetchStarted=false;connected=false;
  syncEpoch++;busy=false;
+}
+function onInput(e){
+ if(e.target?.name!=="celsius")return;
+ const p=root?.querySelector("[data-temp-preview]");if(!p)return;
+ const n=parseTemperature(e.target.value);
+ p.textContent=n===null?"체온 숫자 세 자리 입력 (예: 385)":n.toFixed(1)+"℃로 저장됩니다";
 }
 function get(form,key){return String(new FormData(form).get(key)||"").trim();}
 function need(condition,message){if(!condition)throw Error(message);}
