@@ -290,3 +290,39 @@ function intake(at,status='taken',extra={}){
  assert.equal(e.model.cases[id].medicationGroups[0].items[0].amount,3);
  console.log('PASS illness: old v1 API is read-only rejected; v2 required to save grouped medicines');
 })().catch(err=>{console.error(err);process.exitCode=1});
+
+
+(function testInputActuallyShowsDecimal(){
+ storage.clear();
+ const e=setup(),t=e.test;
+ for(const [before,after] of [
+  ['385','38.5'],['390','39.0'],['375','37.5'],
+  ['38','38'],['38.5','38.5'],['999','999'],['38.','38.']
+ ])assert.equal(t.formatTemperatureInput(before),after,before);
+ assert.equal(t.formatTemperatureInput('38',true),'38.0');
+ assert.equal(t.formatTemperatureInput('385',true),'38.5');
+ const preview={textContent:''};
+ e.root.querySelector=selector=>selector==='[data-temp-preview]'?preview:null;
+ e.window.YuhaIllness.render();
+ let cursor=null;
+ const input={name:'celsius',value:'385',
+  setSelectionRange:(start,end)=>{cursor=[start,end]}};
+ e.root.handlers.input({target:input});
+ assert.equal(input.value,'38.5','the actual displayed input must show decimal, not raw 385');
+ assert.deepEqual(cursor,[4,4]);
+ assert.equal(preview.textContent,'38.5℃로 저장됩니다');
+ input.value='38';
+ e.root.handlers.input({target:input});
+ assert.equal(input.value,'38','two-digit entry should not gain a decimal prematurely');
+ input.value='385';
+ e.root.handlers.input({target:input});
+ assert.equal(input.value,'38.5','typing the third digit must convert');
+ input.value='38';
+ e.root.handlers.focusout({target:input});
+ assert.equal(input.value,'38.0','two-digit value gains a decimal on blur');
+ input.value='999';
+ e.root.handlers.input({target:input});
+ assert.equal(input.value,'999','invalid number not turned into a plausible measurement');
+ assert.match(preview.textContent,/확인/);
+ console.log('PASS illness: actual temperature field formats 385 into visible 38.5 as typed');
+})();
