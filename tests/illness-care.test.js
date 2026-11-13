@@ -185,7 +185,7 @@ function intake(at,status='taken',extra={}){
   calls.push({method,args});
   if(method==='getIllnessCases'){
    assert.equal(args.length,0,'shared app read does not request a password');
-   success({ok:true,schemaVersion:1,cases:structuredClone(server)});
+   success({ok:true,schemaVersion:2,cases:structuredClone(server)});
   }else if(method==='syncIllnessCase'){
    assert.equal(args.length,1,'save requires only one entry payload');
    assert(!('passphrase' in args[0]),'shared app save must not send a secret');
@@ -267,3 +267,26 @@ function intake(at,status='taken',extra={}){
  assert.equal(JSON.parse(storage.get('yuha_illness_records_v1'))[id].medicationGroups.length,1);
  console.log('PASS illness: two medicines saved as one bundle, historical administered amounts preserved, temp 385 and closure guarded');
 })();
+
+(async function testOldServerWillNotReceiveBundles(){
+ storage.clear();
+ let saves=0;
+ const id='ioldserver_01',episode={
+  id,title:'기침',onsetAt:'2026-11-14T00:00:00.000Z',status:'active',
+  medications:[],visits:[],temperatures:[],
+  medicationGroups:[{id:'igroup01',name:'감기약',mode:'scheduled',intervalHours:8,
+   active:true,endsAt:'',items:[{id:'idrug01',name:'약 A',amount:3,unit:'mL'}],events:[]}]
+ };
+ storage.set('yuha_illness_records_v1',JSON.stringify({[id]:episode}));
+ storage.set('yuha_illness_pending_v1',JSON.stringify({[id]:{episode,expectedRevision:''}}));
+ const e=setup((method,args,success)=>{
+  if(method==='getIllnessCases')success({ok:true,schemaVersion:1,cases:{}});
+  if(method==='syncIllnessCase'){saves++;success({ok:true,revision:'wrong'});}
+ });
+ e.window.YuhaIllness.render();
+ for(let n=0;n<12;n++)await Promise.resolve();
+ assert.equal(saves,0,'old API must never strip medication groups');
+ assert.equal(Object.keys(e.model.pending).length,1,'group data remains locally pending');
+ assert.equal(e.model.cases[id].medicationGroups[0].items[0].amount,3);
+ console.log('PASS illness: old v1 API is read-only rejected; v2 required to save grouped medicines');
+})().catch(err=>{console.error(err);process.exitCode=1});
