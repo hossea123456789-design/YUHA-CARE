@@ -7,10 +7,21 @@ const locals={
  setItem:(key,value)=>storage.set(key,String(value)),
  removeItem:key=>storage.delete(key)
 };
-function setup(){
+function setup(rpcHandler){
  const root={dataset:{},innerHTML:'',handlers:{},addEventListener(event,fn){this.handlers[event]=fn;},
   querySelector(){return null;},querySelectorAll(){return []}};
  const window={confirm:()=>true,addEventListener(){},prompt:()=>null};
+ if(rpcHandler){
+  window.google={script:{run:{
+   withSuccessHandler(success){
+    return {withFailureHandler(failure){
+     return new Proxy({}, {get(_target,method){
+      return (...args)=>rpcHandler(method,args,success,failure);
+     }});
+    }};
+   }
+  }}};
+ }
  const context={window,document:{getElementById:id=>id==='main'?root:null},
   localStorage:locals,crypto:require('node:crypto').webcrypto,
   setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,
@@ -157,3 +168,44 @@ function intake(at,status='taken',extra={}){
  assert(JSON.parse(storage.get('yuha_illness_records_v1'))[id]);
  console.log('PASS illness: real form submissions cover episode→clinic→prescription→dose→temperature→explicit closure');
 })();
+
+
+(async function testAutomaticSharedServerSync(){
+ storage.clear();
+ let lastRevision='r0',calls=[],server={};
+ const id='iautotest_01',localCase={
+  id,title:'아기 기침',onsetAt:'2026-11-14T00:00:00.000Z',
+  symptoms:'기침',status:'active',visits:[],medications:[],temperatures:[]
+ };
+ storage.set('yuha_illness_records_v1',JSON.stringify({[id]:localCase}));
+ storage.set('yuha_illness_pending_v1',JSON.stringify({[id]:{
+  episode:localCase,expectedRevision:''
+ }}));
+ const e=setup((method,args,success,failure)=>{
+  calls.push({method,args});
+  if(method==='getIllnessCases'){
+   assert.equal(args.length,0,'shared app read does not request a password');
+   success({ok:true,schemaVersion:1,cases:structuredClone(server)});
+  }else if(method==='syncIllnessCase'){
+   assert.equal(args.length,1,'save requires only one entry payload');
+   assert(!('passphrase' in args[0]),'shared app save must not send a secret');
+   assert.equal(args[0].episode.id,id);
+   lastRevision='r1';
+   server[id]={...structuredClone(args[0].episode),revision:lastRevision};
+   success({ok:true,revision:lastRevision});
+  }else failure(new Error('unexpected RPC '+method));
+ });
+ e.window.YuhaIllness.render();
+ assert(e.root.innerHTML.includes('서버 기록 다시 조회'));
+ assert(!e.root.innerHTML.includes('type="password"'),'no extra password input');
+ assert(!e.root.innerHTML.includes('비공개 서버 연결'),'no gated connect');
+ for(let i=0;i<12&&Object.keys(e.model.pending).length;i++)
+  await Promise.resolve();
+ assert.equal(Object.keys(e.model.pending).length,0,
+  'new local episode should automatically sync and clear pending after readback');
+ assert(calls.some(x=>x.method==='getIllnessCases'));
+ assert(calls.some(x=>x.method==='syncIllnessCase'));
+ assert.equal(e.model.cases[id].revision,'r1');
+ assert.equal(JSON.parse(storage.get('yuha_illness_records_v1'))[id].revision,'r1');
+ console.log('PASS illness: tab entry auto-connects, no password prompt, syncs and verifies existing pending');
+})().catch(error=>{console.error(error);process.exitCode=1;});
