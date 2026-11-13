@@ -326,3 +326,75 @@ function intake(at,status='taken',extra={}){
  assert.match(preview.textContent,/확인/);
  console.log('PASS illness: actual temperature field formats 385 into visible 38.5 as typed');
 })();
+
+
+(function testAlwaysVisibleDailyFeverGraph(){
+ storage.clear();
+ const id='itrend_01',raw={
+  id,title:'체온 추적',onsetAt:'2026-11-14T00:00:00.000Z',status:'active',
+  visits:[],medications:[],medicationGroups:[],
+  temperatures:[
+   {id:'it_2',at:'2026-11-14T10:30:00.000Z',celsius:39.1,site:'ear',note:'오전'},
+   {id:'it_3',at:'2026-11-14T15:20:00.000Z',celsius:38.0,site:'armpit',note:'오후'},
+   {id:'it_1',at:'2026-11-14T08:15:00.000Z',celsius:37.7,site:'ear',note:'아침'},
+   {id:'it_4',at:'2026-11-15T08:00:00.000Z',celsius:37.1,site:'forehead',note:'다음날'}
+  ]
+ };
+ storage.set('yuha_illness_records_v1',JSON.stringify({[id]:raw}));
+ const e=setup(),test=e.test;
+ const sorted=test.dailyTemperatureReadings(raw.temperatures,'2026-11-14');
+ assert.deepEqual(Array.from(sorted.map(t=>t.id)),['it_1','it_2','it_3'],
+  'readings must be sorted by actual time rather than input order');
+ assert.equal(test.dailyTemperatureReadings(raw.temperatures,'2026-11-16').length,0);
+ e.window.YuhaIllness.render();
+ const click=(action,day)=>{
+  const button={dataset:{act:action,day},closest(){return this}};
+  e.root.handlers.click({target:{closest:()=>button}});
+ };
+ click('temp-day','2026-11-14');
+ const html=e.root.innerHTML;
+ assert(html.includes('체온 변화'),'daily trend must be permanently visible');
+ assert(html.includes('ill-temp-history'),'measurement list must also be permanently visible');
+ assert(html.includes('측정 이력 · 11월 14일 (3회)'));
+ assert(html.includes('<polyline points="'),'two or more measurements must form a line');
+ assert.equal((html.match(/<circle cx=/g)||[]).length,3,'graph must show all three readings');
+ assert(html.includes('최저 <b>37.7℃</b>'));
+ assert(html.includes('최고 <b>39.1℃</b>'));
+ assert(html.includes('첫 37.7 → 최근 <b>38.0℃</b>'));
+ assert(!html.includes('<details><summary>체온 측정 이력'),
+  'measurement history must not be hidden in an accordion');
+ const heat=html.match(/data-act="temp-day" data-day="2026-11-14" aria-pressed="true"/g)||[];
+ assert.equal(heat.length,1,'selected date must be highlighted and accessible');
+ const a=html.indexOf('측정 이력 · 11월 14일');
+ assert(html.indexOf('15:20',a)<html.indexOf('10:30',a),'readings in the visible list are newest-first');
+ click('temp-day','2026-11-15');
+ assert(e.root.innerHTML.includes('측정 이력 · 11월 15일 (1회)'));
+ assert(!e.root.innerHTML.includes('<polyline points="'),
+  'one reading is a point, not a fabricated trend line');
+ assert.equal((e.root.innerHTML.match(/<circle cx=/g)||[]).length,1);
+ click('temp-day','2026-11-16');
+ assert(e.root.innerHTML.includes('이날 측정한 체온이 없습니다.'));
+ assert(!e.root.innerHTML.includes('<circle cx='));
+ assert.equal(e.model.cases[id].temperatures.length,4,'date selection never mutates original readings');
+ console.log('PASS illness: always visible daily trend and readings; chronological points, day switch, one/zero cases');
+})();
+(function testTemperatureEntryUpdatesSelectedDailyTrend(){
+ storage.clear();
+ const e=setup(),id='itrend_form01';
+ storage.set('yuha_illness_records_v1',JSON.stringify({[id]:{
+  id,title:'발열',onsetAt:'2026-11-14T08:00:00.000Z',status:'active',
+  visits:[],medications:[],medicationGroups:[],temperatures:[]
+ }}));
+ e.window.YuhaIllness.render();
+ const form={dataset:{form:'temp'},values:{
+  celsius:'385',at:'2026-11-14T13:20',site:'ear',note:'복용 전'
+ }};
+ e.root.handlers.submit({preventDefault(){},target:{closest:()=>form}});
+ assert.equal(e.model.cases[id].temperatures[0].celsius,38.5);
+ assert(e.root.innerHTML.includes('측정 이력 · 11월 14일 (1회)'),
+  'saving must immediately show the new daily reading');
+ assert(e.root.innerHTML.includes('38.5℃'));
+ assert(e.root.innerHTML.includes('복용 전'));
+ assert(!e.root.innerHTML.includes('<details><summary>체온 측정 이력'));
+ console.log('PASS illness: recording 385 immediately refreshes its permanently open daily graph and history');
+})();
