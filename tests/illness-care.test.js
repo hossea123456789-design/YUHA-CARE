@@ -8,11 +8,13 @@ const locals={
  removeItem:key=>storage.delete(key)
 };
 function setup(){
- const root={dataset:{},innerHTML:'',addEventListener(){},querySelector(){return null;},querySelectorAll(){return []}};
+ const root={dataset:{},innerHTML:'',handlers:{},addEventListener(event,fn){this.handlers[event]=fn;},
+  querySelector(){return null;},querySelectorAll(){return []}};
  const window={confirm:()=>true,addEventListener(){},prompt:()=>null};
  const context={window,document:{getElementById:id=>id==='main'?root:null},
   localStorage:locals,crypto:require('node:crypto').webcrypto,
   setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,
+  FormData:class{constructor(form){this.values=form.values||{}}get(key){return this.values[key]??null}},
   Date,Math,JSON,Number,Intl,console};
  vm.runInNewContext(source,context,{filename:'illness-care.js'});
  return {root,window,model:window.YuhaIllness.model,test:window.YuhaIllness._test};
@@ -110,4 +112,48 @@ function intake(at,status='taken',extra={}){
  assert.equal(c.recoveryConfirmed,false);
  assert.equal(test.sameData(c,{...c,revision:'server-v1'}),true);
  console.log('PASS illness: fever normalization does not infer medicine dose or close illness');
+})();
+
+
+(function testFullEntryFlow(){
+ storage.clear();
+ const e=setup();e.window.YuhaIllness.render();
+ const submit=(type,values)=>{
+  const form={dataset:{form:type},values};
+  const event={preventDefault(){},target:{closest:()=>form}};
+  e.root.handlers.submit(event);
+ };
+ submit('episode',{title:'발열',onset:'2026-11-14T08:00',symptoms:'체온 상승',note:'시작'});
+ const ids=Object.keys(e.model.cases);
+ assert.equal(ids.length,1);
+ const id=ids[0],get=()=>e.model.cases[id];
+ assert.equal(get().title,'발열');
+ assert.equal(get().status,'active');
+ submit('visit',{at:'2026-11-14T10:00',hospital:'가상 테스트 병원',diagnosis:'검사',notes:'처방 기재'});
+ assert.equal(get().visits.length,1);
+ submit('medicine',{name:'가상 처방 A',category:'other',mode:'scheduled',
+  doseMl:'2.5',intervalHours:'8',ingredient:'가상 성분',formulation:'시럽',instructions:'처방전대로',
+  visitId:get().visits[0].id,endsAt:''});
+ assert.equal(get().medications.length,1);
+ assert.equal(get().medications[0].doseMl,2.5);
+ assert.equal(get().medications[0].visitId,get().visits[0].id);
+ const med=get().medications[0];
+ submit('dose',{medicationId:med.id,at:'2026-11-14T11:00',status:'taken',amountMl:'2.5',note:'기록'});
+ assert.equal(get().medications[0].doses.length,1);
+ assert.equal(get().medications[0].doses[0].amountMl,2.5);
+ submit('temp',{at:'2026-11-14T11:30',celsius:'38.6',site:'ear',note:'복용 전'});
+ assert.equal(get().temperatures[0].celsius,38.6);
+ // Finishing is not automatic; active prescriptions block a closure.
+ submit('close',{recovered:'on',done:'on',note:'회복됨'});
+ assert.equal(get().status,'active');
+ const button={dataset:{act:'end-med',id:med.id},closest(){return this}};
+ e.root.handlers.click({target:{closest:()=>button}});
+ assert.equal(get().medications[0].active,false);
+ submit('close',{recovered:'on',done:'on',note:'회복됨'});
+ assert.equal(get().status,'closed');
+ assert.equal(get().recoveryConfirmed,true);
+ assert.equal(get().noFurtherMedicationConfirmed,true);
+ assert(Object.keys(JSON.parse(storage.get('yuha_illness_pending_v1'))).length===1);
+ assert(JSON.parse(storage.get('yuha_illness_records_v1'))[id]);
+ console.log('PASS illness: real form submissions cover episode→clinic→prescription→dose→temperature→explicit closure');
 })();
