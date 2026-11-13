@@ -114,3 +114,43 @@ function entry(){
  assert.equal(clean.status,'active','normal temperature may not end treatment');
  console.log('PASS illness API: no inferred dose or interval and no auto-close after normal temperature');
 })();
+
+(function testMedicationBundlesWithLegacyPreservation(){
+ const e=setup(),raw=entry();
+ const items=[
+  {id:'idrug01',name:'약 A',amount:2.5,unit:'mL'},
+  {id:'idrug02',name:'약 B',amount:1,unit:'포'}
+ ];
+ raw.medicationGroups=[{
+  id:'ibundle01',name:'아침 저녁 묶음',visitId:'ivisit01',
+  mode:'scheduled',intervalHours:8,endsAt:'',active:true,items,
+  events:[{id:'ievent01',at:'2026-11-14T05:00:00.000Z',
+   status:'taken',note:'전부 복용',scheduledFor:'',items:structuredClone(items)}]
+ }];
+ const saved=e.fn('syncIllnessCase')({episode:raw,expectedRevision:''});
+ assert.equal(saved.ok,true);
+ let r=e.fn('getIllnessCases')().cases[raw.id];
+ assert.equal(r.medications.length,1,'legacy medicines must remain');
+ assert.equal(r.medicationGroups.length,1,'bundled medicine should roundtrip');
+ assert.equal(r.medicationGroups[0].items.length,2);
+ assert.equal(r.medicationGroups[0].events[0].items[0].amount,2.5);
+ const changed=structuredClone(raw);
+ changed.medicationGroups[0].items[0].amount=3;
+ const done=e.fn('syncIllnessCase')({episode:changed,expectedRevision:saved.revision});
+ assert.equal(done.ok,true);
+ r=e.fn('getIllnessCases')().cases[raw.id];
+ assert.equal(r.medicationGroups[0].items[0].amount,3);
+ assert.equal(r.medicationGroups[0].events[0].items[0].amount,2.5,
+  'past actual amount must remain unchanged');
+ assert.equal(r.medications[0].doses[0].amountMl,2.5);
+ const invalid=structuredClone(changed);
+ invalid.medicationGroups[0].intervalHours=null;
+ assert.throws(()=>e.fn('illnessValidateEpisode_')(invalid),/간격/);
+ invalid.medicationGroups[0].intervalHours=8;
+ invalid.medicationGroups[0].items[0].amount=250;
+ assert.throws(()=>e.fn('illnessValidateEpisode_')(invalid),/범위/);
+ invalid.medicationGroups[0].items[0].amount=3;
+ invalid.medicationGroups[0].items.push({...invalid.medicationGroups[0].items[0]});
+ assert.throws(()=>e.fn('illnessValidateEpisode_')(invalid),/중복/);
+ console.log('PASS illness API: two-item bundle sync, immutable dose snapshot, backward compatibility and validation');
+})();
