@@ -1056,3 +1056,13 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 ### 2026-11-14 후속: 체온 385 입력창 즉시 변환
 - 사용자 실제 모바일 화면에서 `385`가 입력칸에 남고 아래에만 `38.5℃`가 안내되어 불편하다고 피드백함. `illness-care.js`의 `formatTemperatureInput()`이 3자리 정수 입력을 받는 즉시 입력란에 `38.5`(예: 385) 또는 `39.0`(예: 390)으로 바꾸도록 적용함. 입력 중 `38`은 3자리 연속 입력을 위해 그대로 두되 포커스를 벗어나면 `38.0`으로 표시함. 직접 `38.5`도 허용하고 invalid 값은 표시만 오류 안내하며 서버에 저장하지 않음.
 - 체온 플레이스홀더 `385`를 `38.5`로 바꾸고, `input`/`focusout` 위임 핸들러와 사전 변환 안내를 적용. `tests/illness-care.test.js`는 실제 입력 이벤트 후 입력창 value=`38.5`, 커서 위치, 프리뷰, 2자리 blur, 비정상 값 유지·저장 거부를 검사. 새 자산 캐시 키 `illness-care.js?v=20261114-temperature-visible6` 적용. 이번 변경은 화면 입력 전용이므로 Apps Script 재배포나 서버 데이터 변경은 불필요.
+
+## 2026-11-14 — 체온 추이 그래프 상시 펼침 · 측정 이력 바로 표시
+
+- 사용자 요청: 과거 '체온 측정 이력'이 접힌 목록이라 하루 동안 체온이 언제, 얼마나 오르내렸는지 알기 어려웠음. 월간 히트맵 아래에 **선택 날짜의 시간순 체온 추이 그래프와 측정 이력을 항상 표시**하도록 변경함.
+- `illness-care.js`: `dailyTemperatureReadings(temperatures,date)`가 날짜별 실측값을 절대 시각 기준 정렬하고 `temperatureTrend(c)`가 SVG 선·측정 점·최저/최고·첫/최근 온도를 렌더함. 측정 사이의 미관측 온도는 보간값으로 저장하지 않고, 1회 측정 시 점만/0회 시 빈 상태를 보여줌. 기존 접힌 체온 이력은 없애고 시각·체온·측정부위·메모를 최신순 상시 노출함. 히트맵은 각 날짜의 일 최고온도 컬러를 유지하면서 클릭 가능한 날짜 버튼으로 변경함.
+- 날짜 선택 상태는 `temperatureDay`; 달력 날짜 클릭은 `temp-day`, 당일 복귀는 `temp-today`, 월 이동은 `month-prev/month-next`. 체온 저장 시 측정 날짜를 자동 선택하여 그래프와 이력을 즉시 갱신함. 선택은 조회·표시 전용이며 기존 측정 기록을 변경하지 않음.
+- `illness-care.css`: `.ill-day-trend`, `.ill-trend-svg`, `.ill-temp-history` 등을 추가. `index.html`의 JS/CSS 캐시 버전 변경 포함.
+- `tests/illness-care.test.js`에 임의 순서로 들어온 여러 측정값의 시간순 정렬, 선택 날짜 전환, 한 건·미기록 표시, 그래프 점 개수, 측정 이력 상시 열림, 새 체온 저장 시 당일 그래프 갱신을 추가. GitHub Actions SHA `298ab4e6bbd8`의 테스트/Pages 배포 성공 확인(2026-11-14 KST).
+- 변경 내용은 화면 전용이므로 Apps Script의 질병 서버 스키마 v2 코드 자체를 변경하지 않음. 이전 턴의 약 묶음 JSON 동기화에 필요한 기존 웹앱 v2 재배포는 여전히 별도 필요.
+
