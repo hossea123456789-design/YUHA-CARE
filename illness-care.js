@@ -110,6 +110,7 @@ function heatBand(v){
 }
 const model={cases:{},pending:{},conflicts:{},snapshots:[]};
 let loaded=false,selected="",month=isoMonth(nowIso()),connected=false,initialFetchStarted=false,busy=false;
+let active=false,syncEpoch=0;
 let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",timer=null,root=null;
 function persist(){
  try{
@@ -208,19 +209,24 @@ async function connect(){
  // Reuse the same shared Apps Script bridge as the other app tabs.
  // No separate password, opt-in step, or server key.
  if(busy)return;
+ const epoch=syncEpoch;
  busy=true;notice="기존 앱 서버에서 질병 기록 자동 조회 중";noticeError=false;
  try{
   const res=await rpc("getIllnessCases",[]);
+  if(epoch!==syncEpoch)return;
   if(!res?.ok||res.schemaVersion!==1)throw Error("질병 기록용 Apps Script 최신 버전 배포가 필요합니다.");
   connected=true;
   absorbServer(res.cases);
   notice="서버 기록 조회 완료 · 자동 저장 사용 중";noticeError=false;
  }catch(e){
+  if(epoch!==syncEpoch)return;
   connected=false;
   notice="기기 기록 보관 중 · 서버 연결 확인 필요: "+String(e?.message||e);
   noticeError=true;
- }finally{busy=false;render();}
- if(connected)await pushPending();
+ }finally{
+  if(epoch===syncEpoch){busy=false;if(active)render();}
+ }
+ if(epoch===syncEpoch&&connected)await pushPending();
 }
 async function pushPending(){
  if(!connected||busy)return;
@@ -254,7 +260,7 @@ async function pushPending(){
    persist();notice="서버 저장 및 재조회 검증 완료";noticeError=false;
   }catch(e){notice="원본 보존 중 · 서버 저장 확인 필요: "+String(e?.message||e);noticeError=true;break;}
  }
- busy=false;render();
+ busy=false;if(active)render();
 }
 function chooseConflict(id,choice){
  const c=model.conflicts[id];if(!c)return;
@@ -437,7 +443,7 @@ function conflictsView(){
  '<button data-act="choose-local" data-id="'+attr(id)+'">기기 원본 선택 후 서버 보관·갱신</button></div></div>').join(""));
 }
 function render(){
- hydrate();root=document.getElementById("main");if(!root)return;
+ hydrate();active=true;root=document.getElementById("main");if(!root)return;
  const c=current();
  root.innerHTML='<div class="ill-root"><div class="ill-heading"><h2>유하 질병 기록</h2>'+
   '<p>질병별 시간순 기록 · 병원·처방·복용·체온</p></div>'+
@@ -470,7 +476,8 @@ function refreshStatusText(){
  if(count)count.textContent=missed+"건";
 }
 function stop(){if(timer){clearInterval(timer);timer=null;}
- root=null;initialFetchStarted=false;connected=false;
+ root=null;active=false;initialFetchStarted=false;connected=false;
+ syncEpoch++;busy=false;
 }
 function get(form,key){return String(new FormData(form).get(key)||"").trim();}
 function need(condition,message){if(!condition)throw Error(message);}
@@ -579,6 +586,9 @@ function onClick(e){
   });return;
  }
 }
+window.addEventListener("online",()=>{
+ if(active&&!busy)void connect();
+});
 window.YuhaIllness={render,stop,model,
  _test:{normalize,guidance,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
 })();
