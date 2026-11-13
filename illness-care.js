@@ -364,11 +364,8 @@ function medicationForm(c){
   '<option value="'+attr(v.id)+'"'+(m?.visitId===v.id?' selected':'')+'>'+E(v.hospital)+' · '+E(displayTime(v.at))+'</option>').join("");
  return card("3. 처방약 · 복용 간격",'<details '+(m?'open':'')+'><summary>'+(m?'처방 수정 중':'처방약 등록')+'</summary><form data-form="medicine" class="ill-fields">'+
  '<input type="hidden" name="editId" value="'+attr(m?.id||"")+'">'+
- '<label>약 종류 프리셋<select name="category">'+medicineOpts(m?.category||"other")+'</select></label>'+
- '<label>정확한 약 이름<input required maxlength="120" name="name" value="'+attr(m?.name||"")+'" placeholder="약 봉투의 제품명을 그대로 입력"></label>'+
- '<label>주성분 · 함량/농도 (선택)<input name="ingredient" maxlength="120" value="'+attr(m?.ingredient||"")+'" placeholder="예: 성분명과 mg/5mL"></label>'+
- '<label>제형 · 농도 표기 (선택)<input name="formulation" maxlength="120" value="'+attr(m?.formulation||"")+'" placeholder="시럽, 현탁액, 포 등"></label>'+
- '<label>연결된 병원 방문<select name="visitId">'+chooseVisit+'</select></label>'+
+  '<label>정확한 약 이름<input required maxlength="120" name="name" value="'+attr(m?.name||"")+'" placeholder="약 봉투의 제품명을 그대로 입력"></label>'+
+   '<label>연결된 병원 방문<select name="visitId">'+chooseVisit+'</select></label>'+
  '<label>복용 방식<select name="mode"><option value="scheduled"'+(m?.mode!=="prn"?' selected':'')+'>정기 복용 (예정·지연 표시)</option>'+
  '<option value="prn"'+(m?.mode==="prn"?' selected':'')+'>필요시 복용 (지연 경고 없음)</option></select></label>'+
  '<div class="ill-two"><label>1회 처방 용량 (mL)<input required type="number" name="doseMl" min="0.1" max="100" step="0.1" inputmode="decimal" value="'+attr(m?.doseMl??"")+'" placeholder="처방된 mL"></label>'+
@@ -450,7 +447,7 @@ function medicationGroupForm(c){
   visitOptions+
   '<label>처방 종료 예정 (선택)<input name="endsAt" type="datetime-local" value="'+(group.endsAt?localInput(group.endsAt):"")+'"></label>'+
   '</details>'+
-  '<p class="ill-muted">1회 투약량은 실제 약 봉투의 숫자로 입력하세요. 약 이름·용량을 자동 추정하지 않습니다. 묶음에 있는 약은 모두 함께 투약할 때 한 번에 기록됩니다.</p>'+
+  '<p class="ill-muted">같은 시각·간격에 함께 복용하도록 처방된 약만 묶으세요. 약 봉투의 1회량을 정확히 입력하고, 묶음 일부만 복용했다면 함께 복용 완료로 기록하지 마세요.</p>'+
   '<button type="submit" class="ill-primary">'+(editing?'묶음 변경 저장':'복용 묶음 저장')+'</button>'+
   (editing?'<button type="button" data-act="cancel-edit-group" class="ill-secondary">수정 취소</button>':'')+
   '</form></details>');
@@ -458,7 +455,7 @@ function medicationGroupForm(c){
 function groupPanel(c){
  const all=[...c.medicationGroups].sort((a,b)=>(b.active?1:0)-(a.active?1:0));
  if(!all.length)return card("현재 복용 중인 약 · 묶음",
-  '<div class="ill-empty"><strong>등록된 약이 없습니다</strong><p>같이 복용하는 약의 이름과 1회량만 등록하세요.</p>'+
+  '<div class="ill-empty"><strong>등록된 약이 없습니다</strong><p>같이 복용하는 약의 이름과 1회량만 등록하세요. 복용 기록은 묶음 단위로 남깁니다.</p>'+
   '<button class="ill-primary" data-act="go-group" type="button">+ 복용 묶음 만들기</button></div>');
  const sections=all.map(g=>{
   const info=groupGuidance(g),history=[...g.events].sort((a,b)=>at(b.at)-at(a.at));
@@ -534,13 +531,14 @@ function closure(c){
  if(c.status==="closed")return "";
  const active=[...c.medications.filter(m=>m.active),...c.medicationGroups.filter(g=>g.active)];
  return card("질병 종료",
-  '<p class="ill-muted">열·증상이 정상화되었는지 직접 확인하고, 처방된 복용 과정이 끝났거나 더 이상 복용하지 않아도 된다는 의료진 지시를 확인한 뒤 종료하세요. 체온 하나만 보고 처방약을 중단하지 않습니다.</p>'+
+  '<details><summary>완치 후 종료 처리 열기</summary>'+
+  '<p class="ill-muted">열·증상이 안정화되고 처방받은 복용 과정이 완료되었는지 확인한 뒤 종료하세요. 체온만으로 처방약을 중단하지 않습니다.</p>'+
   (active.length?'<p class="ill-alert">아직 복용 중으로 표시된 약 '+active.length+'개가 있습니다. 처방 완료·중단 지시 확인 후 각 약에서 ‘복용 종료 표시’를 진행하세요.</p>':'')+
   '<form data-form="close" class="ill-fields">'+
   '<label class="ill-check"><input type="checkbox" name="recovered" required> 현재 증상·체온이 안정화되었다고 확인함</label>'+
   '<label class="ill-check"><input type="checkbox" name="done" required> 필요한 복약 일정이 처방 지시대로 종료되었음을 확인함</label>'+
   '<label>종료 메모<input name="note" maxlength="500" placeholder="상태 호전, 최종 처방 등"></label>'+
-  '<button class="ill-primary" type="submit" '+(active.length?'disabled':'')+'>질병 종료 기록</button></form>');
+  '<button class="ill-primary" type="submit" '+(active.length?'disabled':'')+'>질병 종료 기록</button></form></details>');
 }
 function syncPanel(){
  const count=Object.keys(model.pending).length;
@@ -678,16 +676,15 @@ function onSubmit(e){
    return;
   }
   if(type==="medicine"){
-   const category=get(form,"category"),name=get(form,"name"),mode=get(form,"mode")==="prn"?"prn":"scheduled";
+   const name=get(form,"name"),mode=get(form,"mode")==="prn"?"prn":"scheduled";
    const dose=num(get(form,"doseMl")),interval=num(get(form,"intervalHours"));
    need(name,"정확한 약 이름을 입력해 주세요");
    need(dose!==null&&dose>0&&dose<=100,"1회 처방 용량(mL)을 정확히 입력해 주세요");
    need(mode==="prn"||interval!==null,"정기 복용약은 실제 처방 간격(시간)이 필요합니다");
    need(interval===null||(interval>=.5&&interval<=72),"처방 간격은 0.5~72시간 범위에서 입력해 주세요");
    const id=get(form,"editId"),end=get(form,"endsAt");
-   const payload={category,name,mode,doseMl:dose,intervalHours:interval,
-    ingredient:get(form,"ingredient"),formulation:get(form,"formulation"),visitId:get(form,"visitId"),
-    instructions:get(form,"instructions"),endsAt:end?inputTime(end):""};
+   const payload={name,mode,doseMl:dose,intervalHours:interval,
+    visitId:get(form,"visitId"),instructions:get(form,"instructions"),endsAt:end?inputTime(end):""};
    changeCase(c.id,r=>{
     const m=r.medications.find(x=>x.id===id);
     if(m)Object.assign(m,payload);
@@ -818,5 +815,5 @@ window.addEventListener("online",()=>{
  if(active&&!busy)void connect();
 });
 window.YuhaIllness={render,stop,model,
- _test:{normalize,guidance,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
+ _test:{normalize,guidance,groupGuidance,parseTemperature,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
 })();
