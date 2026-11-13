@@ -113,12 +113,14 @@ let loaded=false,selected="",month=isoMonth(nowIso()),connected=false,secret="",
 let notice="기기에 저장됩니다 · 서버 연결은 별도 설정",noticeError=false,editMedication="",timer=null,root=null;
 function persist(){
  try{
+  // Archive before changing primary records. Keep the bounded archive small
+  // to avoid exhausting origin storage shared with the sleep/mental modules.
+  localStorage.setItem(SNAPSHOTS,JSON.stringify(model.snapshots));
   localStorage.setItem(STORE,JSON.stringify(model.cases));
   localStorage.setItem(QUEUE,JSON.stringify(model.pending));
   localStorage.setItem(CONFLICT,JSON.stringify(model.conflicts));
-  localStorage.setItem(SNAPSHOTS,JSON.stringify(model.snapshots.slice(-35)));
   noticeError=false;return true;
- }catch(e){notice="기기 저장 실패 · 이 화면을 닫지 말고 백업을 시도하세요";noticeError=true;return false;}
+ }catch(e){notice="기기 저장 실패 · 화면을 닫거나 캐시를 삭제하지 말고 원본 백업을 확인하세요";noticeError=true;return false;}
 }
 function hydrate(){
  if(loaded)return;
@@ -133,7 +135,7 @@ function hydrate(){
 }
 function recordSnapshot(why,content){
  model.snapshots.push({reason:why,at:nowIso(),content:clone(content)});
- model.snapshots=model.snapshots.slice(-35);
+ while(model.snapshots.length>12||JSON.stringify(model.snapshots).length>400000)model.snapshots.shift();
 }
 function changeCase(id,modifier){
  const before=model.cases[id];if(!before)return;
@@ -144,13 +146,13 @@ function changeCase(id,modifier){
  model.pending[id]={episode:clone(next),
   expectedRevision:old?.expectedRevision??before.revision??"",
   ...(old?.resolution?{resolution:old.resolution}:{})};
- persist();if(connected)void pushPending();render();
+ const saved=persist();if(connected&&saved)void pushPending();render();
 }
 function newEpisode(title,onset,symptoms,note){
  const id=newId();
  model.cases[id]=normalize({id,title,onsetAt:onset,symptoms,note});
  model.pending[id]={episode:clone(model.cases[id]),expectedRevision:""};
- selected=id;notice="질병 기록이 기기에 저장됐습니다";persist();render();if(connected)void pushPending();
+ selected=id;notice="질병 기록이 기기에 저장됐습니다";const saved=persist();render();if(connected&&saved)void pushPending();
 }
 function current(){return model.cases[selected]||null;}
 function backup(){
@@ -262,7 +264,7 @@ function chooseConflict(id,choice){
   model.pending[id]={episode:local,expectedRevision:c.server.revision,
    resolution:{confirmed:true,serverRevision:c.server.revision,localOriginal:c.local}};
  }
- persist();render();if(connected)void pushPending();
+ const saved=persist();render();if(connected&&saved)void pushPending();
 }
 function card(title,body,cls=""){
  return '<section class="ill-card '+cls+'"><h3>'+E(title)+'</h3>'+body+'</section>';
