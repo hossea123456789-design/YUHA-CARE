@@ -62,7 +62,7 @@ function entry(){
  const e=setup();
  assert.equal(e.tabs.has('ILLNESS_LOG'),false,'empty journal does not exist before first read');
  const first=e.fn('getIllnessCases')();
- assert.equal(first.schemaVersion,1);assert.equal(Object.keys(first.cases).length,0);
+ assert.equal(first.schemaVersion,2);assert.equal(Object.keys(first.cases).length,0);
  const original=entry();
  const saved=e.fn('syncIllnessCase')({episode:original,expectedRevision:''});
  assert.equal(saved.ok,true);
