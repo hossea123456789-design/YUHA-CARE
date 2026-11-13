@@ -32,6 +32,19 @@ const dayKey=x=>{
 };
 const isoMonth=x=>dayKey(x).slice(0,7);
 const num=(v,defaultValue=null)=>v!==""&&v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v):defaultValue;
+// Quick temperature: 385 -> 38.5℃, 38 -> 38.0℃, 38.5 -> 38.5℃.
+// Other formats are rejected, never guessed.
+function parseTemperature(raw){
+ const input=String(raw??"").trim();
+ let n;
+ if(/^\d{3}$/.test(input))n=Number(input)/10;
+ else if(/^\d{2}(?:\.\d)?$/.test(input))n=Number(input);
+ else return null;
+ return n>=30&&n<=43?n:null;
+}
+const MED_UNITS=["mL","포","정","방울"];
+function validAmount(v){const n=num(v);return n!==null&&n>0&&n<=100&&Math.round(n*10)===n*10}
+function doseLabel(v,unit){return String(v)+(MED_UNITS.includes(unit)?unit:"mL")}
 const cleanText=(v,n=200)=>String(v??"").slice(0,n);
 const parseStore=(key,fallback)=>{try{const obj=JSON.parse(localStorage.getItem(key)||"null");return obj&&typeof obj==="object"?obj:fallback;}catch{return fallback;}};
 const clone=x=>JSON.parse(JSON.stringify(x));
@@ -63,6 +76,25 @@ function normalize(source){
     status:d.status==="skipped"?"skipped":"taken",amountMl:num(d.amountMl),
     note:cleanText(d.note,300),scheduledFor:isTime(d.scheduledFor)?d.scheduledFor:""
    })):[]})):[],
+  medicationGroups:Array.isArray(c.medicationGroups)?c.medicationGroups.map(g=>({
+   id:cleanText(g.id,60),name:cleanText(g.name,80),
+   visitId:cleanText(g.visitId,60),
+   mode:g.mode==="prn"?"prn":"scheduled",intervalHours:num(g.intervalHours),
+   endsAt:isTime(g.endsAt)?g.endsAt:"",active:g.active!==false,
+   items:Array.isArray(g.items)?g.items.map(item=>({
+    id:cleanText(item.id,60),name:cleanText(item.name,120),
+    amount:num(item.amount),unit:MED_UNITS.includes(item.unit)?item.unit:"mL"
+   })):[],
+   events:Array.isArray(g.events)?g.events.map(d=>({
+    id:cleanText(d.id,60),at:isTime(d.at)?d.at:nowIso(),
+    status:d.status==="skipped"?"skipped":"taken",
+    note:cleanText(d.note,300),scheduledFor:isTime(d.scheduledFor)?d.scheduledFor:"",
+    items:Array.isArray(d.items)?d.items.map(item=>({
+     id:cleanText(item.id,60),name:cleanText(item.name,120),
+     amount:num(item.amount),unit:MED_UNITS.includes(item.unit)?item.unit:"mL"
+    })):[] 
+   })):[]
+  })):[],
   temperatures:Array.isArray(c.temperatures)?c.temperatures.map(t=>({
    id:cleanText(t.id,60),at:isTime(t.at)?t.at:nowIso(),
    celsius:num(t.celsius),site:SITES[t.site]?t.site:"other",note:cleanText(t.note,300)})):[],
@@ -111,7 +143,7 @@ function heatBand(v){
 const model={cases:{},pending:{},conflicts:{},snapshots:[]};
 let loaded=false,selected="",month=isoMonth(nowIso()),connected=false,initialFetchStarted=false,busy=false;
 let active=false,syncEpoch=0;
-let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",timer=null,root=null;
+let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",timer=null,root=null;
 function persist(){
  try{
   // Archive before changing primary records. Keep the bounded archive small
