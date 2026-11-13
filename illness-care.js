@@ -73,13 +73,17 @@ function guidance(m,now=new Date()){
  const doses=(m.doses||[]).filter(d=>isTime(d.at)&&at(d.at)<=now.getTime())
   .sort((a,b)=>at(a.at)-at(b.at));
  const last=doses[doses.length-1];
- if(!last)return {state:"not-started",text:"첫 복용이 기록되면 처방 간격으로 다음 시각을 계산합니다.",dueAt:null};
  const interval=num(m.intervalHours);
  if(m.mode==="prn"){
-  if(!(interval>0))return {state:"prn",text:"필요 시 복용 · 미복용 경고 없음",dueAt:null};
-  const earliest=new Date(at(last.status==="skipped"&&last.scheduledFor?last.scheduledFor:last.at)+interval*3600000).toISOString();
-  return {state:"prn",text:"필요 시 복용 · 입력한 최소 간격 참고: "+displayTime(earliest)+" 이후 (복용 지시 확인)",dueAt:earliest};
+  const taken=[...doses].reverse().find(d=>d.status==="taken");
+  if(!taken||!(interval>0))
+   return {state:"prn",text:"필요 시 복용 · 미복용 경고 없음",dueAt:null};
+  const earliest=new Date(at(taken.at)+interval*3600000).toISOString();
+  return {state:"prn",text:"필요 시 복용 · 마지막 실제 복용 후 입력 간격 참고: "+displayTime(earliest)+" 이후 (복용 지시 확인)",dueAt:earliest};
  }
+ if(!last)return {state:"not-started",text:"첫 복용이 기록되면 처방 간격으로 다음 시각을 계산합니다.",dueAt:null};
+ if(m.endsAt&&now.getTime()>at(m.endsAt))
+  return {state:"course-end",text:"입력된 처방 기간 종료 시점 지남 · 복용 종료 여부를 처방 지시로 확인",dueAt:null};
  if(!(interval>0))return {state:"invalid",text:"처방 간격 입력 필요 · 자동 알림 없음",dueAt:null};
  const anchor=last.status==="skipped"&&last.scheduledFor?last.scheduledFor:last.at;
  const dueAt=new Date(at(anchor)+interval*3600000).toISOString();
@@ -291,7 +295,7 @@ function recordHeading(c){
   '<div class="ill-kpis"><div>병원 방문<strong>'+c.visits.length+'회</strong></div>'+
   '<div>체온 기록<strong>'+temps.length+'회</strong></div>'+
   '<div>최근 체온<strong>'+(latest?latest.celsius.toFixed(1)+'℃':'—')+'</strong></div>'+
-  '<div>복약 지연 표시<strong>'+delayed+'건</strong></div></div>'+
+  '<div>복약 지연 표시<strong data-ill-overdue>'+delayed+'건</strong></div></div>'+
   (c.status==="closed"?'<p>종료: '+E(displayTime(c.closedAt))+' · '+E(c.closureNote)+'</p>'+
    '<button class="ill-secondary" data-act="reopen">이 질병 기록 다시 열기</button>':
    '<div class="ill-row-actions"><button class="ill-secondary" data-act="edit-episode">발생 기록 수정</button></div>'));
@@ -446,11 +450,15 @@ function refreshStatusText(){
  const c=current();if(!c)return;
  // Only update due/overdue labels, without rerendering an actively edited form.
  const nodes=root.querySelectorAll(".ill-med");
+ let missed=0;
  c.medications.forEach((m,i)=>{
   const g=guidance(m),node=nodes[i];if(!node)return;
+  if(g.state==="overdue")missed++;
   node.className="ill-med "+g.state;
   const status=node.querySelector(".ill-guidance");if(status)status.textContent=g.text;
  });
+ const count=root.querySelector("[data-ill-overdue]");
+ if(count)count.textContent=missed+"건";
 }
 function stop(){if(timer){clearInterval(timer);timer=null;}root=null;}
 function get(form,key){return String(new FormData(form).get(key)||"").trim();}
@@ -466,6 +474,7 @@ function onSubmit(e){
    newEpisode(title,inputTime(get(form,"onset")),get(form,"symptoms"),get(form,"note"));return;
   }
   const c=current();need(c,"질병 기록을 먼저 선택해 주세요");
+  if(c.status==="closed"&&type!=="close")throw Error("종료된 질병입니다. 기록을 다시 열고 수정해 주세요.");
   if(type==="visit"){
    const hospital=get(form,"hospital");need(hospital,"병원명을 입력해 주세요");
    const visit={id:newId(),hospital,at:inputTime(get(form,"at")),diagnosis:get(form,"diagnosis"),notes:get(form,"notes")};
@@ -528,6 +537,9 @@ function onClick(e){
   month=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");render();return;
  }
  if(!c)return;
+ if(c.status==="closed"&&action!=="reopen"){
+  notice="종료된 질병입니다. 기록을 다시 연 뒤 수정해 주세요.";noticeError=true;render();return;
+ }
  if(action==="edit-episode"){
   const title=window.prompt("질병 이름",c.title);if(title===null)return;
   const symptoms=window.prompt("증상",c.symptoms);if(symptoms===null)return;
