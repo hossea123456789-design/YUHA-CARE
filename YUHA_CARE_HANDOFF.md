@@ -1052,3 +1052,7 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - `tests/illness-api.test.js`: 기존 단독 약을 유지한 상태에서 그룹 추가/읽기, 수정 시 과거 투약량 유지, 필수 복용 간격·용량·ID 중복 검증.
 - `index.html`의 `illness-care.js`/`illness-care.css` 캐시 키를 갱신해 휴대폰에서 이전의 장문 처방 화면을 재사용하지 않도록 한다. 결과 확인은 **최종 GitHub Actions 성공·Pages 배포 확인**과 **실제 Apps Script v2 배포·부부 휴대폰 동기화 검증**을 구분해야 한다.
 - 상세 스키마와 복약 안전 원칙은 `ILLNESS_CARE_SPEC.md` 최신 절 참고.
+
+### 2026-11-14 후속: 체온 385 입력창 즉시 변환
+- 사용자 실제 모바일 화면에서 `385`가 입력칸에 남고 아래에만 `38.5℃`가 안내되어 불편하다고 피드백함. `illness-care.js`의 `formatTemperatureInput()`이 3자리 정수 입력을 받는 즉시 입력란에 `38.5`(예: 385) 또는 `39.0`(예: 390)으로 바꾸도록 적용함. 입력 중 `38`은 3자리 연속 입력을 위해 그대로 두되 포커스를 벗어나면 `38.0`으로 표시함. 직접 `38.5`도 허용하고 invalid 값은 표시만 오류 안내하며 서버에 저장하지 않음.
+- 체온 플레이스홀더 `385`를 `38.5`로 바꾸고, `input`/`focusout` 위임 핸들러와 사전 변환 안내를 적용. `tests/illness-care.test.js`는 실제 입력 이벤트 후 입력창 value=`38.5`, 커서 위치, 프리뷰, 2자리 blur, 비정상 값 유지·저장 거부를 검사. 새 자산 캐시 키 `illness-care.js?v=20261114-temperature-visible6` 적용. 이번 변경은 화면 입력 전용이므로 Apps Script 재배포나 서버 데이터 변경은 불필요.
