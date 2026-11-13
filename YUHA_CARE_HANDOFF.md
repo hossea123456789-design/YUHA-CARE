@@ -1,7 +1,7 @@
 # YUHA-CARE 전체 구현·운영·작업 인수인계서
 
 > **중요: 다음 작업 세션을 위한 시작 문서 (Single Source of Handoff)**  
-> 문서 기준일: **2026-11-14 (KST)** — 질병 기록 신규 탭·비공개 API·복약 안내 추가  
+> 문서 기준일: **2026-11-14 (KST)** — 질병 기록 자동 동기화(추가 암호 없음)·복약 안내  
 > 정본 코드: GitHub 저장소 `hossea123456789-design/YUHA-CARE`, `main` 브랜치  
 > 정본 화면: https://hossea123456789-design.github.io/YUHA-CARE/  
 > 목적: 이전 대화를 보지 못하는 개발자/ChatGPT 세션도 현재 구현, 판단 배경, 배포 방법, 미해결 이슈를 이해하고 **기존 데이터를 보존하며 동일 프로젝트를 이어서 개발**하도록 한다.
@@ -1020,13 +1020,19 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 
 ### 데이터·보안·배포 영향
 - 로컬 키 `yuha_illness_records_v1`, `yuha_illness_pending_v1`, `yuha_illness_conflicts_v1`, `yuha_illness_snapshots_v1`를 기존 다른 영역과 분리. 기존 수면/회복/checklist 원본 키와 Google Sheets 기존 시트는 변경하지 않았다.
-- Apps Script `Code.gs`에 **전용** `ILLNESS_LOG` (A=질병 ID, B=비공개 JSON, C=수정 revision), 명시적 충돌 해결 시에만 양쪽 원본 보관 `ILLNESS_CONFLICT_ARCHIVE`, 신규 API `getIllnessCases`/`syncIllnessCase`, 프레임 브리지 allowlist 추가. Apps Script 스크립트 속성 **`YUHA_ILLNESS_ACCESS_KEY` (12자 이상 강력한 난수)** 인증이 필수이며 기존 4자리 아내 회복 PIN을 재사용하지 않는다. 실제 비밀값을 코드·공개 문서에 입력하지 말 것.
-- 사용자 명시적 수동 충돌 해결 전에 서버 기록 자동 덮어쓰지 않으며 서버 revision 비교 후 원본 저장, 서버 재조회 검증이 완료돼야 기기 pending 삭제. 실서버가 미배포·암호 미설정이면 기기 로컬 기록으로만 이용 가능.
+- Apps Script `Code.gs`에 **기록 분리용** `ILLNESS_LOG` (A=질병 ID, B=JSON, C=수정 revision), 명시적 충돌 해결 시에만 양쪽 원본 보관 `ILLNESS_CONFLICT_ARCHIVE`, 신규 API `getIllnessCases()` / `syncIllnessCase({episode,expectedRevision,resolution?})`, 프레임 브리지 allowlist 추가. **질병 전용 암호·추가 PIN·스크립트 속성 설정은 요구하지 않는다.** 기존 앱의 공통 Google 연결로 자동 조회/저장한다. 아내 회복 탭의 기존 PIN은 변경하지 않는다.
+- 사용자 명시적 수동 충돌 해결 전에 서버 기록 자동 덮어쓰지 않으며 서버 revision 비교 후 원본 저장, 서버 재조회 검증이 완료돼야 기기 pending 삭제. 실서버가 아직 미배포이면 기기 로컬 기록만 사용하며, 이후 기존 웹앱 업데이트 시 자동으로 다시 동기화한다.
 - **필수 배포:** GitHub Pages만 갱신돼도 새 Apps Script API는 동작하지 않는다. 기존 원본 Google Sheets에 연결된 Apps Script `Code.gs`에 최신 전체 코드를 교체하고, `배포 관리 → 기존 웹앱 수정 → 새 버전`으로 배포. 기존 `/exec` 유지. 프로젝트를 새로 만들지 않는다.
-- 새 시트와 민감 개인정보는 오직 강력 암호 인증에 성공한 요청으로 접근하며 기존 Sheets·스크립트 속성을 초기화하지 않는다. 실제 유하 건강·처방 내역을 테스트 값으로 서버에 생성하지 않았다.
+- 이번 변경에서 별도 질병 암호는 제거했다. 기존 Google 웹앱의 접근 허용 범위를 그대로 따르므로 **웹앱 URL을 아는 다른 사용자도 질병 기록에 접근할 수 있다**. 시트를 구분한다고 접근 권한이 제한되는 것은 아니다. 기존 Sheets·스크립트 속성을 초기화하지 않고 실제 유하 건강·처방 내역을 테스트 값으로 서버에 생성하지 않았다.
 
 ### 검증·인계
 - `tests/illness-care.test.js`: 정기 투약/PRN/미복용·예정 시각, 최고 체온·미기록, 로컬 키 격리, 자동 종료 방지.
-- `tests/illness-api.test.js`: 강력 인증, 신규 독립 시트/기존 시트 불변, 병원·처방·투약·체온 복원, 원본 revision 충돌 및 사용자 선택 충돌 아카이빙, 처방값 검증.
+- `tests/illness-api.test.js`: 추가 비밀번호 없는 기존 웹앱 API 호출, 신규 독립 시트/기존 시트 불변, 병원·처방·투약·체온 복원, 원본 revision 충돌 및 사용자 선택 충돌 아카이빙, 처방값 검증.
 - 상세 스키마·복약 경고 동작·의료 안전 안내·배포 순서는 [ILLNESS_CARE_SPEC.md](./ILLNESS_CARE_SPEC.md) 참고. GitHub CI 빌드 성공과 **실제 Apps Script 재배포·2기기 실사용** 성공은 구분해 판정한다.
 - 후속 안정화: 질병 상세의 **발생 시각 수정** 지원, 긴 입력폼 접기·복약/체온 우선 배치, 기기 백업 스냅샷을 **최대 12개·약 400KB**로 제한하여 기존 육아 도구와 공유되는 저장소 소진 위험을 줄였다. 스냅샷을 본 기록보다 먼저 저장하고 저장 실패 시 서버 전송을 차단한다. 자동 테스트는 입력 폼을 통해 전체 질병 생성 → 방문 → 처방 → 복용 → 체온 → 완료의 시나리오를 추가했다.
+
+### 후속 사용자 지시 — 접근 제한 제거
+- 사용자 요구: **질병 기록을 따로 비공개 처리하지 말고 기존 앱 접근으로 전부 조회·저장**, 별도 인증/전용 키/연결 버튼 불필요. 이에 따라 `illness-care.js`는 탭 진입 시 `getIllnessCases()`로 서버를 자동 조회하고 이후 `syncIllnessCase()`로 자동 전송한다. 서버의 `illnessAuth_`와 질병 전용 스크립트 속성 요구 및 화면의 비밀번호 입력/수동 연결 UI를 제거했다.
+- 서버 전용 시트 `ILLNESS_LOG`는 개인정보 비공개 설정이 아니라 **저장 구조 분리**만 담당한다. 브리지/웹앱 배포 접근 권한에 따라 조회·수정 가능하며 URL을 아는 제3자의 접근을 막는 가족 전용 인증은 없다.
+- 네트워크 실패/구버전 서버에서는 원본과 pending을 기기에 보존. 앱 재진입·온라인 복귀·'서버 기록 다시 조회'로 자동 재시도. 서버 최신 Code.gs를 **기존 웹앱 새 버전**으로 별도 배포해야 다기기 동기화 가능.
+- `tests/illness-care.test.js`는 비밀번호 없는 자동 GET→pending POST→revision 재조회 흐름을 확인하고, 기존 데이터 보호 및 충돌 저장 규칙은 유지한다.
