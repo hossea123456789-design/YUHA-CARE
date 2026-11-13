@@ -1,6 +1,6 @@
 /* YUHA-CARE · Child illness journal.
  * No medicine/dose/interval is inferred. Timing is informational, only from a
- * caregiver-entered prescription. Offline-first, private secret for cloud sync.
+ * caregiver-entered prescription. Offline-first, same shared app DB connection.
  * No background notifications or automated treatment/stop decisions. */
 (function(){
 "use strict";
@@ -109,8 +109,8 @@ function heatBand(v){
  return "high";
 }
 const model={cases:{},pending:{},conflicts:{},snapshots:[]};
-let loaded=false,selected="",month=isoMonth(nowIso()),connected=false,secret="",busy=false;
-let notice="기기에 저장됩니다 · 서버 연결은 별도 설정",noticeError=false,editMedication="",timer=null,root=null;
+let loaded=false,selected="",month=isoMonth(nowIso()),connected=false,initialFetchStarted=false,busy=false;
+let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",timer=null,root=null;
 function persist(){
  try{
   // Archive before changing primary records. Keep the bounded archive small
@@ -156,7 +156,7 @@ function newEpisode(title,onset,symptoms,note){
 }
 function current(){return model.cases[selected]||null;}
 function backup(){
- const data={kind:"yuha-illness-private-backup-v1",exportedAt:nowIso(),
+ const data={kind:"yuha-illness-backup-v1",exportedAt:nowIso(),
   cases:model.cases,pending:model.pending,conflicts:model.conflicts,snapshots:model.snapshots};
  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
  const url=URL.createObjectURL(blob),a=document.createElement("a");
@@ -205,17 +205,22 @@ function absorbServer(incoming){
  persist();
 }
 async function connect(){
- const input=root?.querySelector("#illSecret");
- const value=String(input?.value||"");
- if(value.length<12){notice="비공개 서버 연결 암호(12자 이상)를 입력하세요";noticeError=true;render();return;}
- secret=value;busy=true;notice="비공개 서버 기록을 읽는 중입니다";noticeError=false;render();
+ // Reuse the same shared Apps Script bridge as the other app tabs.
+ // No separate password, opt-in step, or server key.
+ if(busy)return;
+ busy=true;notice="기존 앱 서버에서 질병 기록 자동 조회 중";noticeError=false;
  try{
-  const res=await rpc("getIllnessCases",[secret]);
-  if(!res?.ok||res.schemaVersion!==1)throw Error("서버 질병 기록 API 버전을 확인할 수 없습니다.");
-  connected=true;absorbServer(res.cases);
-  notice="비공개 서버 연결됨 · 기록을 확인했습니다";noticeError=false;
-  busy=false;render();await pushPending();
- }catch(e){connected=false;secret="";busy=false;notice="비공개 서버 연결 실패: "+String(e?.message||e);noticeError=true;render();}
+  const res=await rpc("getIllnessCases",[]);
+  if(!res?.ok||res.schemaVersion!==1)throw Error("질병 기록용 Apps Script 최신 버전 배포가 필요합니다.");
+  connected=true;
+  absorbServer(res.cases);
+  notice="서버 기록 조회 완료 · 자동 저장 사용 중";noticeError=false;
+ }catch(e){
+  connected=false;
+  notice="기기 기록 보관 중 · 서버 연결 확인 필요: "+String(e?.message||e);
+  noticeError=true;
+ }finally{busy=false;render();}
+ if(connected)await pushPending();
 }
 async function pushPending(){
  if(!connected||busy)return;
@@ -226,7 +231,7 @@ async function pushPending(){
   const frozen=JSON.stringify(job.episode);
   try{
    const response=await rpc("syncIllnessCase",[{
-    passphrase:secret,episode:job.episode,expectedRevision:job.expectedRevision,
+    episode:job.episode,expectedRevision:job.expectedRevision,
     ...(job.resolution?{resolution:job.resolution}:{})
    }]);
    if(response?.conflict){
@@ -235,7 +240,7 @@ async function pushPending(){
    }
    if(!response?.ok)throw Error("서버가 저장을 승인하지 않았습니다");
    if(job.resolution&&!response.conflictArchived)throw Error("양쪽 원본 보관 미확인");
-   const verified=await rpc("getIllnessCases",[secret]);
+   const verified=await rpc("getIllnessCases",[]);
    const remote=verified?.cases?.[id];
    if(!verified?.ok||!remote||response.revision!==remote.revision||!sameData(job.episode,remote))
     throw Error("저장 후 재조회 검증이 일치하지 않습니다");
@@ -417,17 +422,12 @@ function closure(c){
 }
 function syncPanel(){
  const count=Object.keys(model.pending).length;
- return card("비공개 저장·백업",
-   '<p class="ill-muted">기기 기록은 즉시 저장됩니다. 서버 공유는 별도 암호로 연결할 때만 시도합니다. 개인 의료 정보와 처방 자료를 공개 저장소에 넣지 않습니다.</p>'+
+ return card("저장 상태 · 백업",
    '<p class="'+(noticeError?'ill-alert':'ill-muted')+'" role="status">'+E(notice)+'</p>'+
-   '<p class="ill-muted">서버 상태: '+(connected?"연결됨":"미연결")+
-    ' · 서버 전송 대기 '+count+'건 · 원본 충돌 '+Object.keys(model.conflicts).length+'건</p>'+
-   '<div class="ill-row-actions"><button data-act="backup">기기 원본 JSON 백업</button>'+
-    (connected?'<button data-act="disconnect">서버 연결 끊기</button><button data-act="refresh">서버 다시 조회</button>':'')+
-    '</div>'+
-   (!connected?'<form data-form="connect" class="ill-fields"><label>별도 질병 기록 서버 암호 (12자 이상)<input id="illSecret" type="password" name="secret" autocomplete="off" minlength="12" placeholder="Apps Script YUHA_ILLNESS_ACCESS_KEY"></label>'+
-   '<button type="submit" class="ill-secondary">비공개 서버 연결</button></form>':'')+
-   '<p class="ill-muted">서버 연결은 기존 Apps Script 배포를 새 버전으로 갱신하고, 스크립트 속성에 YUHA_ILLNESS_ACCESS_KEY를 별도로 설정한 다음 가능합니다. 암호는 기기의 세션 메모리에만 두고 페이지를 새로 열면 다시 입력받습니다.</p>');
+   '<p class="ill-muted">기록은 먼저 기기에 저장하고 기존 Google Sheets로 자동 동기화합니다. 서버: '+
+    (connected?"연결됨":"확인 필요")+' · 전송 대기 '+count+'건 · 원본 충돌 '+Object.keys(model.conflicts).length+'건</p>'+
+   '<div class="ill-row-actions"><button type="button" data-act="backup">기기 원본 JSON 백업</button>'+
+   '<button type="button" data-act="refresh">서버 기록 다시 조회</button></div>');
 }
 function conflictsView(){
  const ids=Object.keys(model.conflicts);if(!ids.length)return "";
@@ -453,6 +453,7 @@ function render(){
   root.addEventListener("click",onClick);
  }
  if(!timer)timer=setInterval(()=>{if(root&&root.querySelector(".ill-root"))refreshStatusText();},60000);
+ if(!initialFetchStarted){initialFetchStarted=true;void connect();}
 }
 function refreshStatusText(){
  const c=current();if(!c)return;
@@ -468,7 +469,9 @@ function refreshStatusText(){
  const count=root.querySelector("[data-ill-overdue]");
  if(count)count.textContent=missed+"건";
 }
-function stop(){if(timer){clearInterval(timer);timer=null;}root=null;}
+function stop(){if(timer){clearInterval(timer);timer=null;}
+ root=null;initialFetchStarted=false;connected=false;
+}
 function get(form,key){return String(new FormData(form).get(key)||"").trim();}
 function need(condition,message){if(!condition)throw Error(message);}
 function onSubmit(e){
@@ -476,7 +479,6 @@ function onSubmit(e){
  e.preventDefault();
  try{
   const type=form.dataset.form;
-  if(type==="connect"){void connect();return;}
   if(type==="episode"){
    const title=get(form,"title");need(title,"질병 이름을 입력해 주세요");
    newEpisode(title,inputTime(get(form,"onset")),get(form,"symptoms"),get(form,"note"));return;
@@ -543,8 +545,7 @@ function onClick(e){
  const action=btn.dataset.act,id=btn.dataset.id,c=current();
  if(action==="select"){selected=id;editMedication="";month=isoMonth(current()?.onsetAt||nowIso());render();return;}
  if(action==="backup"){backup();return;}
- if(action==="disconnect"){connected=false;secret="";notice="서버 연결이 끊겼습니다 · 기기 원본 유지";render();return;}
- if(action==="refresh"){if(connected&&!busy)void (async()=>{try{const r=await rpc("getIllnessCases",[secret]);absorbServer(r.cases);notice="서버 조회 완료";render();await pushPending()}catch(err){notice="조회 실패: "+String(err.message||err);noticeError=true;render();}})();return;}
+ if(action==="refresh"){if(!busy)void connect();return;}
  if(action==="choose-server"||action==="choose-local"){chooseConflict(id,action==="choose-server"?"server":"local");return;}
  if(action==="month-prev"||action==="month-next"){
   const [y,m]=month.split("-").map(Number),d=new Date(y,m-1+(action==="month-prev"?-1:1),1);
@@ -579,5 +580,5 @@ function onClick(e){
  }
 }
 window.YuhaIllness={render,stop,model,
- _test:{normalize,guidance,dailyMax,heatBand,sameData,absorbServer}};
+ _test:{normalize,guidance,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
 })();
