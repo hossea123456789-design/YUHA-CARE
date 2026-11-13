@@ -10,7 +10,7 @@
 - yuha_illness_records_v1: 질병 ID별 전체 JSON
 - yuha_illness_pending_v1: 동기화 대기 중인 변경 및 서버 revision
 - yuha_illness_conflicts_v1: 서버·기기 서로 다른 원본
-- yuha_illness_snapshots_v1: 변경·충돌 직전의 안전본 (최대 35개)
+- yuha_illness_snapshots_v1: 변경·충돌 직전의 안전본. 다른 기록과 공유하는 브라우저 저장소의 공간을 보호하기 위해 **최대 12개·약 400KB** 범위에서 오래된 스냅샷부터 정리한다. 전체 기기 원본은 사용자가 JSON으로 별도 백업할 수 있다.
 
 질병 객체는 id/title/onsetAt/symptoms/note/status/closedAt/recoveryConfirmed/noFurtherMedicationConfirmed/closureNote/revision, visits[], medications[], temperatures[]로 구성한다. 방문에는 id/at/hospital/diagnosis/notes. 약에는 id/visitId/category/name/ingredient/formulation/mode/doseMl/intervalHours/endsAt/instructions/active/doses[]. 투약에는 id/at/status(taken·skipped)/amountMl/note/scheduledFor. 체온은 id/at/celsius/site/note. 시각 원본은 ISO 8601, 화면은 브라우저 현지시간을 사용한다.
 
@@ -37,3 +37,9 @@
 - tests/illness-care.test.js: 첫 투약 기준 n시간, 지연 표시, 미복용/필요시 예외, 온도 히트맵, 미기록 구분, 정상 체온 이후 자동 종료 방지, 독립 로컬 저장.
 - tests/illness-api.test.js: 전용 암호 인증, 별도 시트, 처방·진료·투약·체온 복원, revision 충돌 보존, 명시적 해결 시 양쪽 원본 백업, 필수 처방 용량·간격 검증.
 - Pages CI는 새 JS·CSS 배포와 두 테스트를 실행한다. 실제 운영 서버 배포 및 휴대폰 2대의 동기화/지연 UI 검증은 별도 단계이며 완료 전 성공으로 표시하지 않는다.
+
+### 2026-11-14 후속 정정
+- 모바일 입력량 절감을 위해 기존 질병 기록이 있을 때 새 질병 폼을 접고, 방문·약 처방 등록은 필요할 때 펼치며, 처방 수정 중에는 해당 입력 폼을 연다. 현재 복약 상태와 체온 히트맵은 입력 폼보다 먼저 보인다.
+- 질병 발생 시각은 종료 전에는 기록 상세에서 수정할 수 있다. 종료된 질병은 명시적 재개 후 편집한다.
+- 스냅샷을 본 기록보다 먼저 브라우저에 쓰고, 기기 저장 실패 시 서버 업로드를 진행하지 않는다. 수면·아내 회복 기록과 브라우저 저장소를 공유하므로 무제한 백업 스냅샷을 생성하지 않는다.
+- 테스트는 실제 폼 제출 모의로 질병 시작 → 병원 방문 → 약 처방 → 실제 투약 → 체온 기록 → 복약 종료 → 보호자 확인 후 질병 종료까지 검증하도록 확장했다.
