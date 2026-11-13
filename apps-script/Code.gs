@@ -986,21 +986,13 @@ function syncMentalEntry(payload) {
 }
 
 // ==========================================================
-// CHILD ILLNESS HISTORY — isolated, authenticated, versioned.
-// Only private ILLNESS_LOG is written. Never access existing SLEEP_LOG,
-// MENTAL_LOG or CHECKLIST_DB. No dosing rules are inferred here.
-// Configure YUHA_ILLNESS_ACCESS_KEY (12+ strong characters) privately.
+// CHILD ILLNESS HISTORY — same shared app connection (no extra credential).
+// Only ILLNESS_LOG is written; sleep, checklist and mental data are untouched.
+// Any caller permitted by the currently deployed web app can access these
+// illness records. Keep Google deployment settings consistent with this choice.
 // ==========================================================
-const ILLNESS_KEY_PROPERTY_='YUHA_ILLNESS_ACCESS_KEY';
 const ILLNESS_SHEET_='ILLNESS_LOG';
 const ILLNESS_ARCHIVE_='ILLNESS_CONFLICT_ARCHIVE';
-function illnessAuth_(provided){
- const expected=PropertiesService.getScriptProperties().getProperty(ILLNESS_KEY_PROPERTY_);
- if(!expected||expected.length<12)throw new Error('질병 기록 서버 암호가 설정되지 않았습니다. 스크립트 속성 YUHA_ILLNESS_ACCESS_KEY를 설정하세요.');
- const a=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(provided||''),Utilities.Charset.UTF_8);
- const b=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,expected,Utilities.Charset.UTF_8);
- if(a.length!==b.length||!a.every((v,i)=>v===b[i]))throw new Error('질병 기록 서버 접근 암호가 올바르지 않습니다.');
-}
 function illnessText_(v,n){return String(v===null||v===undefined?'':v).slice(0,n);}
 function illnessId_(v){
  const s=illnessText_(v,60);
@@ -1073,7 +1065,7 @@ function illnessSheet_(){
  let sh=ss.getSheetByName(ILLNESS_SHEET_);
  if(!sh){
   sh=ss.insertSheet(ILLNESS_SHEET_);
-  sh.getRange(1,1,1,3).setValues([['질병 ID','비공개 질병 기록 JSON','마지막 수정 revision']]);
+  sh.getRange(1,1,1,3).setValues([['질병 ID','질병 기록 JSON','마지막 수정 revision']]);
   sh.setFrozenRows(1);
   sh.getRange('A1:C1').setFontWeight('bold').setBackground('#d7e9f5');
  }
@@ -1093,8 +1085,7 @@ function illnessAll_(){
  }
  return {sh,records,indices};
 }
-function getIllnessCases(passphrase){
- illnessAuth_(passphrase);
+function getIllnessCases(){
  const data=illnessAll_();
  return {ok:true,cases:data.records,schemaVersion:1};
 }
@@ -1116,7 +1107,6 @@ function illnessArchiveConflict_(id,oldValue,localValue,newValue,revision){
 }
 function syncIllnessCase(payload){
  if(!payload||typeof payload!=='object')throw new Error('질병 기록 저장 요청 오류');
- illnessAuth_(payload.passphrase);
  const incoming=illnessValidateEpisode_(payload.episode);
  const id=incoming.id;
  const expected=String(payload.expectedRevision||'');
