@@ -82,8 +82,6 @@ function guidance(m,now=new Date()){
   return {state:"prn",text:"필요 시 복용 · 마지막 실제 복용 후 입력 간격 참고: "+displayTime(earliest)+" 이후 (복용 지시 확인)",dueAt:earliest};
  }
  if(!last)return {state:"not-started",text:"첫 복용이 기록되면 처방 간격으로 다음 시각을 계산합니다.",dueAt:null};
- if(m.endsAt&&now.getTime()>at(m.endsAt))
-  return {state:"course-end",text:"입력된 처방 기간 종료 시점 지남 · 복용 종료 여부를 처방 지시로 확인",dueAt:null};
  if(!(interval>0))return {state:"invalid",text:"처방 간격 입력 필요 · 자동 알림 없음",dueAt:null};
  const anchor=last.status==="skipped"&&last.scheduledFor?last.scheduledFor:last.at;
  const dueAt=new Date(at(anchor)+interval*3600000).toISOString();
