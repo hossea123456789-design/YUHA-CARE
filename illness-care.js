@@ -274,12 +274,14 @@ function illnessSelect(){
    E(c.title||"질병")+' <small>'+(c.status==="closed"?"종료":"진행 중")+'</small></button>').join("")+'</div>';
 }
 function episodeForm(){
- return card("1. 질병 발생 기록",'<form data-form="episode" class="ill-fields">'+
+ return card("새 질병 시작",(Object.keys(model.cases).length?'<details><summary>다른 질병 기록 추가</summary>':'')+
+ '<form data-form="episode" class="ill-fields">'+
   '<label>증상·질병명<input required name="title" maxlength="80" placeholder="예: 발열 및 기침"></label>'+
   '<label>처음 증상 확인 시각<input required name="onset" type="datetime-local" value="'+localInput(nowIso())+'"></label>'+
   '<label>발생 증상<input name="symptoms" maxlength="350" placeholder="기침, 콧물, 구토 등"></label>'+
   '<label>상세 메모<textarea name="note" rows="2" maxlength="1000"></textarea></label>'+
-  '<button type="submit" class="ill-primary">질병 기록 시작</button></form>');
+  '<button type="submit" class="ill-primary">질병 기록 시작</button></form>'+
+ (Object.keys(model.cases).length?'</details>':''));
 }
 function recordHeading(c){
  const temps=c.temperatures.filter(t=>Number.isFinite(t.celsius));
@@ -296,15 +298,21 @@ function recordHeading(c){
   '<div>복약 지연 표시<strong data-ill-overdue>'+delayed+'건</strong></div></div>'+
   (c.status==="closed"?'<p>종료: '+E(displayTime(c.closedAt))+' · '+E(c.closureNote)+'</p>'+
    '<button class="ill-secondary" data-act="reopen">이 질병 기록 다시 열기</button>':
-   '<div class="ill-row-actions"><button class="ill-secondary" data-act="edit-episode">발생 기록 수정</button></div>'));
+   '<details><summary>질병명 · 발생시점 · 증상 수정</summary>'+
+   '<form data-form="edit-episode" class="ill-fields">'+
+   '<label>질병명<input required maxlength="80" name="title" value="'+attr(c.title)+'"></label>'+
+   '<label>발생 시점<input required name="onset" type="datetime-local" value="'+localInput(c.onsetAt)+'"></label>'+
+   '<label>증상<input maxlength="350" name="symptoms" value="'+attr(c.symptoms)+'"></label>'+
+   '<label>기록 메모<textarea rows="2" name="note" maxlength="1000">'+E(c.note)+'</textarea></label>'+
+   '<button class="ill-secondary" type="submit">수정 저장</button></form></details>'));
 }
 function visitForm(c){
- return card("2. 병원 방문 · 진단",'<form data-form="visit" class="ill-fields">'+
+ return card("2. 병원 방문 · 진단",'<details><summary>병원 방문 추가</summary><form data-form="visit" class="ill-fields">'+
  '<label>방문 시각<input required name="at" type="datetime-local" value="'+localInput(nowIso())+'"></label>'+
  '<label>병원명<input required name="hospital" maxlength="120" placeholder="병원 이름"></label>'+
  '<label>진단명 · 의사 설명<input name="diagnosis" maxlength="200" placeholder="진단명 / 소견"></label>'+
  '<label>처방·주의사항<input name="notes" maxlength="500" placeholder="진료 시 들은 복약/관리 지침"></label>'+
- '<button type="submit" class="ill-primary">병원 방문 저장</button></form>'+
+ '<button type="submit" class="ill-primary">병원 방문 저장</button></form></details>'+
  (c.visits.length?'<div class="ill-history">'+[...c.visits].sort((a,b)=>at(b.at)-at(a.at)).map(v=>
  '<div class="ill-history-item"><b>'+E(v.hospital)+'</b> <small>'+E(displayTime(v.at))+'</small>'+
  '<p>'+E(v.diagnosis||"진단 미입력")+'</p>'+(v.notes?'<p>'+E(v.notes)+'</p>':'')+
@@ -314,7 +322,7 @@ function medicationForm(c){
  const m=c.medications.find(x=>x.id===editMedication)||null;
  const chooseVisit='<option value="">방문 기록 미연결</option>'+c.visits.map(v=>
   '<option value="'+attr(v.id)+'"'+(m?.visitId===v.id?' selected':'')+'>'+E(v.hospital)+' · '+E(displayTime(v.at))+'</option>').join("");
- return card("3. 처방약 · 복용 간격",'<form data-form="medicine" class="ill-fields">'+
+ return card("3. 처방약 · 복용 간격",'<details '+(m?'open':'')+'><summary>'+(m?'처방 수정 중':'처방약 등록')+'</summary><form data-form="medicine" class="ill-fields">'+
  '<input type="hidden" name="editId" value="'+attr(m?.id||"")+'">'+
  '<label>약 종류 프리셋<select name="category">'+medicineOpts(m?.category||"other")+'</select></label>'+
  '<label>정확한 약 이름<input required maxlength="120" name="name" value="'+attr(m?.name||"")+'" placeholder="약 봉투의 제품명을 그대로 입력"></label>'+
@@ -329,7 +337,7 @@ function medicationForm(c){
  '<label>처방 약 봉투 지시 · 주의사항<textarea name="instructions" maxlength="500" rows="2">'+E(m?.instructions||"")+'</textarea></label>'+
  '<button type="submit" class="ill-primary">'+(m?"약 정보 수정 저장":"처방약 등록")+'</button>'+
  (m?'<button type="button" data-act="cancel-edit-med" class="ill-secondary">수정 취소</button>':'')+
- '</form><p class="ill-muted">프리셋은 약 분류만 입력합니다. 복용량·간격은 자동 제안하지 않습니다. 약 이름·용량·간격을 반드시 실제 처방전/약 봉투와 대조하세요.</p>');
+ '</form></details><p class="ill-muted">프리셋은 약 분류만 입력합니다. 복용량·간격은 자동 제안하지 않습니다. 약 이름·용량·간격을 반드시 실제 처방전/약 봉투와 대조하세요.</p>');
 }
 function medicines(c){
  if(!c.medications.length)return card("4. 복약 상태 · 시간 가이드",'<p class="ill-muted">등록된 처방약이 없습니다. 병원 방문과 처방약을 먼저 등록하세요.</p>');
@@ -435,7 +443,7 @@ function render(){
   syncPanel()+
   episodeForm()+
   illnessSelect()+
-  (c?recordHeading(c)+visitForm(c)+medicationForm(c)+medicines(c)+feverHeat(c)+closure(c):
+  (c?recordHeading(c)+medicines(c)+feverHeat(c)+visitForm(c)+medicationForm(c)+closure(c):
    card("기록이 없습니다",'<p class="ill-muted">첫 질병의 발생 시각과 증상을 기록해 시작하세요.</p>'))+
   conflictsView()+'</div>';
  if(!root.dataset.illnessBound){root.dataset.illnessBound="true";
@@ -473,6 +481,12 @@ function onSubmit(e){
   }
   const c=current();need(c,"질병 기록을 먼저 선택해 주세요");
   if(c.status==="closed"&&type!=="close")throw Error("종료된 질병입니다. 기록을 다시 열고 수정해 주세요.");
+  if(type==="edit-episode"){
+   const title=get(form,"title");need(title,"질병 이름을 입력해 주세요");
+   const onsetAt=inputTime(get(form,"onset"));
+   changeCase(c.id,r=>{r.title=title;r.onsetAt=onsetAt;r.symptoms=get(form,"symptoms");r.note=get(form,"note");});
+   return;
+  }
   if(type==="visit"){
    const hospital=get(form,"hospital");need(hospital,"병원명을 입력해 주세요");
    const visit={id:newId(),hospital,at:inputTime(get(form,"at")),diagnosis:get(form,"diagnosis"),notes:get(form,"notes")};
@@ -537,12 +551,6 @@ function onClick(e){
  if(!c)return;
  if(c.status==="closed"&&action!=="reopen"){
   notice="종료된 질병입니다. 기록을 다시 연 뒤 수정해 주세요.";noticeError=true;render();return;
- }
- if(action==="edit-episode"){
-  const title=window.prompt("질병 이름",c.title);if(title===null)return;
-  const symptoms=window.prompt("증상",c.symptoms);if(symptoms===null)return;
-  const note=window.prompt("상세 메모",c.note);if(note===null)return;
-  changeCase(c.id,r=>{r.title=title;r.symptoms=symptoms;r.note=note;});return;
  }
  if(action==="reopen"){
   if(!window.confirm("종료된 질병 기록을 다시 진행 중으로 전환할까요?"))return;
