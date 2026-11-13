@@ -150,7 +150,7 @@ function heatBand(v){
  return "high";
 }
 const model={cases:{},pending:{},conflicts:{},snapshots:[]};
-let loaded=false,selected="",month=isoMonth(nowIso()),connected=false,initialFetchStarted=false,busy=false;
+let loaded=false,selected="",month=isoMonth(nowIso()),temperatureDay=dayKey(nowIso()),connected=false,initialFetchStarted=false,busy=false;
 let active=false,syncEpoch=0;
 let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",timer=null,root=null;
 function persist(){
@@ -511,6 +511,71 @@ function legacyPanel(c){
  return '<details class="ill-legacy"><summary>기존 개별 약 기록 '+c.medications.length+'건 (보존)</summary>'+
   medicines(c)+medicationForm(c)+'</details>';
 }
+// Keep original readings unchanged. A graph is derived from readings on
+// the chosen local calendar day, in actual chronological order.
+function dailyTemperatureReadings(temperatures,date){
+ return (temperatures||[]).filter(t=>dayKey(t.at)===date&&Number.isFinite(t.celsius))
+  .sort((a,b)=>at(a.at)-at(b.at)||String(a.id||"").localeCompare(String(b.id||"")));
+}
+function temperatureTrend(c){
+ const date=temperatureDay,readings=dailyTemperatureReadings(c.temperatures,date);
+ const today=dayKey(nowIso()),selectedToday=date===today;
+ const label=(Number(date.slice(5,7))||0)+"월 "+(Number(date.slice(8,10))||0)+"일";
+ let chart;
+ if(!readings.length){
+  chart='<div class="ill-trend-empty">이날 측정한 체온이 없습니다.<small>체온을 기록하면 시각별 변화가 그래프로 연결됩니다.</small></div>';
+ }else{
+  const left=41,right=339,top=19,bottom=132;
+  const minReading=Math.min(...readings.map(t=>t.celsius)),maxReading=Math.max(...readings.map(t=>t.celsius));
+  let low=Math.max(30,Math.floor((minReading-.35)*2)/2);
+  let high=Math.min(43,Math.ceil((maxReading+.35)*2)/2);
+  if(high-low<.5){low=Math.max(30,minReading-1);high=Math.min(43,maxReading+1);}
+  if(high<=low)high=low+1;
+  const x=t=>{
+   const d=new Date(t.at);
+   const minute=d.getHours()*60+d.getMinutes()+d.getSeconds()/60;
+   return +(left+(right-left)*minute/1440).toFixed(2);
+  };
+  const y=t=>+(bottom-(t-low)/(high-low)*(bottom-top)).toFixed(2);
+  const grid=[low,(low+high)/2,high].map(v=>
+   '<line x1="'+left+'" y1="'+y(v)+'" x2="'+right+'" y2="'+y(v)+'" class="ill-trend-grid"/>'+
+   '<text x="'+(left-7)+'" y="'+(y(v)+3)+'" text-anchor="end" class="ill-trend-axis">'+v.toFixed(1)+'</text>').join("");
+  const ticks=[0,6,12,18,24].map(h=>{
+   const xx=left+(right-left)*h/24;
+   return '<line x1="'+xx+'" y1="'+top+'" x2="'+xx+'" y2="'+bottom+'" class="ill-trend-grid-x"/>'+
+    '<text x="'+xx+'" y="156" text-anchor="middle" class="ill-trend-axis">'+String(h).padStart(2,"0")+'</text>';
+  }).join("");
+  const line=readings.length>1?'<polyline points="'+readings.map(t=>x(t)+','+y(t.celsius)).join(' ')+
+   '" class="ill-trend-line"/>':'';
+  const dots=readings.map((t,i)=>{
+   const time=new Date(t.at).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false});
+   return '<circle cx="'+x(t)+'" cy="'+y(t.celsius)+'" r="'+(i===readings.length-1?5:4)+'" class="ill-trend-dot">'+
+    '<title>'+E(time)+' · '+t.celsius.toFixed(1)+'℃</title></circle>';
+  }).join("");
+  chart='<svg class="ill-trend-svg" viewBox="0 0 356 170" role="img" aria-label="'+label+
+   ' 체온 시각별 변화 그래프, 측정 '+readings.length+'회">'+
+   grid+ticks+line+dots+'</svg>';
+ }
+ const first=readings[0],last=readings[readings.length-1],min=readings.length?Math.min(...readings.map(t=>t.celsius)):null,
+  max=readings.length?Math.max(...readings.map(t=>t.celsius)):null;
+ const stats=readings.length?'<div class="ill-trend-stats"><span>측정 <b>'+readings.length+'회</b></span>'+
+  '<span>최저 <b>'+min.toFixed(1)+'℃</b></span><span>최고 <b>'+max.toFixed(1)+'℃</b></span>'+
+  (readings.length>1?'<span>첫 '+first.celsius.toFixed(1)+' → 최근 <b>'+last.celsius.toFixed(1)+'℃</b></span>':'')+'</div>':'';
+ const recent=[...readings].reverse();
+ const history=recent.length?
+  '<div class="ill-temp-history"><h4>측정 이력 · '+label+' ('+recent.length+'회)</h4>'+
+   recent.map(t=>'<div class="ill-temp-history-row"><time datetime="'+E(t.at)+'">'+
+     E(new Date(t.at).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false}))+
+    '</time><strong>'+t.celsius.toFixed(1)+'℃</strong><span>'+E(SITES[t.site]||"기타")+'</span>'+
+    (t.note?'<small>'+E(t.note)+'</small>':'')+
+    '<button type="button" class="ill-text-danger" data-act="remove-temp" data-id="'+attr(t.id)+'">삭제</button></div>').join("")+
+  '</div>':'';
+ return '<section class="ill-day-trend"><div class="ill-day-trend-head"><h4>'+label+
+   (selectedToday?' · 오늘':'')+' 체온 변화</h4>'+
+   (!selectedToday?'<button type="button" data-act="temp-today" class="ill-secondary">오늘 보기</button>':'')+
+  '</div>'+stats+chart+history+
+  '<p class="ill-muted">실제로 측정한 시점만 연결했습니다. 측정 사이 시간의 체온은 확인할 수 없습니다.</p></section>';
+}
 function feverHeat(c){
  const [y,m]=month.split("-").map(Number);
  const days=new Date(y,m,0).getDate(),first=(new Date(y,m-1,1).getDay()+6)%7;
@@ -519,10 +584,12 @@ function feverHeat(c){
  for(let i=0;i<first;i++)cells+='<span></span>';
  for(let d=1;d<=days;d++){
   const date=month+"-"+String(d).padStart(2,"0"),v=bands[date];
-  cells+='<div class="ill-heat '+heatBand(v)+'" title="'+date+' · '+(v===undefined?"미측정":v.toFixed(1)+"℃")+'">'+d+
-   '<strong>'+(v===undefined?"·":v.toFixed(1))+'</strong></div>';
+  cells+='<button type="button" data-act="temp-day" data-day="'+date+'" aria-pressed="'+(date===temperatureDay?"true":"false")+
+   '" aria-label="'+date+' · '+(v===undefined?"체온 미측정":v.toFixed(1)+"도")+
+   '" class="ill-heat '+heatBand(v)+(date===temperatureDay?' selected':'')+
+   '" title="'+date+' · '+(v===undefined?"미측정":v.toFixed(1)+"℃")+'">'+d+
+   '<strong>'+(v===undefined?"·":v.toFixed(1))+'</strong></button>';
  }
- const rows=[...c.temperatures].sort((a,b)=>at(b.at)-at(a.at));
  return card("체온 · 열 히트맵",
   '<div class="ill-heat-head"><button type="button" data-act="month-prev" aria-label="이전 달">‹</button><strong>'+y+'년 '+m+'월</strong>'+
    '<button type="button" data-act="month-next" aria-label="다음 달">›</button></div>'+
@@ -537,12 +604,8 @@ function feverHeat(c){
    '<label>측정 부위<select name="site">'+siteOpts()+'</select></label>'+
    '<label>메모<input name="note" maxlength="300" placeholder="해열제 전후 등"></label></details>'+
    '</form>':'')+
-  (rows.length?'<details><summary>체온 측정 이력 '+rows.length+'건</summary>'+
-  '<div class="ill-history">'+rows.map(t=>'<div class="ill-history-item">'+E(displayTime(t.at))+
-   ' · <b>'+E(t.celsius?.toFixed(1))+'℃</b> ('+E(SITES[t.site]) +') '+
-   E(t.note)+' <button type="button" class="ill-text-danger" data-act="remove-temp" data-id="'+attr(t.id)+'">삭제</button></div>').join("")+
-   '</div></details>':'')+
-  '<p class="ill-muted">색상은 날짜별 최고 실측값 기준입니다. 측정 부위에 따라 해석이 달라질 수 있습니다.</p>');
+  temperatureTrend(c)+
+  '<p class="ill-muted">달력에서 날짜를 누르면 해당 날짜의 체온 그래프와 측정 이력을 볼 수 있습니다. 색상은 그날의 최고 실측 체온입니다.</p>');
 }
 function closure(c){
  if(c.status==="closed")return "";
@@ -741,6 +804,9 @@ function onSubmit(e){
    const n=parseTemperature(get(form,"celsius"));
    need(n!==null,"체온을 확인해 주세요. 예: 385 → 38.5℃, 38 → 38.0℃");
    const row={id:newId(),at:inputTime(get(form,"at")),celsius:n,site:get(form,"site"),note:get(form,"note")};
+   // Returning to the recorded date makes backdated measurements visible immediately.
+   temperatureDay=dayKey(row.at);
+   month=temperatureDay.slice(0,7);
    changeCase(c.id,r=>r.temperatures.push(row));return;
   }
   if(type==="close"){
@@ -758,7 +824,13 @@ function onSubmit(e){
 function onClick(e){
  const btn=e.target.closest("[data-act]");if(!btn)return;
  const action=btn.dataset.act,id=btn.dataset.id,c=current();
- if(action==="select"){selected=id;editMedication="";month=isoMonth(current()?.onsetAt||nowIso());render();return;}
+ if(action==="select"){
+  selected=id;editMedication="";
+  const c=current();
+  temperatureDay=c?.status==="closed"&&c.temperatures.length?
+   dayKey([...c.temperatures].sort((a,b)=>at(b.at)-at(a.at))[0].at):dayKey(nowIso());
+  month=temperatureDay.slice(0,7);render();return;
+ }
  if(action==="backup"){backup();return;}
  if(action==="add-drug-line"){
   const list=btn.closest(".ill-group-editor")?.querySelector(".ill-group-items");
@@ -777,9 +849,23 @@ function onClick(e){
 
  if(action==="refresh"){if(!busy)void connect();return;}
  if(action==="choose-server"||action==="choose-local"){chooseConflict(id,action==="choose-server"?"server":"local");return;}
+ if(action==="temp-day"){
+  const day=String(btn.dataset.day||"");
+  if(/^\d{4}-\d{2}-\d{2}$/.test(day)){
+   temperatureDay=day;month=day.slice(0,7);render();
+  }
+  return;
+ }
+ if(action==="temp-today"){
+  temperatureDay=dayKey(nowIso());month=temperatureDay.slice(0,7);render();return;
+ }
  if(action==="month-prev"||action==="month-next"){
   const [y,m]=month.split("-").map(Number),d=new Date(y,m-1+(action==="month-prev"?-1:1),1);
-  month=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");render();return;
+  month=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+  const thisMonth=(current()?.temperatures||[]).filter(t=>dayKey(t.at).startsWith(month))
+   .sort((a,b)=>at(b.at)-at(a.at));
+  temperatureDay=thisMonth.length?dayKey(thisMonth[0].at):month+"-01";
+  render();return;
  }
  if(!c)return;
  if(c.status==="closed"&&action!=="reopen"){
@@ -850,5 +936,5 @@ window.addEventListener("online",()=>{
  if(active&&!busy)void connect();
 });
 window.YuhaIllness={render,stop,model,
- _test:{normalize,guidance,groupGuidance,parseTemperature,formatTemperatureInput,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
+ _test:{normalize,guidance,groupGuidance,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
 })();
