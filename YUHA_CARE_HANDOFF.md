@@ -1029,3 +1029,4 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - `tests/illness-care.test.js`: 정기 투약/PRN/미복용·예정 시각, 최고 체온·미기록, 로컬 키 격리, 자동 종료 방지.
 - `tests/illness-api.test.js`: 강력 인증, 신규 독립 시트/기존 시트 불변, 병원·처방·투약·체온 복원, 원본 revision 충돌 및 사용자 선택 충돌 아카이빙, 처방값 검증.
 - 상세 스키마·복약 경고 동작·의료 안전 안내·배포 순서는 [ILLNESS_CARE_SPEC.md](./ILLNESS_CARE_SPEC.md) 참고. GitHub CI 빌드 성공과 **실제 Apps Script 재배포·2기기 실사용** 성공은 구분해 판정한다.
+- 후속 안정화: 질병 상세의 **발생 시각 수정** 지원, 긴 입력폼 접기·복약/체온 우선 배치, 기기 백업 스냅샷을 **최대 12개·약 400KB**로 제한하여 기존 육아 도구와 공유되는 저장소 소진 위험을 줄였다. 스냅샷을 본 기록보다 먼저 저장하고 저장 실패 시 서버 전송을 차단한다. 자동 테스트는 입력 폼을 통해 전체 질병 생성 → 방문 → 처방 → 복용 → 체온 → 완료의 시나리오를 추가했다.
