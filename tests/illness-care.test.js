@@ -92,7 +92,7 @@ function intake(at,status='taken',extra={}){
  const e2=setup();
  e2.window.YuhaIllness.render();
  assert.equal(e2.model.cases[id].title,'발열·콧물');
- for(const label of ['질병 발생 기록','병원 방문','처방약','복용 기록','체온 기록','히트맵','질병 종료'])assert(e2.root.innerHTML.includes(label),label);
+ for(const label of ['새 질병 시작','병원 방문','처방약','복용 기록','체온 기록','히트맵','질병 종료'])assert(e2.root.innerHTML.includes(label),label);
  assert(e2.root.innerHTML.includes('가상병원'));
  assert(e2.root.innerHTML.includes('38.2'));
  assert(!e2.root.innerHTML.includes('실제 처방 용량을 자동 제안하지 않습니다.')); // wording can change
