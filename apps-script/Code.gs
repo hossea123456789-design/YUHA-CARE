@@ -1044,6 +1044,36 @@ function illnessValidateEpisode_(raw){
    mode,doseMl,intervalHours,endsAt:illnessStamp_(m.endsAt,true),
    instructions:illnessText_(m.instructions,500),active:m.active!==false,doses};
  });
+ const medicationGroups=illnessLimitedArray_(raw.medicationGroups,60).map(g=>{
+  const mode=g.mode==='prn'?'prn':'scheduled';
+  const intervalHours=illnessNumber_(g.intervalHours,.5,72,true);
+  if(mode==='scheduled'&&intervalHours===null)throw new Error('정기 복용 묶음의 처방 간격 입력 필요');
+  const validatedItem=item=>{
+   const name=illnessText_(item.name,120);
+   if(!name.trim())throw new Error('복용 묶음에 약 이름 필요');
+   const amount=illnessNumber_(item.amount,.1,100,false);
+   if(Math.abs(amount*10-Math.round(amount*10))>1e-7)throw new Error('투약량은 소수 첫째 자리까지 입력');
+   const unit=['mL','포','정','방울'].includes(item.unit)?item.unit:'mL';
+   return {id:illnessId_(item.id),name,amount,unit};
+  };
+  const items=illnessLimitedArray_(g.items,20).map(validatedItem);
+  if(!items.length)throw new Error('복용 묶음에 약 하나 이상 필요');
+  const ids=new Set(items.map(item=>item.id));
+  if(ids.size!==items.length)throw new Error('복용 묶음 내 약 ID 중복');
+  const events=illnessLimitedArray_(g.events,1000).map(d=>{
+   const status=d.status==='skipped'?'skipped':'taken';
+   const recorded=illnessLimitedArray_(d.items,20).map(validatedItem);
+   return {id:illnessId_(d.id),at:illnessStamp_(d.at,false),
+    status,note:illnessText_(d.note,300),
+    scheduledFor:illnessStamp_(d.scheduledFor,true),
+    items:status==='skipped'?[]:recorded};
+  });
+  return {id:illnessId_(g.id),name:illnessText_(g.name,80),
+   visitId:illnessText_(g.visitId,60),mode,intervalHours,
+   endsAt:illnessStamp_(g.endsAt,true),active:g.active!==false,items,events};
+ });
+ if(new Set(medicationGroups.map(g=>g.id)).size!==medicationGroups.length)
+  throw new Error('복용 묶음 ID 중복');
  const temperatures=illnessLimitedArray_(raw.temperatures,1200).map(t=>({
   id:illnessId_(t.id),at:illnessStamp_(t.at,false),
   celsius:illnessNumber_(t.celsius,30,43,false),
@@ -1056,7 +1086,7 @@ function illnessValidateEpisode_(raw){
   recoveryConfirmed:raw.recoveryConfirmed===true,
   noFurtherMedicationConfirmed:raw.noFurtherMedicationConfirmed===true,
   closureNote:illnessText_(raw.closureNote,500),
-  visits,medications:meds,temperatures};
+  visits,medications:meds,medicationGroups,temperatures};
  if(JSON.stringify(value).length>150000)throw new Error('질병 기록 JSON 크기 제한 초과');
  return value;
 }
