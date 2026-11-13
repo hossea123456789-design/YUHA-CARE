@@ -336,7 +336,7 @@ function recordHeading(c){
  return '<section class="ill-episode-strip"><div><strong>'+E(c.title)+'</strong> '+
   '<small>'+(c.status==="closed"?"종료":"진행 중")+' · '+E(fullDate(c.onsetAt))+'</small></div>'+
   '<div class="ill-episode-facts"><span>최근 '+(latest?latest.celsius.toFixed(1)+'℃':'체온 미기록')+'</span>'+
-  (delayed?'<span class="ill-missed">복약 예정 확인 '+delayed+'건</span>':'')+'</div>'+
+  '<span class="ill-missed" data-ill-overdue>'+delayed+'건 복약 예정 확인</span></div>'+
   (c.status==="closed"?'<button class="ill-secondary" data-act="reopen">질병 기록 다시 열기</button>':
   '<details><summary>질병 발생 시각·증상 수정</summary><form data-form="edit-episode" class="ill-fields">'+
   '<label>질병명<input required maxlength="80" name="title" value="'+attr(c.title)+'"></label>'+
@@ -453,11 +453,12 @@ function medicationGroupForm(c){
   '</form></details>');
 }
 function groupPanel(c){
- const all=[...c.medicationGroups].sort((a,b)=>(b.active?1:0)-(a.active?1:0));
- if(!all.length)return card("현재 복용 중인 약 · 묶음",
+ const all=c.medicationGroups.filter(g=>g.active);
+ const finished=c.medicationGroups.filter(g=>!g.active);
+ if(!all.length&&!finished.length)return card("현재 복용 중인 약 · 묶음",
   '<div class="ill-empty"><strong>등록된 약이 없습니다</strong><p>같이 복용하는 약의 이름과 1회량만 등록하세요. 복용 기록은 묶음 단위로 남깁니다.</p>'+
   '<button class="ill-primary" data-act="go-group" type="button">+ 복용 묶음 만들기</button></div>');
- const sections=all.map(g=>{
+ const renderGroup=g=>{
   const info=groupGuidance(g),history=[...g.events].sort((a,b)=>at(b.at)-at(a.at));
   const items=g.items.map(item=>'<li><span>'+E(item.name)+'</span><strong>'+E(doseLabel(item.amount,item.unit))+'</strong></li>').join("");
   return '<article data-ill-group-id="'+attr(g.id)+'" class="ill-group '+info.state+'">'+
@@ -485,8 +486,11 @@ function groupPanel(c){
     (d.note?' · '+E(d.note):'')+
     '<button type="button" data-act="remove-group-event" data-id="'+attr(d.id)+'" data-group="'+attr(g.id)+'" class="ill-text-danger">삭제</button></div>').join("")+'</div>':'')+
    '</details></article>';
- }).join("");
- return card("현재 복용 중인 약 · 묶음",sections+
+ };
+ const sections=all.map(renderGroup).join("");
+ const past=finished.length?'<details class="ill-group-past"><summary>복용 종료한 묶음 '+finished.length+'개</summary>'+
+   finished.map(renderGroup).join("")+'</details>':'';
+ return card("현재 복용 중인 약 · 묶음",sections+past+
  '<p class="ill-muted">‘묶음 전체 복용 완료’는 표시된 약을 모두 실제 복용한 경우에만 누르세요. 일부만 먹었다면 묶음을 나눠서 기록하세요.</p>');
 }
 function legacyPanel(c){
@@ -596,7 +600,7 @@ function refreshStatusText(){
   const message=node.querySelector(".ill-guidance");if(message)message.textContent=next.text;
  }
  const count=root.querySelector("[data-ill-overdue]");
- if(count)count.textContent=missed+"건";
+ if(count){count.textContent=missed+"건 복약 예정 확인";count.style.display=missed?"":"none";}
 }
 function stop(){if(timer){clearInterval(timer);timer=null;}
  root=null;active=false;initialFetchStarted=false;connected=false;
@@ -654,12 +658,13 @@ function onSubmit(e){
     mode,intervalHours:interval,endsAt:ends?inputTime(ends):"",
     visitId:get(form,"visitId"),items
    };
+   editGroup="";
    changeCase(c.id,r=>{
     const currentGroup=r.medicationGroups.find(g=>g.id===editId);
     if(currentGroup)Object.assign(currentGroup,group);
     else r.medicationGroups.push({id:newId(),...group,active:true,events:[]});
    });
-   editGroup="";return;
+   return;
   }
   if(type==="group-dose"){
    const id=get(form,"groupId"),g=c.medicationGroups.find(g=>g.id===id&&g.active);
