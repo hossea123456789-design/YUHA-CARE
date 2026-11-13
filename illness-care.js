@@ -532,7 +532,7 @@ function feverHeat(c){
 }
 function closure(c){
  if(c.status==="closed")return "";
- const active=c.medications.filter(m=>m.active);
+ const active=[...c.medications.filter(m=>m.active),...c.medicationGroups.filter(g=>g.active)];
  return card("질병 종료",
   '<p class="ill-muted">열·증상이 정상화되었는지 직접 확인하고, 처방된 복용 과정이 끝났거나 더 이상 복용하지 않아도 된다는 의료진 지시를 확인한 뒤 종료하세요. 체온 하나만 보고 처방약을 중단하지 않습니다.</p>'+
   (active.length?'<p class="ill-alert">아직 복용 중으로 표시된 약 '+active.length+'개가 있습니다. 처방 완료·중단 지시 확인 후 각 약에서 ‘복용 종료 표시’를 진행하세요.</p>':'')+
@@ -634,6 +634,49 @@ function onSubmit(e){
    const visit={id:newId(),hospital,at:inputTime(get(form,"at")),diagnosis:get(form,"diagnosis"),notes:get(form,"notes")};
    changeCase(c.id,r=>r.visits.push(visit));return;
   }
+  if(type==="group"){
+   const data=new FormData(form);
+   const names=data.getAll("drugName"),amounts=data.getAll("drugAmount"),
+    units=data.getAll("drugUnit");
+   need(names.length>0&&names.length===amounts.length&&names.length===units.length&&names.length<=20,
+    "약 이름과 1회량을 모두 입력해 주세요");
+   const editId=get(form,"editGroupId"),old=c.medicationGroups.find(g=>g.id===editId);
+   const items=names.map((name,i)=>{
+    const amount=num(amounts[i]),unit=String(units[i]||"mL");
+    need(String(name||"").trim(),"약 이름을 입력해 주세요");
+    need(validAmount(amount),"처방된 1회량을 소수 첫째 자리까지 확인해 주세요");
+    need(MED_UNITS.includes(unit),"복용 단위를 선택해 주세요");
+    return {id:old?.items[i]?.id||newId(),name:String(name).trim(),amount,unit};
+   });
+   const mode=get(form,"mode")==="prn"?"prn":"scheduled",interval=num(get(form,"intervalHours"));
+   need(mode==="prn"||interval!==null,"정기 복용 묶음의 처방 간격(시간)을 입력해 주세요");
+   need(interval===null||(interval>=.5&&interval<=72),"처방 간격을 확인해 주세요 (0.5~72시간)");
+   const ends=get(form,"endsAt"),group={
+    name:get(form,"groupName")||"복용 묶음 "+(c.medicationGroups.length+1),
+    mode,intervalHours:interval,endsAt:ends?inputTime(ends):"",
+    visitId:get(form,"visitId"),items
+   };
+   changeCase(c.id,r=>{
+    const currentGroup=r.medicationGroups.find(g=>g.id===editId);
+    if(currentGroup)Object.assign(currentGroup,group);
+    else r.medicationGroups.push({id:newId(),...group,active:true,events:[]});
+   });
+   editGroup="";return;
+  }
+  if(type==="group-dose"){
+   const id=get(form,"groupId"),g=c.medicationGroups.find(g=>g.id===id&&g.active);
+   need(g,"활성 복용 묶음을 선택해 주세요");
+   const status=get(form,"status")==="skipped"?"skipped":"taken";
+   need(status!=="skipped"||(g.mode==="scheduled"&&g.events.some(d=>d.status==="taken")),
+    "정기 복용의 첫 실제 복용 이후에만 미복용을 기록할 수 있습니다");
+   const time=inputTime(get(form,"at"));
+   const next=groupGuidance(g,new Date(time));
+   const evt={id:newId(),at:time,status,note:get(form,"note"),
+    scheduledFor:status==="skipped"&&next.dueAt?next.dueAt:"",
+    items:status==="taken"?clone(g.items):[]};
+   changeCase(c.id,r=>r.medicationGroups.find(x=>x.id===id).events.push(evt));
+   return;
+  }
   if(type==="medicine"){
    const category=get(form,"category"),name=get(form,"name"),mode=get(form,"mode")==="prn"?"prn":"scheduled";
    const dose=num(get(form,"doseMl")),interval=num(get(form,"intervalHours"));
@@ -663,13 +706,15 @@ function onSubmit(e){
    changeCase(c.id,r=>r.medications.find(x=>x.id===id).doses.push(log));return;
   }
   if(type==="temp"){
-   const n=num(get(form,"celsius"));need(n!==null&&n>=30&&n<=43,"체온은 30~43℃ 사이 숫자로 입력해 주세요");
+   const n=parseTemperature(get(form,"celsius"));
+   need(n!==null,"체온을 확인해 주세요. 예: 385 → 38.5℃, 38 → 38.0℃");
    const row={id:newId(),at:inputTime(get(form,"at")),celsius:n,site:get(form,"site"),note:get(form,"note")};
    changeCase(c.id,r=>r.temperatures.push(row));return;
   }
   if(type==="close"){
    need(c.status==="active","이미 종료된 질병입니다");
-   need(!c.medications.some(m=>m.active),"아직 복용 중으로 표시된 약이 있습니다");
+   need(!c.medications.some(m=>m.active)&&!c.medicationGroups.some(g=>g.active),
+    "아직 복용 중으로 표시된 약 또는 묶음이 있습니다");
    need(new FormData(form).get("recovered")==="on"&&new FormData(form).get("done")==="on",
     "상태 정상화와 처방 종료를 확인해 주세요");
    if(!window.confirm("필요한 복약 일정이 종료되었다고 직접 확인하셨나요? 기록 종료는 처방약 중단 지시를 대신하지 않습니다."))return;
@@ -683,6 +728,21 @@ function onClick(e){
  const action=btn.dataset.act,id=btn.dataset.id,c=current();
  if(action==="select"){selected=id;editMedication="";month=isoMonth(current()?.onsetAt||nowIso());render();return;}
  if(action==="backup"){backup();return;}
+ if(action==="add-drug-line"){
+  const list=btn.closest(".ill-group-editor")?.querySelector(".ill-group-items");
+  if(list&&list.querySelectorAll("[data-group-item]").length<20)
+   list.insertAdjacentHTML("beforeend",groupItemRow());
+  return;
+ }
+ if(action==="remove-drug-line"){
+  const line=btn.closest("[data-group-item]"),list=line?.parentElement;
+  if(list?.querySelectorAll("[data-group-item]").length>1)line.remove();
+  else if(line){
+   for(const input of line.querySelectorAll("input"))input.value="";
+  }
+  return;
+ }
+
  if(action==="refresh"){if(!busy)void connect();return;}
  if(action==="choose-server"||action==="choose-local"){chooseConflict(id,action==="choose-server"?"server":"local");return;}
  if(action==="month-prev"||action==="month-next"){
@@ -693,6 +753,43 @@ function onClick(e){
  if(c.status==="closed"&&action!=="reopen"){
   notice="종료된 질병입니다. 기록을 다시 연 뒤 수정해 주세요.";noticeError=true;render();return;
  }
+ if(action==="go-group"){
+  const form=root?.querySelector(".ill-group-editor");
+  if(form){form.open=true;form.scrollIntoView({block:"start",behavior:"smooth"});}
+  return;
+ }
+ if(action==="edit-group"){
+  editGroup=id;render();
+  const form=root?.querySelector(".ill-group-editor");
+  if(form){form.open=true;form.scrollIntoView({block:"start",behavior:"smooth"});}
+  return;
+ }
+ if(action==="cancel-edit-group"){editGroup="";render();return;}
+ if(action==="take-group"){
+  const group=c.medicationGroups.find(g=>g.id===id&&g.active);
+  if(!group)return;
+  const evt={id:newId(),at:nowIso(),status:"taken",note:"",
+   scheduledFor:"",items:clone(group.items)};
+  changeCase(c.id,r=>r.medicationGroups.find(g=>g.id===id).events.push(evt));
+  return;
+ }
+ if(action==="end-group"||action==="resume-group"){
+  if(!window.confirm(action==="end-group"?
+   "묶음 안 모든 약이 처방대로 완료되었거나 중단 지시를 확인했나요?":
+   "이 묶음을 복용 중으로 다시 표시할까요?"))return;
+  changeCase(c.id,r=>{
+   const group=r.medicationGroups.find(g=>g.id===id);
+   if(group)group.active=action==="resume-group";
+  });return;
+ }
+ if(action==="remove-group-event"){
+  if(!window.confirm("이 묶음 복용 기록을 삭제할까요? 삭제 전 원본은 스냅샷에 보존됩니다."))return;
+  changeCase(c.id,r=>{
+   const group=r.medicationGroups.find(g=>g.id===btn.dataset.group);
+   if(group)group.events=group.events.filter(v=>v.id!==id);
+  });return;
+ }
+
  if(action==="reopen"){
   if(!window.confirm("종료된 질병 기록을 다시 진행 중으로 전환할까요?"))return;
   changeCase(c.id,r=>{r.status="active";r.closedAt="";r.recoveryConfirmed=false;
