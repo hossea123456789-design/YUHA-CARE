@@ -985,6 +985,169 @@ function syncMentalEntry(payload) {
   }finally{lock.releaseLock();}
 }
 
+// ==========================================================
+// CHILD ILLNESS HISTORY — isolated, authenticated, versioned.
+// Only private ILLNESS_LOG is written. Never access existing SLEEP_LOG,
+// MENTAL_LOG or CHECKLIST_DB. No dosing rules are inferred here.
+// Configure YUHA_ILLNESS_ACCESS_KEY (12+ strong characters) privately.
+// ==========================================================
+const ILLNESS_KEY_PROPERTY_='YUHA_ILLNESS_ACCESS_KEY';
+const ILLNESS_SHEET_='ILLNESS_LOG';
+const ILLNESS_ARCHIVE_='ILLNESS_CONFLICT_ARCHIVE';
+function illnessAuth_(provided){
+ const expected=PropertiesService.getScriptProperties().getProperty(ILLNESS_KEY_PROPERTY_);
+ if(!expected||expected.length<12)throw new Error('질병 기록 서버 암호가 설정되지 않았습니다. 스크립트 속성 YUHA_ILLNESS_ACCESS_KEY를 설정하세요.');
+ const a=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(provided||''),Utilities.Charset.UTF_8);
+ const b=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,expected,Utilities.Charset.UTF_8);
+ if(a.length!==b.length||!a.every((v,i)=>v===b[i]))throw new Error('질병 기록 서버 접근 암호가 올바르지 않습니다.');
+}
+function illnessText_(v,n){return String(v===null||v===undefined?'':v).slice(0,n);}
+function illnessId_(v){
+ const s=illnessText_(v,60);
+ if(!/^i[a-zA-Z0-9_]+$/.test(s))throw new Error('질병 기록 ID 형식 오류');
+ return s;
+}
+function illnessStamp_(v,optional){
+ const s=illnessText_(v,32);
+ if(optional&&!s)return '';
+ if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(s)||
+    !Number.isFinite(Date.parse(s)))throw new Error('날짜·시각 형식 오류');
+ return s;
+}
+function illnessNumber_(v,low,high,optional){
+ if((v===null||v===undefined||v==='')&&optional)return null;
+ const n=Number(v);
+ if(!Number.isFinite(n)||n<low||n>high)throw new Error('입력한 용량·간격·체온 범위 확인 필요');
+ return n;
+}
+function illnessLimitedArray_(a,limit){
+ if(!Array.isArray(a))return [];
+ if(a.length>limit)throw new Error('한 질병에 저장할 기록이 너무 많습니다');
+ return a;
+}
+function illnessValidateEpisode_(raw){
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('질병 기록 형식 오류');
+ const id=illnessId_(raw.id),title=illnessText_(raw.title,80);
+ if(!title.trim())throw new Error('질병 이름 필요');
+ const visits=illnessLimitedArray_(raw.visits,80).map(v=>({
+  id:illnessId_(v.id),at:illnessStamp_(v.at,false),
+  hospital:illnessText_(v.hospital,120),diagnosis:illnessText_(v.diagnosis,200),
+  notes:illnessText_(v.notes,500)
+ }));
+ const meds=illnessLimitedArray_(raw.medications,80).map(m=>{
+  const mode=m.mode==='prn'?'prn':'scheduled';
+  const doseMl=illnessNumber_(m.doseMl,.1,100,false);
+  const intervalHours=illnessNumber_(m.intervalHours,.5,72,true);
+  if(mode==='scheduled'&&intervalHours===null)throw new Error('정기 처방의 간격 입력 필요');
+  if(!illnessText_(m.name,120).trim())throw new Error('약 이름 필요');
+  const doses=illnessLimitedArray_(m.doses,900).map(d=>({
+   id:illnessId_(d.id),at:illnessStamp_(d.at,false),
+   status:d.status==='skipped'?'skipped':'taken',
+   amountMl:d.status==='skipped'?null:illnessNumber_(d.amountMl,.1,100,false),
+   note:illnessText_(d.note,300),scheduledFor:illnessStamp_(d.scheduledFor,true)
+  }));
+  return {id:illnessId_(m.id),visitId:illnessText_(m.visitId,60),
+   category:illnessText_(m.category,50),name:illnessText_(m.name,120),
+   ingredient:illnessText_(m.ingredient,120),formulation:illnessText_(m.formulation,120),
+   mode,doseMl,intervalHours,endsAt:illnessStamp_(m.endsAt,true),
+   instructions:illnessText_(m.instructions,500),active:m.active!==false,doses};
+ });
+ const temperatures=illnessLimitedArray_(raw.temperatures,1200).map(t=>({
+  id:illnessId_(t.id),at:illnessStamp_(t.at,false),
+  celsius:illnessNumber_(t.celsius,30,43,false),
+  site:illnessText_(t.site,30),note:illnessText_(t.note,300)
+ }));
+ const value={id,title,onsetAt:illnessStamp_(raw.onsetAt,false),
+  symptoms:illnessText_(raw.symptoms,350),note:illnessText_(raw.note,1000),
+  status:raw.status==='closed'?'closed':'active',
+  closedAt:illnessStamp_(raw.closedAt,true),
+  recoveryConfirmed:raw.recoveryConfirmed===true,
+  noFurtherMedicationConfirmed:raw.noFurtherMedicationConfirmed===true,
+  closureNote:illnessText_(raw.closureNote,500),
+  visits,medications:meds,temperatures};
+ if(JSON.stringify(value).length>150000)throw new Error('질병 기록 JSON 크기 제한 초과');
+ return value;
+}
+function illnessSheet_(){
+ const ss=SpreadsheetApp.getActiveSpreadsheet();
+ let sh=ss.getSheetByName(ILLNESS_SHEET_);
+ if(!sh){
+  sh=ss.insertSheet(ILLNESS_SHEET_);
+  sh.getRange(1,1,1,3).setValues([['질병 ID','비공개 질병 기록 JSON','마지막 수정 revision']]);
+  sh.setFrozenRows(1);
+  sh.getRange('A1:C1').setFontWeight('bold').setBackground('#d7e9f5');
+ }
+ return sh;
+}
+function illnessAll_(){
+ const sh=illnessSheet_(),last=sh.getLastRow(),records={};
+ if(last<=1)return {sh,records,indices:{}};
+ const rows=sh.getRange(2,1,last-1,3).getValues(),indices={};
+ for(let i=0;i<rows.length;i++){
+  const id=String(rows[i][0]||'');if(!id)continue;
+  const data=JSON.parse(String(rows[i][1]||''));
+  const safe=illnessValidateEpisode_(data);
+  if(safe.id!==id||records[id])throw new Error('서버 질병 데이터 ID 중복/불일치 · 수정 중단');
+  records[id]={...safe,revision:String(rows[i][2]||'')};
+  indices[id]=i+2;
+ }
+ return {sh,records,indices};
+}
+function getIllnessCases(passphrase){
+ illnessAuth_(passphrase);
+ const data=illnessAll_();
+ return {ok:true,cases:data.records,schemaVersion:1};
+}
+function illnessArchiveConflict_(id,oldValue,localValue,newValue,revision){
+ const ss=SpreadsheetApp.getActiveSpreadsheet();
+ let sh=ss.getSheetByName(ILLNESS_ARCHIVE_);
+ if(!sh){
+  sh=ss.insertSheet(ILLNESS_ARCHIVE_);
+  sh.getRange(1,1,1,7).setValues([['UTC 백업 시각','질병 ID','기존 revision',
+   '서버 원본 JSON','기기 원본 JSON','사용자가 선택한 최종 JSON','확인 상태']]);
+  sh.setFrozenRows(1);
+  sh.getRange('A1:G1').setFontWeight('bold');
+ }
+ const at=new Date().toISOString();
+ sh.appendRow([at,id,revision,JSON.stringify(oldValue),JSON.stringify(localValue),
+  JSON.stringify(newValue),'user-confirmed-local']);
+ SpreadsheetApp.flush();
+ return true;
+}
+function syncIllnessCase(payload){
+ if(!payload||typeof payload!=='object')throw new Error('질병 기록 저장 요청 오류');
+ illnessAuth_(payload.passphrase);
+ const incoming=illnessValidateEpisode_(payload.episode);
+ const id=incoming.id;
+ const expected=String(payload.expectedRevision||'');
+ const resolution=payload.resolution||null;
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(5000))return {ok:false,busy:true,message:'서버에 다른 기록을 저장 중입니다'};
+ try{
+  const data=illnessAll_(),old=data.records[id]||null;
+  const oldRevision=old?.revision||'',row=data.indices[id]||data.sh.getLastRow()+1;
+  if(oldRevision!==expected){
+   return {ok:true,conflict:true,serverEntry:old,serverRevision:oldRevision};
+  }
+  if(resolution&&(resolution.confirmed!==true||
+    String(resolution.serverRevision||'')!==oldRevision||
+    !resolution.localOriginal||illnessId_(resolution.localOriginal.id)!==id))
+    return {ok:true,conflict:true,serverEntry:old,serverRevision:oldRevision};
+  const original=old?illnessValidateEpisode_(old):null;
+  const unchanged=original&&JSON.stringify(original)===JSON.stringify(incoming);
+  let archived=false;
+  if(resolution){
+   archived=illnessArchiveConflict_(id,old,resolution.localOriginal,incoming,oldRevision);
+  }
+  if(unchanged)return {ok:true,unchanged:true,revision:oldRevision,
+   conflictArchived:archived};
+  const revision=new Date().toISOString()+'-'+Utilities.getUuid().slice(0,8);
+  data.sh.getRange(row,1,1,3).setValues([[id,JSON.stringify(incoming),revision]]);
+  SpreadsheetApp.flush();
+  return {ok:true,revision,conflictArchived:archived};
+ }finally{lock.releaseLock();}
+}
+
 const YUHA_ALLOWED_ORIGIN_ = 'https://hossea123456789-design.github.io';
 
 function serveYuhaBridge_(e) {
@@ -993,7 +1156,7 @@ function serveYuhaBridge_(e) {
   if (origin !== YUHA_ALLOWED_ORIGIN_ || !/^[a-zA-Z0-9_-]{16,128}$/.test(nonce)) {
     return HtmlService.createHtmlOutput('Invalid bridge parameters');
   }
-  const html = "<!DOCTYPE html>\n<html lang=\"ko\">\n<head><base target=\"_top\"><meta charset=\"UTF-8\"><title>유하 DB 연결</title></head>\n<body>\n<script>\n(() => {\n  'use strict';\n  const ORIGIN = __YUHA_TRUSTED_ORIGIN_JSON__;\n  const NONCE = __YUHA_BRIDGE_NONCE_JSON__;\n  const ALLOWED = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges','getMentalMonth','syncMentalEntry','reportMentalClientEvents','getMentalAuditLog']);\n  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }\n  window.addEventListener('message',event=>{\n    if(event.origin !== ORIGIN) return;\n    const msg=event.data;\n    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;\n    if(typeof msg.id!=='string'||!/^\\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;\n    const args=Array.isArray(msg.args)?msg.args:[];\n    try{\n      google.script.run\n        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))\n        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))\n        [msg.method](...args);\n    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}\n  });\n  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.\n  send({type:'ready'});\n  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});\n})();\n</script>\n</body></html>";
+  const html = "<!DOCTYPE html>\n<html lang=\"ko\">\n<head><base target=\"_top\"><meta charset=\"UTF-8\"><title>유하 DB 연결</title></head>\n<body>\n<script>\n(() => {\n  'use strict';\n  const ORIGIN = __YUHA_TRUSTED_ORIGIN_JSON__;\n  const NONCE = __YUHA_BRIDGE_NONCE_JSON__;\n  const ALLOWED = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges','getMentalMonth','syncMentalEntry','reportMentalClientEvents','getMentalAuditLog','getIllnessCases','syncIllnessCase']);\n  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }\n  window.addEventListener('message',event=>{\n    if(event.origin !== ORIGIN) return;\n    const msg=event.data;\n    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;\n    if(typeof msg.id!=='string'||!/^\\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;\n    const args=Array.isArray(msg.args)?msg.args:[];\n    try{\n      google.script.run\n        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))\n        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))\n        [msg.method](...args);\n    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}\n  });\n  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.\n  send({type:'ready'});\n  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});\n})();\n</script>\n</body></html>";
   return HtmlService.createHtmlOutput(html
     .replace('__YUHA_TRUSTED_ORIGIN_JSON__', JSON.stringify(origin))
     .replace('__YUHA_BRIDGE_NONCE_JSON__', JSON.stringify(nonce)))
