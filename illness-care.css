@@ -1,0 +1,63 @@
+/* YUHA-CARE illness journal — independent from mental/sleep styles. */
+.ill-root{display:flex;flex-direction:column;gap:13px;color:#243544}
+.ill-heading h2{font-size:20px;line-height:1.25;margin:0 0 5px;letter-spacing:-.4px}
+.ill-heading p{font-size:12px;color:#64788b;margin:0}
+.ill-card{background:#fff;border:1px solid #dae5ef;border-radius:16px;padding:15px 13px;min-width:0}
+.ill-card h3{font-size:15px;font-weight:800;margin:0 0 12px;color:#29546b}
+.ill-card h4{font-size:13px;margin:8px 0 0}
+.ill-card p{font-size:12px;line-height:1.6;margin:8px 0;overflow-wrap:anywhere}
+.ill-alert{background:#fff6e8;border:1px solid #f2d6a7;color:#775022;border-radius:12px;font-size:12px;line-height:1.65;padding:10px 12px;overflow-wrap:anywhere}
+.ill-muted{font-size:11px;color:#688092;line-height:1.65;overflow-wrap:anywhere}
+.ill-fields{display:flex;flex-direction:column;gap:11px;margin:10px 0}
+.ill-fields label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:720;color:#3f5c6d;min-width:0}
+.ill-fields input,.ill-fields select,.ill-fields textarea{border:1px solid #d3e0e8;border-radius:10px;min-width:0;width:100%;font-family:inherit;font-size:14px;padding:10px 11px;background:#fff;color:#213947;line-height:1.45}
+.ill-fields input:focus,.ill-fields textarea:focus,.ill-fields select:focus{outline:2px solid #a1cee6;outline-offset:1px}
+.ill-fields textarea{resize:vertical}
+.ill-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ill-check{display:flex!important;flex-direction:row!important;align-items:flex-start!important;gap:8px!important;font-weight:570!important;line-height:1.5}
+.ill-check input{width:17px;height:17px;min-width:17px;margin:1px 0}
+.ill-primary,.ill-secondary{border:0;border-radius:11px;min-height:40px;padding:10px 13px;font-size:13px;font-weight:780;cursor:pointer}
+.ill-primary{background:#206d91;color:#fff}
+.ill-secondary{background:#e5f2f8;color:#285a71}
+.ill-primary:disabled{opacity:.4;cursor:default}
+.ill-row-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:9px}
+.ill-row-actions button{border:1px solid #c6dce8;border-radius:9px;background:#f5fafe;color:#30637c;cursor:pointer;padding:7px 10px;font-weight:700;font-size:11px}
+.ill-row-actions button:active,.ill-chips button:active{transform:scale(.98)}
+.ill-chips{display:flex;overflow-x:auto;gap:7px;padding:4px 0 3px;scrollbar-width:thin}
+.ill-chips button{flex:0 0 auto;max-width:220px;display:flex;align-items:center;gap:6px;border:1px solid #d2e2eb;border-radius:999px;background:#f1f6f8;color:#3e6377;padding:9px 11px;font-size:12px;font-weight:720}
+.ill-chips button.current{background:#267395;color:white;border-color:#267395}
+.ill-chips small{font-size:10px;opacity:.78}
+.ill-summary{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.ill-summary>b,.ill-summary>strong{font-size:14px;overflow-wrap:anywhere}
+.ill-tag{border-radius:99px;background:#e9f0f4;color:#466a7a;padding:4px 7px;font-size:10px;font-weight:740;white-space:nowrap}
+.ill-tag.active{background:#e0f3eb;color:#23805e}
+.ill-tag.closed{background:#f0eef2;color:#746879}
+.ill-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:12px 0}
+.ill-kpis div{display:flex;flex-direction:column;gap:6px;font-size:10px;color:#6c8395;background:#f4f8fb;border:1px solid #ebf1f5;padding:10px;border-radius:10px}
+.ill-kpis strong{font-size:18px;color:#205573;line-height:1.2}
+.ill-history{display:flex;flex-direction:column;gap:7px;margin-top:9px}
+.ill-history-item{border:1px solid #e1e9ef;border-radius:10px;background:#f9fbfc;padding:9px 10px;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.ill-history-item small{color:#7e8f99;font-size:10px}
+.ill-history-item p{margin:3px 0}
+.ill-text-danger{display:inline-block;border:0;border-radius:8px;padding:4px 7px;margin-left:5px;background:#ffecee;color:#a52f47;font-size:10px;font-weight:760;cursor:pointer}
+.ill-card details{border-top:1px solid #e8edf1;margin-top:10px;padding-top:10px}
+.ill-card details summary{font-size:12px;font-weight:700;color:#356a87;cursor:pointer;min-height:28px}
+.ill-med{border:1px solid #dce9f0;background:#f8fbfd;padding:11px;border-radius:12px;margin-bottom:9px}
+.ill-med.overdue{border-color:#eeadb6;background:#fff5f6}
+.ill-med.upcoming{border-color:#c3dfdb;background:#f4fcf8}
+.ill-med.course-end{border-color:#e9d69a;background:#fff9eb}
+.ill-med .ill-guidance{color:#36586e;font-size:12px;font-weight:720}
+.ill-med.overdue .ill-guidance{color:#ae2844}
+.ill-med small{font-size:10px;color:#6b8597}
+.ill-heat-head{display:flex;align-items:center;justify-content:center;gap:17px;margin:10px 0}
+.ill-heat-head button{width:33px;height:33px;border:0;background:#e8f3f8;border-radius:9px;color:#205c78;font-size:20px;cursor:pointer}
+.ill-heat-head strong{font-size:13px}
+.ill-heat-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;max-width:420px;margin:0 auto 8px}
+.ill-dow{text-align:center;font-size:10px;color:#708999;font-weight:700;padding:4px 0}
+.ill-heat{border-radius:8px;min-height:45px;padding:5px 0;display:flex;flex-direction:column;justify-content:space-between;align-items:center;font-size:10px;font-weight:720;color:#5e7688;background:#f3f5f7;min-width:0}
+.ill-heat strong{font-variant-numeric:tabular-nums;font-size:11px}
+.ill-heat.normal{background:#dff5e8;color:#23684c}
+.ill-heat.warm{background:#fff0bc;color:#7f5d16}
+.ill-heat.fever{background:#ffd1ab;color:#a34f25}
+.ill-heat.high{background:#ffd0d4;color:#a32640}
+@media(max-width:370px){.ill-card{padding:12px 10px}.ill-two{gap:5px}.ill-fields input,.ill-fields select,.ill-fields textarea{font-size:13px;padding:9px 8px}.ill-heat{min-height:41px}.ill-heat strong{font-size:10px}}
