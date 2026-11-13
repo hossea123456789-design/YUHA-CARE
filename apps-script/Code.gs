@@ -1117,7 +1117,7 @@ function illnessAll_(){
 }
 function getIllnessCases(){
  const data=illnessAll_();
- return {ok:true,cases:data.records,schemaVersion:1};
+ return {ok:true,cases:data.records,schemaVersion:2};
 }
 function illnessArchiveConflict_(id,oldValue,localValue,newValue,revision){
  const ss=SpreadsheetApp.getActiveSpreadsheet();
