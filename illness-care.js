@@ -42,6 +42,15 @@ function parseTemperature(raw){
  else return null;
  return n>=30&&n<=43?n:null;
 }
+// Show the converted temperature IN the input as soon as 3 digits are entered.
+// Keep 2 digits untouched during typing, allowing 385 to be entered naturally.
+function formatTemperatureInput(raw,finalize=false){
+ const text=String(raw??"");
+ const n=parseTemperature(text);
+ if(n===null)return text;
+ if(/^\d{3}$/.test(text)||(finalize&&/^\d{2}$/.test(text)))return n.toFixed(1);
+ return text;
+}
 const MED_UNITS=["mL","포","정","방울"];
 function validAmount(v){const n=num(v);return n!==null&&n>0&&n<=100&&Math.round(n*10)===n*10}
 function doseLabel(v,unit){return String(v)+(MED_UNITS.includes(unit)?unit:"mL")}
@@ -520,9 +529,9 @@ function feverHeat(c){
   '<div class="ill-heat-grid">'+cells+'</div>'+
   '<div class="ill-temp-legend"><span>미측정</span><span>37.5 미만</span><span>37.5~37.9</span><span>38~38.9</span><span>39 이상</span></div>'+
   (c.status==="active"?'<form data-form="temp" class="ill-temp-quick">'+
-   '<label>체온 <span>(℃)</span><input required type="text" inputmode="numeric" autocomplete="off" maxlength="4" name="celsius" placeholder="385" aria-describedby="illTempPreview"></label>'+
+   '<label>체온 <span>(℃)</span><input required type="text" inputmode="decimal" autocomplete="off" maxlength="4" name="celsius" placeholder="38.5" aria-describedby="illTempPreview"></label>'+
    '<button type="submit" class="ill-primary">체온 저장</button>'+
-   '<small id="illTempPreview" data-temp-preview>385 입력 → 38.5℃</small>'+
+   '<small id="illTempPreview" data-temp-preview>숫자 세 자리 입력 시 소수점을 자동 표시합니다.</small>'+
    '<details class="ill-temp-details"><summary>측정 시각·부위 수정</summary>'+
    '<label>측정 시각<input required type="datetime-local" name="at" value="'+localInput(nowIso())+'"></label>'+
    '<label>측정 부위<select name="site">'+siteOpts()+'</select></label>'+
@@ -581,6 +590,7 @@ function render(){
   root.addEventListener("submit",onSubmit);
   root.addEventListener("click",onClick);
   root.addEventListener("input",onInput);
+  root.addEventListener("focusout",onTemperatureBlur);
  }
  if(!timer)timer=setInterval(()=>{if(root&&root.querySelector(".ill-root"))refreshStatusText();},60000);
  if(!initialFetchStarted){initialFetchStarted=true;void connect();}
@@ -612,9 +622,25 @@ function stop(){if(timer){clearInterval(timer);timer=null;}
 }
 function onInput(e){
  if(e.target?.name!=="celsius")return;
+ const input=e.target,formatted=formatTemperatureInput(input.value);
+ if(formatted!==input.value){
+  input.value=formatted;
+  // After inserting the decimal, put the caret after the last digit.
+  if(typeof input.setSelectionRange==="function")
+   input.setSelectionRange(formatted.length,formatted.length);
+ }
+ updateTemperaturePreview(input.value);
+}
+function onTemperatureBlur(e){
+ if(e.target?.name!=="celsius")return;
+ const input=e.target,formatted=formatTemperatureInput(input.value,true);
+ if(formatted!==input.value)input.value=formatted;
+ updateTemperaturePreview(input.value);
+}
+function updateTemperaturePreview(value){
  const p=root?.querySelector("[data-temp-preview]");if(!p)return;
- const n=parseTemperature(e.target.value);
- p.textContent=n===null?"체온 숫자 세 자리 입력 (예: 385)":n.toFixed(1)+"℃로 저장됩니다";
+ const n=parseTemperature(value);
+ p.textContent=n===null?(String(value).trim()?"체온 값을 확인해 주세요.":"숫자 세 자리 입력 시 소수점을 자동 표시합니다."):n.toFixed(1)+"℃로 저장됩니다";
 }
 function get(form,key){return String(new FormData(form).get(key)||"").trim();}
 function need(condition,message){if(!condition)throw Error(message);}
@@ -824,5 +850,5 @@ window.addEventListener("online",()=>{
  if(active&&!busy)void connect();
 });
 window.YuhaIllness={render,stop,model,
- _test:{normalize,guidance,groupGuidance,parseTemperature,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
+ _test:{normalize,guidance,groupGuidance,parseTemperature,formatTemperatureInput,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
 })();
