@@ -23,18 +23,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p public-site/assets
-          cp index.html design.css mental.css mental.js mental-diagnostics.js bridge-client.js config.js sleep-monthly.js history-export.js public-site/
+          cp index.html design.css mental.css mental.js illness-care.css illness-care.js mental-diagnostics.js bridge-client.js config.js sleep-monthly.js history-export.js public-site/
           cp assets/mental-letter-sealed.svg assets/mental-letter-opened.svg public-site/assets/
       - name: Verify artwork paths and integrity before publishing
         run: |
           set -euo pipefail
           node --check public-site/mental.js
+          node --check public-site/illness-care.js
           node --check public-site/sleep-monthly.js
           node --check public-site/history-export.js
           node --check public-site/mental-diagnostics.js
           node --check public-site/bridge-client.js
           node tests/mental-diagnostics.test.js
           node tests/mental-server-conflicts.test.js
+          node tests/illness-care.test.js
+          node tests/illness-api.test.js
           node tests/sleep-monthly.test.js
           node tests/sleep-time-link.test.js
           node tests/sleep-context.test.js
@@ -53,6 +56,9 @@ jobs:
           grep -q 'CLOUD_READBACK_OK' public-site/mental.js
           grep -q 'mentalLetterLike' public-site/mental.js
           grep -q 'husbandLetterLiked' apps-script/Code.gs
+          grep -q 'getIllnessCases' apps-script/Code.gs
+          grep -q 'syncIllnessCase' apps-script/Code.gs
+          grep -q 'illness-care.js?v=' public-site/index.html
           if grep -q 'recovery-comfort' public-site/index.html || grep -q 'dailyComfortHTML' public-site/mental.js; then
             echo 'Removed daily quote feature accidentally returned'; exit 1
           fi
