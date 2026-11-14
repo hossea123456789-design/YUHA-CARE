@@ -258,7 +258,9 @@ assert(x&&typeof x.buildXml==="function"&&typeof x.open==="function");
   'administeredDrugs','hospitalVisits','deletedAt','scheduledFor',
   'serverVersion','deviceVersion','pendingChanges','conflictServerVersion','conflictDeviceVersion',
   'sourceDate="2026-11-01"','timesPerDay="3"','days="4"',
-  'celsius="38.5"','celsius="39.1"','amount="0.3333" unit="g"',
+  'celsius="38.5"','celsius="39.1"','dailyTemperatureSummary','maxCelsius="39.1"',
+  'minCelsius="38.5"','measuredCount="2"','heatBand="high"',
+  'amount="0.3333" unit="g"',
   'amount="0.25" unit="정"','actualAmount="3.5" unit="mL"','status="skipped"'])
   assert(out.xml.includes(field),"illness XML missing "+field);
  assert(out.xml.includes('고열 &amp; 기침 &lt;관찰&gt;'));
