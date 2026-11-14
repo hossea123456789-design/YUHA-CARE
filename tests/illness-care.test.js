@@ -434,7 +434,7 @@ function intake(at,status='taken',extra={}){
   ...sample,bundleTemplates:[{name:"잘못된 묶음",items:[{name:"항생제 A",amount:4,unit:"mL"}]}]
  })),/일치/);
  assert.throws(()=>t.parsePrescriptionJson(JSON.stringify({...sample,
-  medications:[{...sample.medications[0],doseAmount:0.555}]})),/용량/);
+  medications:[{...sample.medications[0],doseAmount:0.555}]})),/1회량/);
  console.log("PASS illness JSON: five meds into 3 safe bundles, exact g/quarter tablet, 2dp limits, no invented hours");
 })();
 (function testJsonPrescriptionPreviewAndGroupCopy(){
