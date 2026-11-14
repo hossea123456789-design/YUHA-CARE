@@ -48,6 +48,7 @@ jobs:
           node tests/history-export-ui.test.js
           python3 -c "import xml.etree.ElementTree as ET; r=ET.parse('/tmp/yuha-history-export-fixture.xml').getroot(); assert r.tag=='yuhaCareHistory'; assert len(r.findall('./records/record'))==3; print('PASS XML parsed by ElementTree')"
           python3 -c "import xml.etree.ElementTree as ET; r=ET.parse('/tmp/yuha-sleep-observations.xml').getroot(); assert r.attrib['category']=='sleep'; assert len(r.findall('./records/record/sleepObservations/version'))==5; print('PASS sleep observations XML parsed by ElementTree')"
+          python3 -c "import xml.etree.ElementTree as ET; r=ET.parse('/tmp/yuha-illness-history.xml').getroot(); assert r.tag=='yuhaCareHistory' and r.attrib['category']=='illness'; assert len(r.findall('./records/record'))==1; assert len(r.findall('./records/record/version/temperatureHistory/reading'))>=2; assert len(r.findall('./records/record/version/medicationGroups/group/administrations/administration'))>=2; print('PASS illness fever and medication XML parsed by ElementTree')"
           cp apps-script/Code.gs /tmp/yuha-apps-script-check.js
           node --check /tmp/yuha-apps-script-check.js
           grep -q 'mental-diagnostics.js?v=' public-site/index.html
