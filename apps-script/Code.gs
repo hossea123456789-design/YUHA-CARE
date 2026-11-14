@@ -470,7 +470,7 @@ function getSleepMonth(year, month) {
       if (Object.keys(payload).some(key=>payload[key])) records[dateKey] = payload;
     });
   }
-  return {ok:true, year:y, month:m, records, birthDate:getChildBirthDate_(), nap2Supported:true, metadataSupported:true, schemaVersion:4};
+  return {ok:true, year:y, month:m, records, birthDate:getChildBirthDate_(), nap2Supported:true, metadataSupported:true, schemaVersion:3};
 }
 
 // 날짜·칸 단위 저장: 체크리스트 JSON이나 다른 수면 칸을 덮어쓰지 않습니다.
