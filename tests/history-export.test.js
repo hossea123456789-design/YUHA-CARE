@@ -201,3 +201,95 @@ assert(x&&typeof x.buildXml==="function"&&typeof x.open==="function");
  assert.throws(()=>x.buildXml({...doc,startDate:"2026-09-03",endDate:"2026-09-02"}),/범위/);
  console.log("PASS XML: exact inclusive range, rolling-year/six-/three-month presets and leap-year dates");
 })();
+
+
+(function testIllnessXmlIncludesAllActualReadingsAndDoses(){
+ const episode={
+  id:"iillness1",title:'고열 & 기침 <관찰>',onsetAt:"2026-10-29T08:00:00.000Z",
+  status:"closed",closedAt:"2026-11-04T20:00:00.000Z",revision:"r2",
+  symptoms:'콧물 & 기침 "심함"',note:"경과 기록",closureNote:"호전",
+  recoveryConfirmed:true,noFurtherMedicationConfirmed:true,
+  visits:[{id:"ivisit1",at:"2026-11-01T08:20:00.000Z",
+   hospital:"소아과 & 의원",diagnosis:"상기도염",notes:"의사 소견"}],
+  temperatures:[
+   {id:"it_old",at:"2026-10-30T08:00:00.000Z",celsius:39.7,site:"ear",note:"기간 밖"},
+   {id:"it1",at:"2026-11-02T07:10:00.000Z",celsius:38.5,site:"ear",note:"기상 직후"},
+   {id:"it2",at:"2026-11-02T12:35:00.000Z",celsius:39.1,site:"forehead",note:"낮 <측정>"}
+  ],
+  medicationGroups:[{
+   id:"igroup1",name:"하루 3회 & 점심",active:false,
+   deletedAt:"2026-11-05T07:20:00.000Z",
+   mode:"scheduled",timesPerDay:3,days:4,intervalHours:null,
+   endsAt:"",sourceDate:"2026-11-01",sourceKind:"prescription-json",visitId:"ivisit1",
+   items:[{id:"im1",name:"씨투스건조시럽",amount:0.3333,unit:"g"},
+    {id:"im2",name:"코슈정",amount:0.25,unit:"정"}],
+   events:[
+    {id:"ie_old",at:"2026-10-31T22:00:00.000Z",status:"taken",
+     items:[{id:"im1",name:"씨투스건조시럽",amount:0.3333,unit:"g"}]},
+    {id:"ie1",at:"2026-11-02T08:00:00.000Z",status:"taken",note:"두 약 모두 복용",
+     items:[{id:"im1",name:"씨투스건조시럽",amount:0.3333,unit:"g"},
+      {id:"im2",name:"코슈정",amount:0.25,unit:"정"}]},
+    {id:"ie2",at:"2026-11-02T16:00:00.000Z",status:"skipped",note:"보호자 확인",
+     scheduledFor:"2026-11-02T15:30:00.000Z",items:[]}
+   ]
+  }],
+  medications:[{id:"imed1",name:"과거 해열제",doseMl:4,active:false,mode:"prn",intervalHours:null,
+   doses:[
+    {id:"id_old",at:"2026-10-31T18:00:00.000Z",status:"taken",amountMl:4},
+    {id:"id1",at:"2026-11-02T15:30:00.000Z",status:"taken",amountMl:3.5,note:"양 기록"},
+    {id:"id2",at:"2026-11-03T02:00:00.000Z",status:"skipped",amountMl:null}
+   ]}]
+ };
+ const device=JSON.parse(JSON.stringify(episode));
+ device.temperatures[1].celsius=38.4;device.revision="local";
+ const pending={episode:JSON.parse(JSON.stringify(device)),expectedRevision:"r1"};
+ const conflict={local:device,server:episode};
+ const doc={kind:"illness",scope:"range",firstMonth:"2026-11",lastMonth:"2026-11",
+  startDate:"2026-11-02",endDate:"2026-11-03",preset:"custom",
+  months:[{month:"2026-11",server:{iillness1:episode},device:{iillness1:device},
+   pending:{iillness1:pending},conflicts:{iillness1:conflict}}]};
+ const out=x.buildXml(doc);
+ assert.equal(out.recordCount,1);
+ assert.equal(out.complete,true);
+ assert(out.xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'));
+ assert(out.xml.includes('category="illness"'));
+ assert(out.xml.includes('startDate="2026-11-02" endDate="2026-11-03"'));
+ for(const field of ['temperatureHistory','medicationGroups','legacyMedications',
+  'administeredDrugs','hospitalVisits','deletedAt','scheduledFor',
+  'serverVersion','deviceVersion','pendingChanges','conflictServerVersion','conflictDeviceVersion',
+  'sourceDate="2026-11-01"','timesPerDay="3"','days="4"',
+  'celsius="38.5"','celsius="39.1"','amount="0.3333" unit="g"',
+  'amount="0.25" unit="정"','actualAmount="3.5" unit="mL"','status="skipped"'])
+  assert(out.xml.includes(field),"illness XML missing "+field);
+ assert(out.xml.includes('고열 &amp; 기침 &lt;관찰&gt;'));
+ assert(out.xml.includes('하루 3회 &amp; 점심'));
+ assert(out.xml.includes('낮 &lt;측정&gt;'));
+ assert(!out.xml.includes('id="it_old"'),"October fever should be excluded");
+ assert(!out.xml.includes('id="ie_old"'),"October bundled administration must be excluded");
+ assert(!out.xml.includes('id="id_old"'),"October standalone dose must be excluded");
+ assert(out.xml.includes('at="2026-11-02T08:00:00.000Z"'));
+ const onlyFirst=x.buildXml({...doc,endDate:"2026-11-02"});
+ assert(!onlyFirst.xml.includes('id="id2"'));
+ assert(onlyFirst.xml.includes('id="id1"'));
+ const unrelated=x.buildXml({...doc,startDate:"2026-11-20",endDate:"2026-11-21"});
+ assert.equal(unrelated.recordCount,0,"Range may not force include unrelated episode onset");
+ fs.writeFileSync("/tmp/yuha-illness-history.xml",out.xml,"utf8");
+ console.log("PASS XML illness: fever timestamps, full exact amounts, medication bundles, legacy doses, skipped, archives and source versions");
+})();
+(function testIllnessPartialServerReadAndNoFalseCompleteness(){
+ const child={id:"ilocal",title:"감기",onsetAt:"2026-11-14T07:00:00.000Z",
+  temperatures:[{id:"itemp",at:"2026-11-14T10:00:00.000Z",celsius:37.8}]};
+ const doc={kind:"illness",scope:"month",firstMonth:"2026-11",lastMonth:"2026-11",
+  months:[{month:"2026-11",device:{ilocal:child},error:"서버 미확인",server:{}}],mode:"partial"};
+ const out=x.buildXml(doc);
+ assert.equal(out.complete,false);
+ assert.equal(out.recordCount,1);
+ assert.deepEqual(Array.from(out.failed),["2026-11"]);
+ assert(out.xml.includes('complete="false"'));
+ assert(out.xml.includes('failedMonths="2026-11"'));
+ assert(out.xml.includes('devicePresent="true"'));
+ assert(!out.xml.includes('source="serverVersion"'));
+ assert(!out.xml.includes('2026-11-14T01:00:00.000Z'));
+ assert.throws(()=>x.buildXml({...doc,startDate:"2026-11-30",endDate:"2026-11-01"}),/날짜/);
+ console.log("PASS XML illness: incomplete data is explicitly marked; no silent cloud claims");
+})();
