@@ -521,3 +521,87 @@ function intake(at,status='taken',extra={}){
   "copying must not mutate existing illness records");
  console.log("PASS illness: cross-chat prompt and example JSON copy with no data modifications");
 })();
+
+
+(function testDailyMedicationSummaryCombinesBundlesAndOlderDoses(){
+ const e=setup(),t=e.test;
+ const c=t.normalize({id:"itimeline_01",title:"발열",onsetAt:"2026-11-14T00:00:00.000Z",
+  medicationGroups:[
+   {id:"igroup_01",name:"아침 약",active:true,mode:"scheduled",intervalHours:8,
+    items:[{id:"idrug_01",name:"해열 시럽",amount:4,unit:"mL"}],
+    events:[
+     {id:"ievent_01",at:"2026-11-14T09:00:00.000Z",status:"taken",
+      items:[{id:"idrug_01",name:"해열 시럽",amount:3,unit:"mL"}],note:"복용"},
+     {id:"ievent_02",at:"2026-11-14T18:00:00.000Z",status:"skipped",items:[],note:"외출"}]},
+   {id:"igroup_02",name:"삭제 묶음",active:false,
+    deletedAt:"2026-11-14T19:00:00.000Z",mode:"prn",
+    items:[{id:"idrug_02",name:"삭제된 약",amount:1,unit:"포"}],
+    events:[{id:"ievent_arch_01",at:"2026-11-14T08:00:00.000Z",status:"taken",
+     items:[{id:"idrug_02",name:"삭제된 약",amount:1,unit:"포"}]}]}
+  ],
+  medications:[{id:"imed_old",name:"이전 처방",doseMl:2,mode:"scheduled",intervalHours:8,
+   active:false,doses:[{id:"idose_old",at:"2026-11-14T12:00:00.000Z",status:"taken",amountMl:2}]}]
+ });
+ const day=new Date("2026-11-14T12:00:00.000Z");
+ const dKey=[day.getFullYear(),String(day.getMonth()+1).padStart(2,"0"),String(day.getDate()).padStart(2,"0")].join("-");
+ const records=t.dailyMedicationEvents(c,dKey);
+ assert.equal(records.length,3,"1 missed + 1 completed grouped + 1 old standalone; deleted excluded");
+ assert.equal(records[0].status,"skipped");
+ assert.equal(records[1].legacy,true,"older individual med is part of main timeline");
+ assert.equal(records[2].items[0].amount,3,
+  "actual administration snapshot is used, never today's amended 4 mL prescription");
+ assert(!records.some(e=>e.name==="삭제 묶음"));
+ const archive=t.dailyMedicationEvents(c,dKey,{includeDeleted:true});
+ assert.equal(archive.length,4,"archived doses are preserved for restore");
+ assert(archive.some(e=>e.deleted&&e.name==="삭제 묶음"));
+ console.log("PASS illness: medication timeline merges group and legacy doses, skips archived, retains historical amounts");
+})();
+(function testVisibleMedicationTimelineAndArchiveRecovery(){
+ storage.clear();
+ const id="iarchive_test",now="2026-11-14T09:30:00.000Z",groupId="igroup_save";
+ const initial={id,title:"진료",onsetAt:"2026-11-14T00:00:00.000Z",
+  status:"active",visits:[],medications:[],temperatures:[],medicationGroups:[
+   {id:groupId,name:"복용 묶음 A",mode:"scheduled",intervalHours:8,active:true,
+    items:[{id:"imed_a",name:"약 A",amount:3,unit:"mL"}],
+    events:[{id:"ievent_a",at:now,status:"taken",items:[
+     {id:"imed_a",name:"약 A",amount:2.5,unit:"mL"}]}]}
+  ]};
+ storage.set("yuha_illness_records_v1",JSON.stringify({[id]:initial}));
+ const e=setup();e.window.YuhaIllness.render();
+ const get=()=>e.model.cases[id];
+ assert(e.root.innerHTML.includes("복용 내역 · 시간별 서머리"),
+  "summary must be visible without opening any medicine-group details");
+ assert(e.root.innerHTML.includes('data-form="group-dose"'),
+  "summary contains a direct dose entry form");
+ assert(e.root.innerHTML.includes("복용 기록 저장"));
+ assert(e.root.innerHTML.includes('data-act="delete-group"'));
+ let prompts=[];
+ e.window.confirm=message=>{prompts.push(message);return false;};
+ const press=(act,recordId)=>{
+  const button={dataset:{act,id:recordId},closest(){return this}};
+  e.root.handlers.click({target:{closest:()=>button}});
+ };
+ press("delete-group",groupId);
+ assert.equal(get().medicationGroups[0].deletedAt,"");
+ assert.equal(get().medicationGroups[0].events.length,1);
+ e.window.confirm=message=>{prompts.push(message);return true;};
+ press("delete-group",groupId);
+ assert(get().medicationGroups[0].deletedAt,"deletedAt must be recorded as a tombstone");
+ assert.equal(get().medicationGroups[0].active,false);
+ assert.equal(get().medicationGroups[0].events[0].items[0].amount,2.5,
+  "deleting the bundle must not discard the dose record");
+ assert(e.root.innerHTML.includes("삭제한 묶음 1개 · 복원 가능"));
+ assert(!e.root.innerHTML.includes('data-act="take-group" data-id="'+groupId+'"'));
+ assert(e.root.innerHTML.includes('data-act="restore-group"'));
+ assert(JSON.parse(storage.get("yuha_illness_pending_v1"))[id].episode.medicationGroups[0].deletedAt,
+  "archive tombstone is queued for server sync, not dropped");
+ const saved=JSON.parse(storage.get("yuha_illness_records_v1"))[id];
+ assert.equal(saved.medicationGroups[0].events.length,1);
+ press("restore-group",groupId);
+ assert.equal(get().medicationGroups[0].deletedAt,"");
+ assert.equal(get().medicationGroups[0].active,false,
+  "restoring should not resume medication automatically");
+ assert.equal(get().medicationGroups[0].events.length,1);
+ assert(prompts.some(p=>p.includes("복용 이력 1건은 원본에 보관")));
+ console.log("PASS illness: timeline is prominent, delete is reversible and archives doses without auto-resuming therapy");
+})();
