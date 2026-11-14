@@ -362,14 +362,14 @@ function illnessSelect(){
    E(c.title||"질병")+' <small>'+(c.status==="closed"?"종료":"진행 중")+'</small></button>').join("")+'</div>';
 }
 function episodeForm(){
- return card("새 질병 시작",(Object.keys(model.cases).length?'<details><summary>다른 질병 기록 추가</summary>':'')+
- '<form data-form="episode" class="ill-fields">'+
+ return '<details class="ill-disease-new"'+(!Object.keys(model.cases).length?' open':'')+'>'+
+  '<summary>+ 새 질병 등록</summary>'+
+  '<form data-form="episode" class="ill-fields">'+
   '<label>증상·질병명<input required name="title" maxlength="80" placeholder="예: 발열 및 기침"></label>'+
   '<label>처음 증상 확인 시각<input required name="onset" type="datetime-local" value="'+localInput(nowIso())+'"></label>'+
   '<label>발생 증상<input name="symptoms" maxlength="350" placeholder="기침, 콧물, 구토 등"></label>'+
   '<label>상세 메모<textarea name="note" rows="2" maxlength="1000"></textarea></label>'+
-  '<button type="submit" class="ill-primary">질병 기록 시작</button></form>'+
- (Object.keys(model.cases).length?'</details>':''));
+  '<button type="submit" class="ill-primary">질병 기록 시작</button></form></details>';
 }
 function recordHeading(c){
  const delayed=c.medicationGroups.filter(g=>!g.deletedAt&&groupGuidance(g).state==="overdue").length+
@@ -377,17 +377,19 @@ function recordHeading(c){
  const latest=[...c.temperatures].filter(t=>Number.isFinite(t.celsius))
   .sort((a,b)=>at(b.at)-at(a.at))[0];
  return '<section class="ill-episode-strip"><div><strong>'+E(c.title)+'</strong> '+
-  '<small>'+(c.status==="closed"?"종료":"진행 중")+' · '+E(fullDate(c.onsetAt))+'</small></div>'+
+  '<small>'+(c.status==="closed"?"완치·종료":"진행 중")+' · '+E(fullDate(c.onsetAt))+'</small></div>'+
   '<div class="ill-episode-facts"><span>최근 '+(latest?latest.celsius.toFixed(1)+'℃':'체온 미기록')+'</span>'+
-  '<span class="ill-missed" data-ill-overdue style="'+(delayed?'':'display:none')+'">'+delayed+'건 복약 예정 확인</span></div>'+
-  (c.status==="closed"?'<button class="ill-secondary" data-act="reopen">질병 기록 다시 열기</button>':
-  '<details><summary>질병 발생 시각·증상 수정</summary><form data-form="edit-episode" class="ill-fields">'+
+  '<span class="ill-missed" data-ill-overdue style="'+(delayed?'':'display:none')+'">'+delayed+'건 복약 예정 확인</span></div></section>';
+}
+function episodeEditDetails(c){
+ if(!c||c.status!=="active")return "";
+ return '<details class="ill-episode-edit"><summary>질병명·발생 시점 수정</summary>'+
+  '<form data-form="edit-episode" class="ill-fields">'+
   '<label>질병명<input required maxlength="80" name="title" value="'+attr(c.title)+'"></label>'+
   '<label>발생 시점<input required name="onset" type="datetime-local" value="'+localInput(c.onsetAt)+'"></label>'+
   '<label>증상<input maxlength="350" name="symptoms" value="'+attr(c.symptoms)+'"></label>'+
   '<label>기록 메모<textarea rows="2" name="note" maxlength="1000">'+E(c.note)+'</textarea></label>'+
-  '<button class="ill-secondary" type="submit">수정 저장</button></form></details>')+
-  '</section>';
+  '<button class="ill-secondary" type="submit">수정 저장</button></form></details>';
 }
 function visitForm(c){
  const editing=c.visits.find(v=>v.id===editVisit);
