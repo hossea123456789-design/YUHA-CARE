@@ -207,6 +207,29 @@ function newEpisode(title,onset,symptoms,note){
  selected=id;notice="질병 기록이 기기에 저장됐습니다";const saved=persist();render();if(connected&&saved)void pushPending();
 }
 function current(){return model.cases[selected]||null;}
+function exportIllnessHistoryXml(){
+ hydrate();
+ if(!window.YuhaHistoryExport?.open){
+  notice="XML 내보내기 기능이 로드되지 않았습니다. 앱을 새로고침해 주세요.";
+  noticeError=true;render();return;
+ }
+ window.YuhaHistoryExport.open({
+  kind:"illness",month:month,fromMonth:"2025-03",
+  localMonthKeys:()=>Object.values(model.cases).flatMap(ep=>{
+   const events=[ep.onsetAt,ep.closedAt,
+    ...(ep.visits||[]).map(v=>v.at),...(ep.temperatures||[]).map(t=>t.at),
+    ...(ep.medicationGroups||[]).flatMap(g=>(g.events||[]).map(e=>e.at)),
+    ...(ep.medications||[]).flatMap(m=>(m.doses||[]).map(d=>d.at))];
+   return events.filter(x=>isTime(x)).map(x=>dayKey(x).slice(0,7));
+  }),
+  localIllness:()=>({
+   cases:clone(model.cases),
+   pending:clone(model.pending),
+   conflicts:clone(model.conflicts)
+  }),
+  fetchIllness:()=>rpc("getIllnessCases",[])
+ });
+}
 function backup(){
  const data={kind:"yuha-illness-backup-v1",exportedAt:nowIso(),
   cases:model.cases,pending:model.pending,conflicts:model.conflicts,snapshots:model.snapshots};
@@ -904,7 +927,8 @@ function render(){
  hydrate();active=true;root=document.getElementById("main");if(!root)return;
  const c=current();
  root.innerHTML='<div class="ill-root"><div class="ill-heading"><h2>유하 질병 기록</h2>'+
-  '<p>질병별 시간순 기록 · 병원·처방·복용·체온</p></div>'+
+  '<p>질병별 시간순 기록 · 병원·처방·복용·체온</p>'+
+  '<button type="button" class="history-export-trigger" data-act="export-illness-xml">XML 기록 추출</button></div>'+
   '<div class="ill-alert">이 앱은 입력한 처방 간격으로 참고 시각만 계산합니다. 실제 투약 판단은 약 봉투·처방 지시가 우선입니다. 앱을 닫으면 지연 경고를 푸시 알림으로 보내지 않습니다.</div>'+
   illnessSelect()+
   (c?recordHeading(c)+feverHeat(c)+medicationTimeline(c)+groupPanel(c)+prescriptionJsonForm(c)+medicationGroupForm(c)+
@@ -1101,6 +1125,7 @@ function onSubmit(e){
 function onClick(e){
  const btn=e.target.closest("[data-act]");if(!btn)return;
  const action=btn.dataset.act,id=btn.dataset.id,c=current();
+ if(action==="export-illness-xml"){exportIllnessHistoryXml();return;}
  if(action==="select"){
   selected=id;editMedication="";editGroup="";copyDraft=null;pendingPrescription=null;
   const c=current();
