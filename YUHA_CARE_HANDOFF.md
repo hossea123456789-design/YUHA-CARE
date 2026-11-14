@@ -1066,3 +1066,11 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - `tests/illness-care.test.js`에 임의 순서로 들어온 여러 측정값의 시간순 정렬, 선택 날짜 전환, 한 건·미기록 표시, 그래프 점 개수, 측정 이력 상시 열림, 새 체온 저장 시 당일 그래프 갱신을 추가. GitHub Actions SHA `298ab4e6bbd8`의 테스트/Pages 배포 성공 확인(2026-11-14 KST).
 - 변경 내용은 화면 전용이므로 Apps Script의 질병 서버 스키마 v2 코드 자체를 변경하지 않음. 이전 턴의 약 묶음 JSON 동기화에 필요한 기존 웹앱 v2 재배포는 여전히 별도 필요.
 
+## 53. 2026-11-14 — 다른 채팅에서 약봉투 사진을 JSON으로 변환해 가져오기
+
+- 사용자 요청: 매번 약을 직접 입력하지 않도록 약봉투 사진을 다른 채팅에서 분석하여 앱용 JSON을 받고 붙여넣기. 추가로 앱 안에 예시·타 채팅용 요청문 복사 버튼, g 단위 및 소수 둘째 자리, 기존 묶음 복사.
+- illness-care.js에 prescriptionChatRequest(), prescriptionExample(), parsePrescriptionJson(), prescriptionPreview(), 복사용 클릭 핸들러와 확인 후 등록 버튼 추가. 타 채팅용 요청문은 사진 속 실제 이름·1회량·단위·횟수·일수만 전사하고 불명확한 항목은 별도 표시하도록 명시. 임의 복약 시간 생성 금지. 예시 데이터는 모두 가상.
+- JSON schema=yuha-prescription-import/v1, medications 요소 필수 name/doseAmount/doseUnit/timesPerDay/days, bundleTemplates 선택. 같은 횟수·처방 일수 기준 자동 그룹 생성 후 사용자가 약별량과 묶음을 확인해 저장. JSON 미리보기만으로 원본 변경하지 않음.
+- 묶음 복사는 새 그룹 및 약 ID를 발급하고 기존 events를 복제하지 않는다. 일반 투약량은 소수 둘째 자리까지, 처방 원문의 0.3333g 등은 넷째 자리까지 정확히 보존한다. g, mL, 정, 포, 방울 지원.
+- Apps Script getIllnessCases schemaVersion=3 및 illnessValidateEpisode_ 확장. v3 운영 웹앱 배포 전에는 로컬 큐만 보관하며 기기 간 동기화는 미확인. 사용자가 직접 기존 Apps Script Code.gs의 전체 최신본으로 교체 후 기존 웹앱의 새 버전 배포.
+- 브라우저 캐시 키 illness-care.js/css?v=20261114-prescription-json-v3 반영. 테스트는 tests/illness-care.test.js, tests/illness-api.test.js. 본 세션에서 최신 Actions 결과를 확인한다.
