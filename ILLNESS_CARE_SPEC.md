@@ -125,3 +125,11 @@
 - 복용 시각은 사용자 수정 가능하며 dose-time-now 액션으로 오래된 초기 시각을 현재 시간으로 갱신합니다. changeCase의 persist() 성공 시에만 해당 기록이 기기에 저장됐다는 메시지를 표시합니다. 복약 지시 확인 경고는 간결하게 유지합니다.
 - 처방 관리는 기본 접힌 상태지만 사용자가 열면 동일 질병에서 재렌더링해도 유지됩니다. 묶음 하위의 중복 복용 이력과 구형 개별 약의 중복 투약 폼을 제거했으며 실제 데이터는 기존 event/doses에 남깁니다. 완료된 질병은 지난 처방만 열람할 수 있습니다.
 - XML 버튼은 기록 백업·동기화에 배치했습니다. 앱 스크립트와 Google Sheets 필드에 변경이 없어 운영 질병 API v4를 계속 사용합니다. 테스트는 입력 순서·중복 배제·기존약 호환·원본 이력 보존·관리 펼침·현재 시각 버튼 등을 포함합니다.
+
+## 2026-11-15 — 사용자 지정 1~8 질병 기록 IA
+
+- 최종 렌더링 순서: 질병 선택·상태(공통 헤더) → feverHeat(①) → card(체온 입력: quickTemperatureForm)(②) → medicationTimeline(③) → card(약 복용 입력: quickMedicineForm)(④) → prescriptionEntryPanel(⑤) → registeredMedicinePanel(⑥) → diseaseManagementPanel(⑦) → visitForm + syncPanel + conflictsView(⑧).
+- ⑤ prescriptionEntryPanel은 1개 card 안에 prescriptionJsonForm(열려 있는 JSON textarea·예시/요청문 복사·미리보기 검증 후 등록)과 medicationGroupForm(바로 보이는 수동 약 묶음 등록/수정)을 세로로 병합합니다. JSON textarea를 감싸던 details를 제거하고 수동 등록 폼도 접지 않습니다. 추가 drug line과 복사·수정 핸들러는 기존 데이터 입력 구조를 재사용합니다.
+- ⑥ registeredMedicinePanel은 groupPanel과 legacyPanel의 묶음/개별 처방을 하나의 등록 약 리스트 영역으로 표시. 실제 복용/미복용 이벤트는 그룹 하위에 복제하지 않고 ③ 시간별 히스토리만 기록·수정 통로로 사용합니다.
+- ⑦ diseaseManagementPanel은 episodeForm, episodeEditDetails, closure 또는 완치 해제 버튼을 한 카드에 모았습니다. 종료하면 해당 질병의 약 active=false, 기록은 보존하며 완치 해제 시 약 자동 재개 금지. 새 질병이 없는 첫 진입은 새 질병 등록 폼을 펼쳐 보여줍니다.
+- 상단의 별도 quickEntryPanel 및 현재 처방 한눈에를 렌더에서 제거하고 고정된 입력·이력 인접 배치를 적용. 백업·XML·서버 갱신/충돌 및 병원 기록은 기타 영역에서 보존. 질병 API는 v4 유지.
