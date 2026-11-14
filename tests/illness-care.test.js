@@ -729,7 +729,7 @@ function intake(at,status='taken',extra={}){
  assert.equal(c().medications[0].active,false);
  assert.equal(c().medicationGroups[0].events[0].items[0].amount,3.25);
  assert.equal(c().medications[0].doses[0].amountMl,2.25);
- assert(e.root.innerHTML.includes("처방 보관")||e.root.innerHTML.includes("질병 종료"));
+ assert(e.root.innerHTML.includes("완치 처리됨")&&e.root.innerHTML.includes("완치 해제"));
  // Correct historical data without reopening the illness or restarting medicines.
  click("edit-temp","itemp1");
  submit("edit-temp",{editId:"itemp1",at:"2026-11-14T10:45",
