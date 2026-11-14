@@ -154,14 +154,12 @@ function intake(at,status='taken',extra={}){
  assert.equal(get().medications[0].doses[0].amountMl,2.5);
  submit('temp',{at:'2026-11-14T11:30',celsius:'38.6',site:'ear',note:'복용 전'});
  assert.equal(get().temperatures[0].celsius,38.6);
- // Finishing is not automatic; active prescriptions block a closure.
- submit('close',{recovered:'on',done:'on',note:'회복됨'});
- assert.equal(get().status,'active');
- const button={dataset:{act:'end-med',id:med.id},closest(){return this}};
- e.root.handlers.click({target:{closest:()=>button}});
- assert.equal(get().medications[0].active,false);
+ // Explicit caregiver closure retires active prescriptions but does not delete doses.
  submit('close',{recovered:'on',done:'on',note:'회복됨'});
  assert.equal(get().status,'closed');
+ assert.equal(get().medications[0].active,false);
+ assert.equal(get().medications[0].doses.length,1);
+ assert.equal(get().medications[0].doses[0].amountMl,2.5);
  assert.equal(get().recoveryConfirmed,true);
  assert.equal(get().noFurtherMedicationConfirmed,true);
  assert(Object.keys(JSON.parse(storage.get('yuha_illness_pending_v1'))).length===1);
@@ -261,11 +259,14 @@ function intake(at,status='taken',extra={}){
  submit('temp',{at:'2026-11-14T12:00',celsius:'999',site:'ear',note:''});
  assert.equal(episode().temperatures.length,1,'invalid temperature must not be stored');
  submit('close',{recovered:'on',done:'on',note:'완료'});
- assert.equal(episode().status,'active','active bundle must prevent premature closure');
+ assert.equal(episode().status,'closed','explicit caregiver confirmation ends illness');
+ assert.equal(episode().medicationGroups[0].active,false);
+ assert.equal(episode().medicationGroups[0].events[0].items[0].amount,past,
+  'previously taken amount must survive closure');
  // A preexisting individual medicine must remain intact after bundling.
  assert.equal(episode().medications.length,0);
  assert.equal(JSON.parse(storage.get('yuha_illness_records_v1'))[id].medicationGroups.length,1);
- console.log('PASS illness: two medicines saved as one bundle, historical administered amounts preserved, temp 385 and closure guarded');
+ console.log('PASS illness: two medicines saved as one bundle, historical administered amounts preserved, temp 385 and medicine retirement at closure');
 })();
 
 (async function testOldServerWillNotReceiveBundles(){
