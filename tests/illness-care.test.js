@@ -605,3 +605,32 @@ function intake(at,status='taken',extra={}){
  assert(prompts.some(p=>p.includes("복용 이력 1건은 원본에 보관")));
  console.log("PASS illness: timeline is prominent, delete is reversible and archives doses without auto-resuming therapy");
 })();
+
+
+(function testXmlButtonSnapshotsLocalAndPendingWithoutMutations(){
+ storage.clear();
+ const e=setup();
+ const episode={id:"iillness_xml",title:"발열",onsetAt:"2026-11-14T06:00:00.000Z",
+  visits:[],medications:[],medicationGroups:[],
+  temperatures:[{id:"itemp1",at:"2026-11-14T07:30:00.000Z",celsius:38.5}]};
+ storage.set("yuha_illness_records_v1",JSON.stringify({[episode.id]:episode}));
+ storage.set("yuha_illness_pending_v1",JSON.stringify({
+  [episode.id]:{episode,expectedRevision:"old-version"}
+ }));
+ let options;
+ e.window.YuhaHistoryExport={open:args=>{options=args}};
+ e.window.YuhaIllness.render();
+ assert(e.root.innerHTML.includes('data-act="export-illness-xml"'));
+ const button={dataset:{act:"export-illness-xml"},closest(){return this}};
+ e.root.handlers.click({target:{closest:()=>button}});
+ assert(options&&options.kind==="illness");
+ assert.equal(typeof options.fetchIllness,"function");
+ const device=options.localIllness();
+ assert.equal(device.cases[episode.id].temperatures[0].celsius,38.5);
+ assert.equal(device.pending[episode.id].expectedRevision,"old-version");
+ device.cases[episode.id].temperatures[0].celsius=42;
+ assert.equal(e.model.cases[episode.id].temperatures[0].celsius,38.5,
+  "export source must be a detached snapshot, never mutate real measurements");
+ assert.equal(JSON.parse(storage.get("yuha_illness_records_v1"))[episode.id].temperatures[0].celsius,38.5);
+ console.log("PASS illness UI: XML button snapshots measurements and pending without any write");
+})();
