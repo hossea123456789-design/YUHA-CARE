@@ -1041,17 +1041,26 @@ function feverHeat(c){
   '<p class="ill-muted">달력에서 날짜를 누르면 해당 날짜의 체온 그래프와 측정 이력을 볼 수 있습니다. 색상은 그날의 최고 실측 체온입니다.</p>');
 }
 function closure(c){
- if(c.status==="closed")return "";
+ if(!c||c.status==="closed")return "";
  const active=[...c.medications.filter(m=>m.active),...c.medicationGroups.filter(g=>g.active&&!g.deletedAt)];
- return card("질병 종료",
-  '<details><summary>증상 회복·처방 종료 확인 후 질병 종료</summary>'+
-  '<p class="ill-muted">열·증상이 안정화되고 처방받은 복용 과정이 완료되었는지 확인한 뒤 종료하세요. 체온만으로 처방약을 중단하지 않습니다.</p>'+
-  (active.length?'<p class="ill-muted">현재 복용 중으로 표시된 처방 '+active.length+'개는 질병 종료 처리 시 자동으로 ‘복용 종료’ 상태가 됩니다. 지난 복용 기록은 유지됩니다.</p>':'')+
+ return '<details class="ill-complete-control"><summary>완치·질병 종료 처리</summary>'+
+  '<p class="ill-muted">열·증상이 안정화되고, 필요한 처방 복용이 완료되었음을 확인한 후 종료하세요. 체온만으로 약을 중단하지 않습니다.</p>'+
+  (active.length?'<p class="ill-muted">현재 복용 중인 처방 '+active.length+'개는 질병 종료 시 복용 종료로 정리되며 과거 복용 이력은 남습니다.</p>':'')+
   '<form data-form="close" class="ill-fields">'+
-  '<label class="ill-check"><input type="checkbox" name="recovered" required> 현재 증상·체온이 안정화되었다고 확인함</label>'+
+  '<label class="ill-check"><input type="checkbox" name="recovered" required> 열·증상이 안정화되었음을 확인함</label>'+
   '<label class="ill-check"><input type="checkbox" name="done" required> 필요한 복약 일정이 처방 지시대로 종료되었음을 확인함</label>'+
   '<label>종료 메모<input name="note" maxlength="500" placeholder="상태 호전, 최종 처방 등"></label>'+
-  '<button class="ill-primary" type="submit">질병 종료 기록</button></form></details>');
+  '<button class="ill-primary" type="submit">완치 처리 · 질병 종료</button></form></details>';
+}
+function diseaseManagementPanel(c){
+ const state=c?'<p class="ill-disease-status"><strong>'+E(c.title)+'</strong> · '+
+  (c.status==="closed"?"완치 처리됨":"진행 중")+'</p>':"";
+ const reopen=c?.status==="closed"?
+  '<button type="button" class="ill-secondary" data-act="reopen">완치 해제 · 진행 중으로 변경</button>'+
+  '<p class="ill-muted">완치를 해제해도 이전 약 묶음은 자동으로 복용 재개되지 않습니다.</p>':"";
+ return card("질병 관리",state+
+  (c?episodeEditDetails(c)+closure(c)+reopen:"")+
+  episodeForm(),"ill-disease-manager");
 }
 function syncPanel(){
  const count=Object.keys(model.pending).length;
@@ -1075,16 +1084,25 @@ function conflictsView(){
 }
 function render(){
  hydrate();active=true;root=document.getElementById("main");if(!root)return;
- const openEpisode=root.dataset.illnessEpisode||"";
- const keepManagerOpen=openEpisode===selected&&root.querySelector?.(".ill-manager")?.open===true;
- const c=current();
+ const c=current(),feedback=lastActionFeedback?
+  '<p class="ill-entry-feedback" role="status">'+E(lastActionFeedback)+'</p>':"";
  root.innerHTML='<div class="ill-root"><div class="ill-heading"><h2>유하 질병 기록</h2>'+
-  '<p>체온과 복약을 기록하고 경과를 확인하세요.</p></div>'+
+  '<p>체온 · 복용 · 처방 · 질병 경과</p></div>'+
   illnessSelect()+
-  (c?recordHeading(c)+quickEntryPanel(c)+feverHeat(c)+medicationTimeline(c)+currentPrescriptionPanel(c)+visitForm(c)+
-    medicationManagement(c,keepManagerOpen)+closure(c):
-   card("기록이 없습니다",'<p class="ill-muted">발생 시각과 증상을 기록해 시작하세요.</p>'))+
-  episodeForm()+
+  (c?recordHeading(c)+
+    // User-directed strict section order: 1 heatmap, 2 temperature entry,
+    // 3 medication history, 4 medication entry, 5 JSON + manual,
+    // 6 registered meds, 7 disease management, 8 everything else.
+    feverHeat(c)+
+    (c.status==="active"?card("체온 입력",feedback+quickTemperatureForm(c),"ill-temp-entry"):"")+
+    medicationTimeline(c)+
+    (c.status==="active"?card("약 복용 입력",feedback+quickMedicineForm(c),"ill-medicine-entry"):"")+
+    prescriptionEntryPanel(c)+
+    registeredMedicinePanel(c)+
+    diseaseManagementPanel(c)+
+    visitForm(c):
+    card("기록이 없습니다",'<p class="ill-muted">아래 질병 관리에서 신규 질병을 등록하세요.</p>')+
+    diseaseManagementPanel(null))+
   syncPanel()+
   conflictsView()+'</div>';
  root.dataset.illnessEpisode=selected||"";
@@ -1445,8 +1463,7 @@ function onClick(e){
   return;
  }
  if(action==="manage-prescription"){
-  const manager=root?.querySelector(".ill-manager");
-  if(manager){manager.open=true;manager.scrollIntoView?.({block:"start",behavior:"smooth"});}
+  root?.querySelector(".ill-prescription-entry")?.scrollIntoView?.({block:"start",behavior:"smooth"});
   return;
  }
  if(action==="edit-temp"){
@@ -1478,10 +1495,7 @@ function onClick(e){
  }
  if(action==="go-group"){
   editGroup="";copyDraft=null;render();
-  const manager=root?.querySelector(".ill-manager");
-  if(manager)manager.open=true;
-  const form=root?.querySelector(".ill-group-editor");
-  if(form){form.open=true;form.scrollIntoView({block:"start",behavior:"smooth"});}
+  root?.querySelector(".ill-group-editor")?.scrollIntoView?.({block:"start",behavior:"smooth"});
   return;
  }
  if(action==="edit-group"){
