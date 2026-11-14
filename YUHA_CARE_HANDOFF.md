@@ -1114,3 +1114,16 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - `index.html`의 탭 영역 `renderTabs()`에 desktop wheel 가로 스크롤을 한 번 등록하고 실제 overflow인 때만 `preventDefault`. `.tabs`는 가로 한 줄 flex 스크롤, Ctrl+wheel 확대와 일반 세로 스크롤 유지.
 - 변경 파일: `illness-care.js`, `illness-care.css`, `index.html`, `tests/illness-care.test.js`. 실제 Google Apps Script `Code.gs` 내용과 Sheets 시트 구조는 **변경하지 않음**. 이미 질병 v4를 배포한 사용자는 Apps Script 재배포 불필요, v4 미배포라면 기존과 같이 최신 Code.gs 새 버전 배포 필요.
 - 참고: 기존 `medicationGroups[]`와 `medications[]`는 질병 에피소드에 소속되어 있어서 다른 에피소드에 새로 복사되지 않음. '질병 종료 시 자동 정리'는 실제 약/복용 이벤트를 영구 삭제한다는 뜻이 아니라, **그 질병의 활성 처방을 종료 상태로 정리**한다는 뜻.
+
+## 57. 2026-11-15 — 질병 UI/UX 재점검: 체온·복약 빠른 입력 우선
+
+### 변경 이유
+- 현재 처방 요약이 앞에 오고 실제 입력이 히트맵·체온 그래프·측정 이력 아래에 밀리는 문제를 확인. 동일한 복용 내용이 상세 묶음과 이전 개별 약 하위에 중복 표시되어 입력/수정 위치가 혼란스러웠음.
+
+### 적용 내용
+- 질병 상태 → 바로 기록하기(체온 + 약 복용, 모바일 1열/PC 2열) → 열 히트맵·체온 그래프와 실제 측정 기록 → 복용 내역 타임라인 → 참고용 처방 한눈에 → 병원 방문 → 접힌 처방 관리 → 질병 종료 → 새 질병 → 백업 순으로 재정렬.
+- quickTemperatureForm과 quickMedicineForm을 하나의 quickEntryPanel에서 렌더링해 체온·복약 입력 폼은 각각 한 번만 등장. 기존 개별 약도 복용 폼에서 선택하도록 legacy 접두어로 분기. 선택한 약들의 이름·1회량을 모두 미리 보여주며 전체 복용 완료의 의미를 명시. 기록 시각은 변경 가능하고 지금 버튼으로 현재 시각 즉시 입력.
+- changeCase의 로컬 persist 성공 이후에만 바로 기록 카드 상단에 저장 완료 메시지 표시. 처방 관리 열림 상태는 같은 질병에서 재렌더링해도 유지.
+- 묶음 하위 이력과 예전 개별 처방의 중복 기록 폼 제거. 실제 과거 투약 이벤트 및 체온 데이터는 변형하거나 삭제하지 않고 기존 시간별 이력과 XML에서 확인. 종료된 질병의 처방 내역 열람도 허용하지만 새 투약은 차단.
+- XML 다운로드는 접힌 기록 백업·동기화로 이동. 변경 파일은 illness-care.js, illness-care.css, index.html, tests/illness-care.test.js이며 서버 Code.gs 및 질병 API v4 스키마는 변경하지 않음.
+- tests/illness-care.test.js가 빠른 기록 위치, 중복 폼 부재, 개별약 기록, 전체 약명 미리보기, 이전 묶음 관리 펼침 유지, 저장 성공 문구, 지금 버튼과 종료 이력 열람을 검증하도록 확장됨.
