@@ -1098,3 +1098,19 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - 날짜 필터는 질병 발생일과 관계없이 실제 체온·투약·방문 시점. 서버·기기·동기화 대기·충돌 원본은 별도 version으로 출력하므로 중복 계산에 유의. 서버 실패 시 완전 XML 자동 추출 금지, 명시적 부분 다운로드만 허용.
 - tests/history-export.test.js에 실제 소수 g·정 단위, 범위, 원본 비교와 미복용·삭제 이력 및 열 최고값 테스트 추가. tests/history-export-ui.test.js에서 서버 1회 조회와 부분 다운로드 검증. tests/illness-care.test.js에서 UI 버튼 및 로컬 원본 불변 확인. CI Python ElementTree 실제 XML 파싱 추가.
 - index.html에서 illness-care.js와 history-export.js 캐시 버전을 20261114-illness-xml-v1로 갱신. 운영 Apps Script 질병 API v4가 배포되지 않았다면 기기 기록의 부분 XML만 생성할 수 있다.
+
+## 56. 2026-11-14 — 질병 UI/UX 전면 개편 및 기존 체온·복약 이력 수정
+
+### 사용자 피드백
+- 질병 탭 안 입력·확인 카드가 지나치게 길고 각 관리 메뉴가 서로 다른 접기 방식으로 나뉘어 인지 부담이 큼. 약 복용 묶음 드롭다운이 '하루 2회 · 4일 · 1일 2회'처럼 약명 없이 보여 선택이 어려움. 처방 목록에 '묶음 전체 복용 완료' 버튼이 중복되어 있음.
+- 질병 종료 시 처방 묶음은 다른 질병에서 자동 재사용하지 않고 현재 복용에서 제외되어야 하며, 기록된 체온과 약 복용 시각·실제량도 삭제만 아니라 **수정** 가능해야 함. 월간 체온 히트맵에 🏥 병원 방문 표시 필요. PC 상단 탭 마우스 휠 가로 스크롤 필요.
+
+### 적용한 UX/코드
+- `illness-care.js`: 질병 선택 → 진행 상태·현재 약명/1회량 간단 패널(처방 관리 바로 열기) → 열 히트맵·그래프 → 복용 내역·시간별 서머리 및 입력 → 병원 방문 타임라인 → **기본 접힌 '처방 목록·약 묶음 관리'** → 종료 확인 → 새 질병 → **기본 접힌 동기화/백업**. 유저가 자주 누르는 체온·복약 기록만 상시 노출하고 기존 JSON/수동 처방/복사/삭제/완료 목록 등은 관리 영역 안으로 통합함.
+- 그룹 카드에서 중복 '묶음 전체 복용 완료' 버튼 제거. 복용 폼 `<select name=groupId>`의 option은 `groupMedicineLabel()`을 통해 실제 약명·1회량 우선 표시 + 1일 횟수 보조. 상세 그룹들은 기본 닫힌 `ill-manager` 안에 보관, 직접 이동 버튼 추가.
+- 보호자가 **증상 회복 및 실제 복약 완료 체크를 모두 확인**한 때만 질병 종료를 실행하고 해당 병의 `medicationGroups[].active`와 `medications[].active`를 전부 false 처리. `events/doses`와 처방의 사전 정보는 보존(기존 XML 포함). 이후 질병을 다시 진행 중으로 열어도 약 복용을 자동 재개하지 않음.
+- `feverHeat()`에 날짜별 🏥 병원 방문 마커(접근성 레이블/선택일 병원·시간·진단 표시). 병원 방문 내역 시각순 표시, 방문값 수정/삭제.
+- `temperatureEditForm()`/전용 `edit-temp` 제출: 기존 측정값·일시·측정부위·메모 수정. `doseEditForm()`/전용 `edit-dose` 제출: 묶음 및 오래된 개별 약 복용 이벤트의 시점·상태·약별 실제량·메모를 기존 ID를 유지하며 갱신. 종료된 질병이라도 과거 사건 정정 가능; 새 약 추가는 여전히 재개를 요구. 전체 `changeCase`를 통해 로컬 저장·원본 스냅샷·서버 pending/revision 충돌 보호를 적용.
+- `index.html`의 탭 영역 `renderTabs()`에 desktop wheel 가로 스크롤을 한 번 등록하고 실제 overflow인 때만 `preventDefault`. `.tabs`는 가로 한 줄 flex 스크롤, Ctrl+wheel 확대와 일반 세로 스크롤 유지.
+- 변경 파일: `illness-care.js`, `illness-care.css`, `index.html`, `tests/illness-care.test.js`. 실제 Google Apps Script `Code.gs` 내용과 Sheets 시트 구조는 **변경하지 않음**. 이미 질병 v4를 배포한 사용자는 Apps Script 재배포 불필요, v4 미배포라면 기존과 같이 최신 Code.gs 새 버전 배포 필요.
+- 참고: 기존 `medicationGroups[]`와 `medications[]`는 질병 에피소드에 소속되어 있어서 다른 에피소드에 새로 복사되지 않음. '질병 종료 시 자동 정리'는 실제 약/복용 이벤트를 영구 삭제한다는 뜻이 아니라, **그 질병의 활성 처방을 종료 상태로 정리**한다는 뜻.
