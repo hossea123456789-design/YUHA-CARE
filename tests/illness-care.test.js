@@ -635,3 +635,131 @@ function intake(at,status='taken',extra={}){
  assert.equal(JSON.parse(storage.get("yuha_illness_records_v1"))[episode.id].temperatures[0].celsius,38.5);
  console.log("PASS illness UI: XML button snapshots measurements and pending without any write");
 })();
+
+
+(function testHistoryEditorsAndHospitalHeatmapWorkflow(){
+ storage.clear();
+ const illnessId="ihistory_editor",groupId="igroup_editor";
+ const episode={id:illnessId,title:"감기",onsetAt:"2026-11-14T00:00:00.000Z",
+  status:"active",closedAt:"",visits:[{id:"ivisit1",at:"2026-11-14T01:30:00.000Z",
+   hospital:"테스트 소아과",diagnosis:"감기",notes:"처방"}],
+  temperatures:[{id:"itemp1",at:"2026-11-14T02:00:00.000Z",celsius:38.5,site:"ear",note:"이전 측정"}],
+  medications:[{id:"imed1",name:"기존 시럽",doseMl:2.5,active:true,mode:"scheduled",intervalHours:8,
+   doses:[{id:"idose1",at:"2026-11-14T05:00:00.000Z",status:"taken",amountMl:2.5,note:"이전 약"}]}],
+  medicationGroups:[{id:groupId,name:"1일 3회 4일",active:true,mode:"scheduled",intervalHours:8,
+   timesPerDay:3,days:4,items:[
+    {id:"iitem1",name:"항생제 A",amount:3,unit:"mL"},
+    {id:"iitem2",name:"씨투스",amount:0.3333,unit:"g"}
+   ],events:[{id:"ievent1",at:"2026-11-14T04:00:00.000Z",status:"taken",note:"아침",
+    items:[{id:"iitem1",name:"항생제 A",amount:2.5,unit:"mL"},
+     {id:"iitem2",name:"씨투스",amount:0.3333,unit:"g"}]}]}]
+ };
+ storage.set("yuha_illness_records_v1",JSON.stringify({[illnessId]:episode}));
+ const e=setup(),c=()=>e.model.cases[illnessId];
+ e.window.YuhaIllness.render();
+ const navigate=day=>{
+  const button={dataset:{act:"temp-day",day},closest(){return this}};
+  e.root.handlers.click({target:{closest:()=>button}});
+ };
+ navigate("2026-11-14");
+ const html=e.root.innerHTML;
+ assert(html.includes('aria-label="2026-11-14 · 38.5도 · 병원 방문 1회"'),
+  "visit marker must be present on fever calendar cell");
+ assert(html.includes("🏥"),"clinic marker must render");
+ assert(html.includes("복용 내역 · 시간별 서머리"));
+ assert(html.includes("항생제 A 3mL · 씨투스 0.3333g"),
+  "dose selector must display medicine names and exact quantities, not only a frequency label");
+ assert(!html.includes('data-act="take-group"'),
+  "group details must no longer have duplicate one-touch dose button");
+ assert(html.includes('<details class="ill-manager">'),
+  "full medication manager must be collapsed by default");
+ assert(html.includes('data-act="edit-temp"'));
+ assert(html.includes('data-act="edit-dose"'));
+ assert(html.includes('data-act="edit-visit"'));
+ const click=(act,id,extra={})=>{
+  const btn={dataset:{act,id,...extra},closest(){return this}};
+  e.root.handlers.click({target:{closest:()=>btn}});
+ };
+ const submit=(type,values)=>{
+  const form={dataset:{form:type},values};
+  e.root.handlers.submit({preventDefault(){},target:{closest:()=>form}});
+ };
+ click("edit-temp","itemp1");
+ assert(e.root.innerHTML.includes('data-form="edit-temp"'));
+ submit("edit-temp",{editId:"itemp1",at:"2026-11-14T10:45",celsius:"390",site:"forehead",note:"시간 변경"});
+ assert.equal(c().temperatures.length,1);
+ assert.equal(c().temperatures[0].id,"itemp1");
+ assert.equal(c().temperatures[0].celsius,39);
+ assert.equal(c().temperatures[0].site,"forehead");
+ assert.equal(c().temperatures[0].note,"시간 변경");
+ click("edit-dose","ievent1",{group:groupId});
+ assert(e.root.innerHTML.includes('data-form="edit-dose"'));
+ submit("edit-dose",{editId:"ievent1",groupId,legacy:"no",at:"2026-11-14T13:20",
+  status:"taken",note:"실제 오후 복용",doseDrugId:["iitem1","iitem2"],
+  doseDrugName:["항생제 A","씨투스"],doseDrugUnit:["mL","g"],doseDrugAmount:["3.25","0.3333"]});
+ const actual=c().medicationGroups[0].events;
+ assert.equal(actual.length,1,"editing a dose must not append another event");
+ assert.equal(actual[0].id,"ievent1");
+ assert.equal(actual[0].items[0].amount,3.25);
+ assert.equal(actual[0].items[1].amount,0.3333);
+ assert.equal(actual[0].note,"실제 오후 복용");
+ click("edit-dose","idose1",{med:"imed1"});
+ submit("edit-dose",{editId:"idose1",groupId:"imed1",legacy:"yes",at:"2026-11-14T15:40",
+  status:"taken",actualAmountMl:"2.25",note:"기존 시럽 실제량"});
+ assert.equal(c().medications[0].doses.length,1);
+ assert.equal(c().medications[0].doses[0].amountMl,2.25);
+ click("edit-visit","ivisit1");
+ assert(e.root.innerHTML.includes('data-form="visit"'));
+ submit("visit",{editId:"ivisit1",hospital:"병원 수정",at:"2026-11-14T10:30",
+  diagnosis:"열 확인",notes:"재진"});
+ assert.equal(c().visits.length,1);
+ assert.equal(c().visits[0].hospital,"병원 수정");
+ assert(c().visits[0].at.endsWith("Z"));
+ // Explicit closure archives current prescription status, NOT their actual doses.
+ submit("close",{recovered:"on",done:"on",note:"치료 완료 확인"});
+ assert.equal(c().status,"closed");
+ assert.equal(c().medicationGroups[0].active,false);
+ assert.equal(c().medications[0].active,false);
+ assert.equal(c().medicationGroups[0].events[0].items[0].amount,3.25);
+ assert.equal(c().medications[0].doses[0].amountMl,2.25);
+ assert(e.root.innerHTML.includes("처방 보관")||e.root.innerHTML.includes("질병 종료"));
+ // Correct historical data without reopening the illness or restarting medicines.
+ click("edit-temp","itemp1");
+ submit("edit-temp",{editId:"itemp1",at:"2026-11-14T10:45",
+  celsius:"38.8",site:"ear",note:"완치 후 확인 수정"});
+ assert.equal(c().status,"closed");
+ assert.equal(c().temperatures[0].celsius,38.8);
+ assert.equal(c().medicationGroups[0].active,false);
+ const saved=JSON.parse(storage.get("yuha_illness_records_v1"))[illnessId];
+ assert.equal(saved.temperatures.length,1);
+ assert.equal(saved.medicationGroups[0].events.length,1);
+ assert.equal(saved.visits.length,1);
+ console.log("PASS illness: calendar clinic badge, collapsed group manager, medicine-name selector, in-place edits and closure archival");
+})();
+(function testPcWheelNavigationHasOverflowGuard(){
+ const html=fs.readFileSync("index.html","utf8");
+ const source=html.match(/    function renderTabs\(\) \{[\s\S]*?^    \}/m);
+ assert(source,"tab navigation handler should exist");
+ const tabs={dataset:{},scrollLeft:0,scrollWidth:800,clientWidth:300,
+  innerHTML:"",listeners:{},addEventListener(name,fn){this.listeners[name]=fn}};
+ const document={getElementById(id){assert.equal(id,"tabs");return tabs}};
+ const fn=vm.runInNewContext("("+source[0].replace("function renderTabs()","function()")+")",
+  {document,tabOrder:[],currentTab:"illness",data:{},TAB_ICONS:{},window:{},render(){}});
+ fn();
+ assert.equal(typeof tabs.listeners.wheel,"function");
+ let prevented=0;
+ tabs.listeners.wheel({deltaY:90,deltaX:0,ctrlKey:false,metaKey:false,
+  preventDefault(){prevented++}});
+ assert.equal(tabs.scrollLeft,90);
+ assert.equal(prevented,1);
+ tabs.scrollWidth=300;
+ tabs.listeners.wheel({deltaY:90,deltaX:0,ctrlKey:false,metaKey:false,
+  preventDefault(){prevented++}});
+ assert.equal(tabs.scrollLeft,90,"when all tabs fit, normal vertical scrolling remains");
+ assert.equal(prevented,1);
+ tabs.scrollWidth=800;
+ tabs.listeners.wheel({deltaY:90,deltaX:0,ctrlKey:true,metaKey:false,
+  preventDefault(){prevented++}});
+ assert.equal(prevented,1,"Ctrl+wheel browser zoom is untouched");
+ console.log("PASS tabs: desktop wheel navigates overflowing header horizontally only");
+})();
