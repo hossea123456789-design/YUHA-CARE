@@ -837,7 +837,7 @@ function intake(at,status='taken',extra={}){
   "heatmap with embedded fever entry, dose history with embedded entry, one open JSON/manual card, preserved disease section");
  assert(html.indexOf('class="ill-trend-empty"')<t,"temperature input is below the chart placeholder when no readings");
  assert(html.indexOf('class="ill-dose-stats"')<d,"medication input is below the date stats");
- assert(html.indexOf('class="ill-dose-empty"')>d,"medication input is above the empty/history state");
+ assert(html.indexOf('class="ill-dose-empty"')<d,"medicine history or empty-state must precede the input form");
  assert(html.includes('class="ill-prescription-methods"'),
   "JSON and manual entries must share an always-visible registration layout");
  assert(html.includes('name="prescriptionJson"'));
