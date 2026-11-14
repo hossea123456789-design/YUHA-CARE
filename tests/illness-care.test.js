@@ -763,3 +763,38 @@ function intake(at,status='taken',extra={}){
  assert.equal(prevented,1,"Ctrl+wheel browser zoom is untouched");
  console.log("PASS tabs: desktop wheel navigates overflowing header horizontally only");
 })();
+
+(function testBalancedMedicineBundleActions(){
+ storage.clear();
+ const episodeId="ibundle_layout_1",groupId="igroup_layout_1";
+ const episode={id:episodeId,title:"감기",onsetAt:"2026-11-14T00:00:00.000Z",
+  status:"active",visits:[],temperatures:[],medications:[],
+  medicationGroups:[{id:groupId,name:"항생제 묶음",mode:"scheduled",active:true,intervalHours:null,
+   timesPerDay:2,days:4,items:[{id:"i1",name:"시럽",amount:3,unit:"mL"}],events:[]}]};
+ storage.set("yuha_illness_records_v1",JSON.stringify({[episodeId]:episode}));
+ const e=setup();
+ e.window.YuhaIllness.render();
+ const actions=e.root.innerHTML.match(/<div class="ill-group-actions"[^>]*>[\\s\\S]*?<\\/div><\\/div>/);
+ assert(actions,"medicine actions must consist of two dedicated rows");
+ const html=actions[0],labels=["약·용량 수정","묶음 복사","복용 종료","묶음 삭제"];
+ let last=-1;
+ for(const label of labels){
+  const i=html.indexOf(label);
+  assert(i>last,"expected visible action order: "+label);
+  last=i;
+ }
+ assert.equal((html.match(/class="ill-group-action-row/g)||[]).length,2,
+  "edit/copy and lifecycle/delete must each have their own balanced row");
+ assert(!html.includes('data-act="take-group"'),"dose taking belongs in the daily medication timeline");
+ const css=fs.readFileSync("illness-care.css","utf8");
+ assert(css.includes(".ill-group-action-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))"),
+  "both rows use equal-width columns");
+ assert(css.includes(".ill-group-actions .ill-text-danger{grid-column:auto"),
+  "delete must not span a whole row");
+ const c=e.model.cases[episodeId];
+ c.status="closed";c.medicationGroups[0].active=false;
+ e.window.YuhaIllness.render();
+ assert(!e.root.innerHTML.includes('data-act="delete-group"'),
+  "closed illness must not present unclickable bundle-management actions");
+ console.log("PASS illness: tidy two-row medicine actions and no dead controls on closed illnesses");
+})();
