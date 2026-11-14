@@ -194,7 +194,7 @@ function intake(at,status='taken',extra={}){
   }else failure(new Error('unexpected RPC '+method));
  });
  e.window.YuhaIllness.render();
- assert(e.root.innerHTML.includes('서버 기록 다시 조회'));
+ assert(e.root.innerHTML.includes('서버 재조회'));
  assert(!e.root.innerHTML.includes('type="password"'),'no extra password input');
  assert(!e.root.innerHTML.includes('비공개 서버 연결'),'no gated connect');
  for(let i=0;i<12&&Object.keys(e.model.pending).length;i++)
