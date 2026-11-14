@@ -3,7 +3,7 @@
    All records are fetched after explicit user action and kept in memory until download. */
 (function(root){
 "use strict";
-const SPEC={sleep:{label:"유하 수면",filename:"sleep"},mental:{label:"아내 회복",filename:"mental"}};
+const SPEC={sleep:{label:"유하 수면",filename:"sleep"},mental:{label:"아내 회복",filename:"mental"},illness:{label:"유하 질병·체온·복약",filename:"illness"}};
 const VALID_MONTH=/^20\d{2}-(?:0[1-9]|1[0-2])$/;
 const VALID_DAY=/^20\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/;
 function safeXml(value){
@@ -147,7 +147,198 @@ function sleepObservationsXml(record){
  return '      <sleepObservations note="날짜별 수면 관찰 지표. 읽기 편한 한글 표기이며 원본 값은 raw 속성과 각 원본 버전에 유지됩니다. 미입력과 명시적 0은 구분합니다.">\n'+
   versions.join("")+'      </sleepObservations>\n';
 }
+// The illness backend stores complete episodes rather than month-keyed rows.
+// Select by the timestamp of each observation/administration, not by onsetAt.
+// Versions are exported separately: server, local, pending, and conflicts must
+// never be silently merged or added together as independent administrations.
+function illnessEventDay(timestamp){
+ if(typeof timestamp!=="string")return "";
+ const t=new Date(timestamp);
+ return Number.isFinite(t.getTime())?localDate(t):"";
+}
+function illnessInRange(timestamp,start,end){
+ const day=illnessEventDay(timestamp);
+ return validDate(day)&&day>=start&&day<=end;
+}
+function illnessScopedVersion(episode,start,end){
+ if(!episode||typeof episode!=="object"||Array.isArray(episode))return null;
+ const visit=Array.isArray(episode.visits)?episode.visits.filter(x=>illnessInRange(x.at,start,end)):[];
+ const temperatures=Array.isArray(episode.temperatures)?
+  episode.temperatures.filter(x=>illnessInRange(x.at,start,end)):[];
+ const groups=Array.isArray(episode.medicationGroups)?episode.medicationGroups.map(g=>({
+  ...g,events:Array.isArray(g.events)?g.events.filter(x=>illnessInRange(x.at,start,end)):[]
+ })).filter(g=>g.events.length):[];
+ const meds=Array.isArray(episode.medications)?episode.medications.map(m=>({
+  ...m,doses:Array.isArray(m.doses)?m.doses.filter(x=>illnessInRange(x.at,start,end)):[]
+ })).filter(m=>m.doses.length):[];
+ const episodeRelevant=illnessInRange(episode.onsetAt,start,end)||
+  illnessInRange(episode.closedAt,start,end);
+ if(!episodeRelevant&&!visit.length&&!temperatures.length&&!groups.length&&!meds.length)return null;
+ // If the episode itself begins in the range, retain its prescriptions,
+ // even when no dose has yet been entered. Otherwise only relevant dated logs.
+ return {
+  episode,visit,temperatures,
+  groups:episodeRelevant&&Array.isArray(episode.medicationGroups)?
+   episode.medicationGroups.map(g=>({...g,events:Array.isArray(g.events)?
+    g.events.filter(x=>illnessInRange(x.at,start,end)):[]})):groups,
+  meds:episodeRelevant&&Array.isArray(episode.medications)?
+   episode.medications.map(m=>({...m,doses:Array.isArray(m.doses)?
+    m.doses.filter(x=>illnessInRange(x.at,start,end)):[]})):meds
+ };
+}
+function illnessXmlText(name,value,spaces){
+ return " ".repeat(spaces)+"<"+name+">"+safeXml(value??"")+"</"+name+">\n";
+}
+function illnessDoseItemXml(item,spaces){
+ const pad=" ".repeat(spaces);
+ return pad+"<drug"+attr("id",item?.id||"")+
+  attr("name",item?.name||"")+attr("amount",item?.amount??"")+
+  attr("unit",item?.unit||"")+ "/>\n";
+}
+function illnessVersionXml(src,source,start,end,additional={}){
+ const scoped=illnessScopedVersion(src,start,end);
+ if(!scoped)return "";
+ const ep=scoped.episode;
+ let xml="      <version"+attr("source",source)+
+  attr("revision",ep.revision||"")+
+  (additional.expectedRevision!==undefined?attr("expectedRevision",additional.expectedRevision):"")+">\n";
+ xml+="        <episodeDetails"+attr("id",ep.id||"")+
+  attr("title",ep.title||"")+attr("onsetAt",ep.onsetAt||"")+
+  attr("status",ep.status||"")+attr("closedAt",ep.closedAt||"")+
+  attr("recoveryConfirmed",ep.recoveryConfirmed===true)+
+  attr("noFurtherMedicationConfirmed",ep.noFurtherMedicationConfirmed===true)+"/>\n";
+ for(const k of ["symptoms","note","closureNote"])
+  if(ep[k]!==undefined&&ep[k]!==null)xml+=illnessXmlText(k,ep[k],8);
+ const visits=[...scoped.visit].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+ xml+="        <hospitalVisits"+attr("count",visits.length)+">\n";
+ for(const v of visits){
+  xml+="          <visit"+attr("id",v.id||"")+attr("at",v.at||"")+
+   attr("date",illnessEventDay(v.at))+attr("hospital",v.hospital||"")+
+   attr("diagnosis",v.diagnosis||"")+">\n";
+  xml+=illnessXmlText("notes",v.notes||"",12);
+  xml+="          </visit>\n";
+ }
+ xml+="        </hospitalVisits>\n";
+ const temp=[...scoped.temperatures].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+ xml+="        <temperatureHistory"+attr("count",temp.length)+">\n";
+ for(const r of temp){
+  xml+="          <reading"+attr("id",r.id||"")+attr("at",r.at||"")+
+   attr("date",illnessEventDay(r.at))+attr("celsius",r.celsius??"")+
+   attr("unit","℃")+attr("site",r.site||"")+">\n";
+  xml+=illnessXmlText("note",r.note||"",12);
+  xml+="          </reading>\n";
+ }
+ xml+="        </temperatureHistory>\n";
+ xml+="        <medicationGroups"+attr("count",scoped.groups.length)+">\n";
+ for(const g of scoped.groups){
+  xml+="          <group"+attr("id",g.id||"")+attr("name",g.name||"")+
+   attr("active",g.active!==false)+attr("deletedAt",g.deletedAt||"")+
+   attr("mode",g.mode||"")+attr("timesPerDay",g.timesPerDay??"")+
+   attr("days",g.days??"")+attr("intervalHours",g.intervalHours??"")+
+   attr("endsAt",g.endsAt||"")+attr("sourceDate",g.sourceDate||"")+
+   attr("sourceKind",g.sourceKind||"")+attr("visitId",g.visitId||"")+">\n";
+  const items=Array.isArray(g.items)?g.items:[];
+  xml+="            <prescribedDrugs"+attr("count",items.length)+">\n";
+  for(const item of items)xml+=illnessDoseItemXml(item,14);
+  xml+="            </prescribedDrugs>\n";
+  const entries=[...(g.events||[])].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  xml+="            <administrations"+attr("count",entries.length)+">\n";
+  for(const ev of entries){
+   xml+="              <administration"+attr("id",ev.id||"")+
+    attr("at",ev.at||"")+attr("date",illnessEventDay(ev.at))+
+    attr("status",ev.status||"")+attr("scheduledFor",ev.scheduledFor||"")+">\n";
+   xml+=illnessXmlText("note",ev.note||"",16);
+   // Actual snapshots preserve historical doses after prescriptions change.
+   const administered=ev.status==="skipped"?[]:Array.isArray(ev.items)?ev.items:[];
+   xml+="                <administeredDrugs"+attr("count",administered.length)+">\n";
+   for(const item of administered)xml+=illnessDoseItemXml(item,18);
+   xml+="                </administeredDrugs>\n";
+   xml+="              </administration>\n";
+  }
+  xml+="            </administrations>\n";
+  xml+="          </group>\n";
+ }
+ xml+="        </medicationGroups>\n";
+ xml+="        <legacyMedications"+attr("count",scoped.meds.length)+">\n";
+ for(const m of scoped.meds){
+  xml+="          <medication"+attr("id",m.id||"")+attr("name",m.name||"")+
+   attr("active",m.active!==false)+attr("doseMl",m.doseMl??"")+
+   attr("doseUnit","mL")+attr("mode",m.mode||"")+
+   attr("intervalHours",m.intervalHours??"")+attr("endsAt",m.endsAt||"")+
+   attr("visitId",m.visitId||"")+">\n";
+  const doses=[...(m.doses||[])].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  xml+="            <administrations"+attr("count",doses.length)+">\n";
+  for(const d of doses){
+   xml+="              <administration"+attr("id",d.id||"")+
+    attr("at",d.at||"")+attr("date",illnessEventDay(d.at))+
+    attr("status",d.status||"")+attr("actualAmount",d.status==="skipped"?"":d.amountMl??"")+
+    attr("unit","mL")+attr("scheduledFor",d.scheduledFor||"")+">\n";
+   xml+=illnessXmlText("note",d.note||"",16);
+   xml+="              </administration>\n";
+  }
+  xml+="            </administrations>\n";
+  xml+="          </medication>\n";
+ }
+ xml+="        </legacyMedications>\n";
+ return xml+"      </version>\n";
+}
+function buildIllnessXml(doc){
+ const [lastYear,lastNumber]=String(doc.lastMonth||"").split("-").map(Number);
+ if(!VALID_MONTH.test(doc.firstMonth)||!VALID_MONTH.test(doc.lastMonth)||
+    doc.firstMonth>doc.lastMonth)throw Error("질병 XML 기간 오류");
+ const endCalendarDate=new Date(Date.UTC(lastYear,lastNumber,0)).toISOString().slice(0,10);
+ const start=doc.startDate||doc.firstMonth+"-01",end=doc.endDate||endCalendarDate;
+ if(!validDate(start)||!validDate(end)||start>end)throw Error("질병 XML 날짜 범위 오류");
+ const batch=(doc.months||[])[0]||{};
+ const failed=batch.error?[batch.month||doc.firstMonth]:[];
+ const complete=failed.length===0&&doc.mode!=="device"&&doc.mode!=="partial";
+ const server=batch.server||{},device=batch.device||{},pending=batch.pending||{},conflicts=batch.conflicts||{};
+ const ids=new Set([...Object.keys(server),...Object.keys(device),...Object.keys(pending),...Object.keys(conflicts)]);
+ let result="",count=0;
+ for(const id of [...ids].sort()){
+  const p=pending[id]||{},conflict=conflicts[id]||{};
+  const variants=[
+   illnessVersionXml(server[id],"serverVersion",start,end),
+   illnessVersionXml(device[id],"deviceVersion",start,end),
+   illnessVersionXml(p.episode,"pendingChanges",start,end,{expectedRevision:p.expectedRevision||""}),
+   illnessVersionXml(conflict.local,"conflictDeviceVersion",start,end),
+   illnessVersionXml(conflict.server,"conflictServerVersion",start,end)
+  ].filter(Boolean);
+  if(!variants.length)continue;
+  const differing=Boolean(server[id]&&device[id]&&!isSame(server[id],device[id]));
+  result+="    <record"+attr("episodeId",id)+
+   attr("serverPresent",variants.some(x=>x.includes('source="serverVersion"')))+
+   attr("devicePresent",variants.some(x=>x.includes('source="deviceVersion"')))+
+   attr("unsynced",variants.some(x=>x.includes('source="pendingChanges"')))+
+   attr("reviewVersions",differing||Boolean(conflicts[id]))+">\n"+
+   variants.join("")+"    </record>\n";
+  count++;
+ }
+ let xml='<?xml version="1.0" encoding="UTF-8"?>\n'+
+  '<yuhaCareHistory'+attr("schemaVersion","1.1")+
+  attr("category","illness")+attr("categoryName",SPEC.illness.label)+
+  attr("scope",doc.scope)+attr("complete",complete)+'>\n'+
+  '  <metadata>\n'+
+  illnessXmlText("exportedAt",new Date().toISOString(),4)+
+  '    <period'+attr("startMonth",doc.firstMonth)+attr("endMonth",doc.lastMonth)+
+  attr("startDate",start)+attr("endDate",end)+attr("preset",doc.preset||"none")+'/>\n'+
+  '    <source'+attr("mode",doc.mode||"server-and-device")+
+  attr("failedMonths",failed.join(","))+attr("recordCount",count)+'/>\n'+
+  '    <analysisNote>날짜 범위는 실제 측정·투약·병원 방문 시각의 브라우저 현지 날짜로 필터링합니다. 질병 발생일이 이전 달이어도 기간 내 복약 기록이 있으면 포함됩니다. 복용 수량은 처방 기준과 투약 당시 실제 수량을 구분합니다. 1일 횟수를 임의의 시간 간격으로 환산하지 않습니다. 삭제된 묶음의 이력도 deletedAt과 함께 유지됩니다. serverVersion, deviceVersion, pendingChanges, conflictVersions는 서로 다른 원본으로 같은 투약 사실이 중복될 수 있으므로 합산하지 마세요. complete는 서버 조회 성공 여부만 뜻합니다. 원본은 변경하지 않았습니다.</analysisNote>\n'+
+  '  </metadata>\n'+
+  '  <fieldDefinitions>\n'+
+  '    <field key="temperatureHistory.reading.celsius" label="실측 체온" unit="℃"/>\n'+
+  '    <field key="medicationGroups.group.administrations.administration" label="묶음 복용·미복용 기록"/>\n'+
+  '    <field key="administeredDrugs.drug.amount" label="실제 약별 복용량" unit="drug.unit"/>\n'+
+  '    <field key="legacyMedications.medication.administrations" label="구형 개별 약 복용 기록"/>\n'+
+  '    <field key="medicationGroups.group.deletedAt" label="삭제 보관된 묶음 시각"/>\n'+
+  '  </fieldDefinitions>\n'+
+  '  <records'+attr("count",count)+'>\n'+result+'  </records>\n</yuhaCareHistory>\n';
+ return {xml,recordCount:count,failed,complete,scope:doc.scope,
+  firstMonth:doc.firstMonth,lastMonth:doc.lastMonth,startDate:start,endDate:end,preset:doc.preset||"none"};
+}
 function buildXml(doc){
+ if(doc.kind==="illness")return buildIllnessXml(doc);
  if(!SPEC[doc.kind])throw Error("지원하지 않는 기록 유형입니다.");
  const date=new Date().toISOString();
  const batches=Array.isArray(doc.months)?doc.months:[];
