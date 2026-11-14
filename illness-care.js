@@ -264,7 +264,7 @@ async function connect(){
  try{
   const res=await rpc("getIllnessCases",[]);
   if(epoch!==syncEpoch)return;
-  if(!res?.ok||Number(res.schemaVersion)!==2)throw Error("질병 기록용 Apps Script 최신 버전 배포가 필요합니다.");
+  if(!res?.ok||Number(res.schemaVersion)!==3)throw Error("질병 기록용 Apps Script 최신 버전 배포가 필요합니다.");
   connected=true;
   absorbServer(res.cases);
   notice="서버 기록 조회 완료 · 자동 저장 사용 중";noticeError=false;
