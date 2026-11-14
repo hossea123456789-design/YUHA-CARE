@@ -625,18 +625,18 @@ function copyPrescriptionText(value){
  })();
 }
 function prescriptionJsonForm(c){
- if(c.status!=="active")return "";
- return card("처방 JSON 가져오기",'<div class="ill-row-actions ill-copy-actions">'+
+ if(!c||c.status!=="active")return "";
+ return '<section class="ill-json-area"><h4>처방 JSON 붙여넣기</h4>'+
+  '<p class="ill-muted">약봉투 사진을 다른 채팅에서 JSON으로 변환한 뒤 바로 붙여넣으세요.</p>'+
+  '<div class="ill-row-actions ill-copy-actions">'+
   '<button type="button" class="ill-secondary" data-act="copy-prescription-request">다른 채팅용 요청문 복사</button>'+
   '<button type="button" class="ill-secondary" data-act="copy-prescription-example">예시 JSON 복사</button></div>'+
-  '<p class="ill-muted" data-prescription-copy-status>다른 채팅에서 이 요청문과 처방 사진을 보내면 앱용 JSON을 만들 수 있습니다.</p>'+
-  '<details class="ill-import-details"><summary>JSON 붙여넣기 · 약 묶음 자동 생성</summary>'+
-  '<p class="ill-muted">처방약 사진에서 확인한 JSON을 붙여넣고 목록을 먼저 검토한 후 등록합니다.</p>'+
-  '<form data-form="prescription-json" class="ill-fields">'+
-  '<label>처방 JSON<textarea name="prescriptionJson" rows="7" maxlength="100000" spellcheck="false" placeholder="처방 JSON을 붙여넣으세요"></textarea></label>'+
-  '<button type="submit" class="ill-secondary">JSON 분석 · 등록 전 확인</button></form>'+
+  '<p class="ill-muted" data-prescription-copy-status>요청문과 약봉투 사진을 보내면 앱에서 읽을 수 있는 JSON을 받을 수 있습니다.</p>'+
+  '<form data-form="prescription-json" class="ill-fields ill-json-form">'+
+  '<label>처방 JSON<textarea name="prescriptionJson" rows="5" maxlength="100000" spellcheck="false" placeholder="여기에 처방 JSON을 붙여넣으세요"></textarea></label>'+
+  '<button type="submit" class="ill-primary">JSON 분석 · 약별량 확인</button></form>'+
   '<div id="illPrescriptionPreview" aria-live="polite"></div>'+
-  '<p class="ill-muted">1일 횟수만으로 시간 간격을 추측하지 않습니다. 복용 시간은 처방 지시에 따라 확인하세요.</p></details>');
+  '<p class="ill-muted">자동 등록되지 않습니다. 분석 결과를 확인한 뒤 등록합니다. 1일 횟수만으로 복용 간격은 추정하지 않습니다.</p></section>';
 }
 function prescriptionPreview(result){
  const groups=result.groups.map(g=>'<div class="ill-import-group"><strong>'+E(g.name)+'</strong>'+
@@ -655,8 +655,8 @@ function medicationGroupForm(c){
  const visitOptions=c.visits.length?'<label>연결 병원 (선택)<select name="visitId"><option value="">연결하지 않음</option>'+
   c.visits.map(v=>'<option value="'+attr(v.id)+'"'+(group.visitId===v.id?' selected':'')+'>'+E(v.hospital)+'</option>').join("")+
   '</select></label>':'';
- return card("약 묶음 추가",'<details class="ill-group-editor" '+(editing||copyDraft||!c.medicationGroups.length?'open':'')+'><summary>'+
-  (editing?'복용 묶음 수정':'함께 복용하는 약 등록')+'</summary>'+
+ return '<div class="ill-group-editor">'+
+  '<h4>'+(editing?'등록된 약 묶음 수정':'약 직접 입력 · 묶음 등록')+'</h4>'+
   '<form data-form="group" class="ill-fields">'+
   '<input type="hidden" name="editGroupId" value="'+attr(editing?.id||"")+'">'+
   '<label>묶음 이름 <small>(선택)</small><input name="groupName" maxlength="80" value="'+attr(group.name||"")+'" placeholder="예: 아침·저녁 약"></label>'+
@@ -674,7 +674,7 @@ function medicationGroupForm(c){
   '<p class="ill-muted">같은 시각·간격에 함께 복용하도록 처방된 약만 묶으세요. 약 봉투의 1회량을 정확히 입력하고, 묶음 일부만 복용했다면 함께 복용 완료로 기록하지 마세요.</p>'+
   '<button type="submit" class="ill-primary">'+(editing?'묶음 변경 저장':'복용 묶음 저장')+'</button>'+
   (editing?'<button type="button" data-act="cancel-edit-group" class="ill-secondary">수정 취소</button>':'')+
-  '</form></details>');
+  '</form></div>';
 }
 function groupPanel(c){
  const all=c.medicationGroups.filter(g=>g.active&&!g.deletedAt);
@@ -770,16 +770,19 @@ function currentPrescriptionPanel(c){
   (c.status==="closed"?'처방 이력 펼치기':'처방 목록·수정 열기')+'</button></div>'+
   '<p class="ill-muted">체온과 복용 기록은 화면 위쪽에서 입력하고 조회합니다.</p></div>');
 }
-function medicationManagement(c,stayOpen=false){
- const active=c.medicationGroups.filter(g=>g.active&&!g.deletedAt).length;
- const total=c.medicationGroups.length;
- const forceOpen=Boolean(editGroup||copyDraft||editMedication||pendingPrescription);
- const hint=c.status==="closed"?"지난 처방 열람":"등록·수정·복사·삭제";
- return '<details class="ill-manager"'+(forceOpen||stayOpen?' open':'')+'><summary>'+
-  '<strong>처방 목록·약 묶음 관리</strong><small>전체 '+total+'개 묶음 · 복용 중 '+active+'개 · '+hint+'</small>'+
-  '</summary><div class="ill-manager-body">'+
-  groupPanel(c)+prescriptionJsonForm(c)+medicationGroupForm(c)+legacyPanel(c)+
-  '</div></details>';
+function prescriptionEntryPanel(c){
+ if(!c||c.status!=="active")return "";
+ return card("처방 등록 · JSON / 직접 입력",
+  prescriptionJsonForm(c)+
+  '<div class="ill-prescription-manual">'+medicationGroupForm(c)+'</div>',
+  "ill-prescription-entry");
+}
+function registeredMedicinePanel(c){
+ const legacy=c.medications?.length?legacyPanel(c):"";
+ return '<section class="ill-medicine-list" aria-label="등록한 약 리스트">'+
+  '<h3>등록한 약 리스트</h3>'+
+  groupPanel(c)+legacy+
+  '</section>';
 }
 function doseEditForm(c,entries){
  const record=entries.find(e=>e.id===editDoseId&&e.groupId===editDoseGroupId&&e.legacy===editDoseLegacy);
