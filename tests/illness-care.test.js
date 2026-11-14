@@ -677,8 +677,8 @@ function intake(at,status='taken',extra={}){
   actualDoseHistory=html.indexOf('class="ill-dose-timeline"');
  assert(chart>=0&&chart<t&&t<measured,
   "temperature entry must be immediately below graph and above measurement history");
- assert(actualDoseHistory>=0&&d<actualDoseHistory,
-  "dose entry must be directly before the time-ordered dose events");
+ assert(actualDoseHistory>=0&&actualDoseHistory<d,
+  "medication history (#3) must precede dose entry (#4) as user specified");
  assert(html.includes("항생제 A 3mL · 씨투스 0.3333g"),
   "dose selector must display medicine names and exact quantities, not only a frequency label");
  assert(!html.includes('data-act="take-group"'),
