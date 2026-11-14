@@ -398,3 +398,93 @@ function intake(at,status='taken',extra={}){
  assert(!e.root.innerHTML.includes('<details><summary>체온 측정 이력'));
  console.log('PASS illness: recording 385 immediately refreshes its permanently open daily graph and history');
 })();
+
+
+(function testPrescriptionJsonParserAndPrecision(){
+ const t=setup().test;
+ const sample={schema:"yuha-prescription-import/v1",dispensedAt:"2026-11-14",medications:[
+  {name:"항생제 A",doseAmount:5,doseUnit:"mL",timesPerDay:2,days:4},
+  {name:"기침 시럽",doseAmount:4,doseUnit:"mL",timesPerDay:3,days:4},
+  {name:"건조 시럽",doseAmount:0.3333,doseUnit:"g",timesPerDay:3,days:4},
+  {name:"콧물약 정제",doseAmount:0.25,doseUnit:"정",timesPerDay:3,days:4},
+  {name:"소염 시럽",doseAmount:4,doseUnit:"mL",timesPerDay:3,days:3}
+ ]};
+ assert.equal(t.validAmount(.25,"정"),true);
+ assert.equal(t.validAmount(.01,"mL"),true);
+ assert.equal(t.validAmount(.3333,"g"),true,"exact 0.3333g is never rounded");
+ assert.equal(t.validAmount(.3333,"mL"),false,"ordinary manual units have at most 2 decimals");
+ assert.equal(t.validAmount(.33333,"g"),false);
+ const result=t.parsePrescriptionJson(JSON.stringify(sample));
+ assert.equal(result.medicationCount,5);
+ assert.equal(result.groups.length,3,"2x4, 3x4, 3x3 should be different bundles");
+ assert(result.hasExtraPrecision);
+ assert(result.groups.every(g=>g.intervalHours===null),"do not invent 12h or 8h");
+ assert(result.groups.every(g=>g.events.length===0));
+ assert(result.groups.some(g=>g.items.some(i=>i.amount===0.3333&&i.unit==="g")));
+ const noHours=result.groups.find(g=>g.timesPerDay===2);
+ assert.equal(noHours.days,4);
+ assert.equal(noHours.items[0].amount,5);
+ assert.equal(t.groupGuidance(noHours).state,"invalid","no overdue guess without interval");
+ const template={...sample,bundleTemplates:[{name:"아침 저녁",items:[{name:"항생제 A",amount:5,unit:"mL"}]}]};
+ const result2=t.parsePrescriptionJson(JSON.stringify(template));
+ assert.equal(result2.groups.length,3,"unreferenced medicines are included safely");
+ assert.equal(result2.groups[0].name,"아침 저녁");
+ assert.throws(()=>t.parsePrescriptionJson("invalid json"),/JSON 형식/);
+ assert.throws(()=>t.parsePrescriptionJson(JSON.stringify({
+  ...sample,bundleTemplates:[{name:"잘못된 묶음",items:[{name:"항생제 A",amount:4,unit:"mL"}]}]
+ })),/일치/);
+ assert.throws(()=>t.parsePrescriptionJson(JSON.stringify({...sample,
+  medications:[{...sample.medications[0],doseAmount:0.555}]})),/용량/);
+ console.log("PASS illness JSON: five meds into 3 safe bundles, exact g/quarter tablet, 2dp limits, no invented hours");
+})();
+(function testJsonPrescriptionPreviewAndGroupCopy(){
+ storage.clear();
+ const id="ijsoncase_01",episode={id,title:"발열",onsetAt:"2026-11-14T00:00:00.000Z",
+  status:"active",medications:[],visits:[],temperatures:[],medicationGroups:[]};
+ storage.set("yuha_illness_records_v1",JSON.stringify({[id]:episode}));
+ const e=setup();
+ let preview={innerHTML:""};
+ e.root.querySelector=selector=>selector==="#illPrescriptionPreview"?preview:null;
+ e.window.YuhaIllness.render();
+ const input={schema:"yuha-prescription-import/v1",dispensedAt:"2026-11-14",
+  medications:[
+   {name:"약 1",doseAmount:2.5,doseUnit:"mL",timesPerDay:2,days:4},
+   {name:"약 2",doseAmount:0.25,doseUnit:"정",timesPerDay:3,days:4}
+  ]};
+ const fire=(type,values)=>{
+  const form={dataset:{form:type},values};
+  e.root.handlers.submit({preventDefault(){},target:{closest:()=>form}});
+ };
+ const click=(act,id)=>{
+  const button={dataset:{act,id},closest(){return this}};
+  e.root.handlers.click({target:{closest:()=>button}});
+ };
+ fire("prescription-json",{prescriptionJson:JSON.stringify(input)});
+ assert.equal(e.model.cases[id].medicationGroups.length,0,"preview must not save before confirmation");
+ assert(preview.innerHTML.includes("저장 전 확인"));
+ click("confirm-json-import");
+ assert.equal(e.model.cases[id].medicationGroups.length,2);
+ assert(e.model.cases[id].medicationGroups.every(g=>g.events.length===0));
+ // Copy a preset, edit the medicine list, then save without copying doses.
+ const first=e.model.cases[id].medicationGroups[0];
+ const originalId=first.id,originalItemId=first.items[0].id;
+ click("copy-group",originalId);
+ assert(e.root.innerHTML.includes("복사본"),"copy must enter editable draft, not duplicate instantly");
+ assert.equal(e.model.cases[id].medicationGroups.length,2);
+ fire("group",{editGroupId:"",groupName:"아침 특별 묶음",drugName:["약 1"],
+  drugAmount:["2.5"],drugUnit:["mL"],mode:"scheduled",intervalHours:""});
+ assert.equal(e.model.cases[id].medicationGroups.length,3);
+ const copied=e.model.cases[id].medicationGroups[2];
+ assert.notEqual(copied.id,originalId);
+ assert.notEqual(copied.items[0].id,originalItemId);
+ assert.equal(copied.events.length,0);
+ assert.equal(copied.timesPerDay,2);
+ assert.equal(copied.intervalHours,null);
+ // Second identical JSON import should be detected and not duplicate originals.
+ const existing=e.model.cases[id].medicationGroups.length;
+ preview={innerHTML:""};
+ fire("prescription-json",{prescriptionJson:JSON.stringify(input)});
+ click("confirm-json-import");
+ assert.equal(e.model.cases[id].medicationGroups.length,existing);
+ console.log("PASS illness JSON UI: preview, confirmed import, editable copy, fresh IDs/no dose history, dedupe");
+})();
