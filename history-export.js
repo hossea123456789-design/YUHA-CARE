@@ -562,7 +562,7 @@ function open(options){
    let next=0,completed=0,firstError=null;
    const concurrent=onlyDevice?1:Math.min(3,range.months.length);
    async function worker(){
-    while(next<range.months.length){
+    while(next<requestMonths.length){
      check();
      const index=next++,month=requestMonths[index],
       device=kind==="illness"?options.localIllness():options.localMonth(month);
