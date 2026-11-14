@@ -678,8 +678,7 @@ function groupPanel(c){
  const all=c.medicationGroups.filter(g=>g.active&&!g.deletedAt);
  const finished=c.medicationGroups.filter(g=>!g.active&&!g.deletedAt);
  const deleted=c.medicationGroups.filter(g=>!!g.deletedAt);
- const legacyActive=c.medications.filter(m=>m.active);
- if(!all.length&&!finished.length&&!legacyActive.length&&!deleted.length)return card("현재 복용 중인 약 · 묶음",
+ if(!all.length&&!finished.length&&!deleted.length)return card("약 묶음 관리",
   '<div class="ill-empty"><strong>등록된 약이 없습니다</strong><p>같이 복용하는 약의 이름과 1회량만 등록하세요. 복용 기록은 묶음 단위로 남깁니다.</p>'+
   '<button class="ill-primary" data-act="go-group" type="button">+ 복용 묶음 만들기</button></div>');
  const renderGroup=g=>{
@@ -702,14 +701,7 @@ function groupPanel(c){
       '<button type="button" class="ill-secondary" data-act="resume-group" data-id="'+attr(g.id)+'">복용 재개</button>')+
    '<button type="button" class="ill-text-danger" data-act="delete-group" data-id="'+attr(g.id)+'">묶음 삭제</button>'+
    '</div></div>':'')+
-   '<details><summary>과거 복용 기록 확인 · '+history.length+'건</summary>'+
-
-   (history.length?'<div class="ill-history">'+history.map(d=>
-    '<div class="ill-history-item">'+E(displayTime(d.at))+' · '+
-    (d.status==="skipped"?"미복용":'<strong>'+E(d.items.map(item=>item.name+" "+doseLabel(item.amount,item.unit)).join(", "))+'</strong>')+
-    (d.note?' · '+E(d.note):'')+
-    '<button type="button" data-act="remove-group-event" data-id="'+attr(d.id)+'" data-group="'+attr(g.id)+'" class="ill-text-danger">삭제</button></div>').join("")+'</div>':'')+
-   '</details></article>';
+   '<p class="ill-muted">복용 이력 '+history.length+'건 · 시간별 기록은 위 복약 서머리에서 확인·수정</p></article>';
  };
  const sections=all.map(renderGroup).join("");
  const past=finished.length?'<details class="ill-group-past"><summary>복용 종료한 묶음 '+finished.length+'개</summary>'+
@@ -718,10 +710,7 @@ function groupPanel(c){
   '<p class="ill-muted">삭제한 묶음과 기존 투약 기록은 보관됩니다. 삭제한 묶음의 이력은 일반 복약 서머리에서 제외합니다.</p>'+
   deleted.map(g=>'<div class="ill-archive-row"><span>'+E(g.name)+' · 복용 이력 '+g.events.length+'건</span>'+
    (c.status==="active"?'<button type="button" class="ill-secondary" data-act="restore-group" data-id="'+attr(g.id)+'">복원</button>':'')+'</div>').join("")+'</details>':'';
- const oldMedicines=legacyActive.length?'<div class="ill-legacy-active"><strong>이전 등록한 개별 약</strong>'+
-  '<ul class="ill-drug-list">'+legacyActive.map(m=>'<li><span>'+E(m.name)+'</span><strong>'+E(doseLabel(m.doseMl,"mL"))+'</strong></li>').join("")+'</ul>'+
-  '<small>이전 입력 기록은 아래 접이식 목록에서 수정하거나 복용 완료할 수 있습니다.</small></div>':'';
- return card("처방 묶음 전체 목록",sections+oldMedicines+past+archive+
+ return card("약 묶음 관리",sections+past+archive+
  '<p class="ill-muted">복용 기록은 화면 위쪽 ‘복용 내역’에서 입력합니다. 함께 복용한 약의 범위는 처방 지시를 확인해 기록하세요.</p>');
 }
 // Always-visible medication timeline across ALL currently retained medicine groups
@@ -863,8 +852,23 @@ function medicationTimeline(c){
 }
 function legacyPanel(c){
  if(!c.medications.length)return "";
- return '<details class="ill-legacy"><summary>기존 개별 약 기록 '+c.medications.length+'건 (보존)</summary>'+
-  medicines(c)+medicationForm(c)+'</details>';
+ const rows=c.medications.map(m=>
+  '<article class="ill-old-med">'+
+  '<div class="ill-old-med-head"><strong>'+E(m.name)+'</strong>'+
+  '<span class="ill-tag">'+(m.active?"복용 중":"복용 종료")+'</span></div>'+
+  '<p class="ill-muted">1회 '+E(doseLabel(m.doseMl,"mL"))+
+   (m.intervalHours?' · 처방 간격 '+E(m.intervalHours)+'시간':'')+
+   ' · 복용 기록 '+(m.doses||[]).length+'건</p>'+
+  (c.status==="active"?'<div class="ill-record-actions">'+
+   '<button type="button" class="ill-secondary" data-act="edit-med" data-id="'+attr(m.id)+'">처방 수정</button>'+
+   (m.active?'<button type="button" class="ill-secondary" data-act="end-med" data-id="'+attr(m.id)+'">복용 종료</button>':
+     '<button type="button" class="ill-secondary" data-act="resume-med" data-id="'+attr(m.id)+'">복용 재개</button>')+
+   '</div>':'')+'</article>').join("");
+ return '<details class="ill-legacy"'+(editMedication?' open':'')+'>'+
+  '<summary>이전 개별 처방 '+c.medications.length+'건 (기록 보존)</summary>'+
+  '<p class="ill-muted">실제 복용 입력·수정은 화면 위쪽 ‘바로 기록하기’와 복용 서머리에서 진행합니다.</p>'+
+  '<div class="ill-old-list">'+rows+'</div>'+
+  (c.status==="active"?medicationForm(c):"")+'</details>';
 }
 // Keep original readings unchanged. A graph is derived from readings on
 // the chosen local calendar day, in actual chronological order.
