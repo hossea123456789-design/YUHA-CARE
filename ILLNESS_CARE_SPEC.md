@@ -133,3 +133,10 @@
 - ⑥ registeredMedicinePanel은 groupPanel과 legacyPanel의 묶음/개별 처방을 하나의 등록 약 리스트 영역으로 표시. 실제 복용/미복용 이벤트는 그룹 하위에 복제하지 않고 ③ 시간별 히스토리만 기록·수정 통로로 사용합니다.
 - ⑦ diseaseManagementPanel은 episodeForm, episodeEditDetails, closure 또는 완치 해제 버튼을 한 카드에 모았습니다. 종료하면 해당 질병의 약 active=false, 기록은 보존하며 완치 해제 시 약 자동 재개 금지. 새 질병이 없는 첫 진입은 새 질병 등록 폼을 펼쳐 보여줍니다.
 - 상단의 별도 quickEntryPanel 및 현재 처방 한눈에를 렌더에서 제거하고 고정된 입력·이력 인접 배치를 적용. 백업·XML·서버 갱신/충돌 및 병원 기록은 기타 영역에서 보존. 질병 API는 v4 유지.
+
+## 2026-11-15 — 체온·복용 입력의 이력 내 인접 배치 및 처방 입력 통합
+
+- 화면 순서는 recordHeading → feverHeat(월간 열 히트맵과 선택 날짜 체온 그래프 → 바로 아래 quickTemperatureForm → 실측 체온 이력 및 수정) → medicationTimeline(날짜 선택·복용 통계 → quickMedicineForm → 시간별 복용·미복용 이력 및 수정) → prescriptionEntryPanel(JSON 및 수동 약 묶음 등록을 한 카드에서 기본 노출) → registeredMedicinePanel → diseaseManagementPanel → visitForm → syncPanel. **병원 방문 영역과 기존 질병 관리 영역의 위치는 변경하지 않음.**
+- temperatureTrend(c,feedback) 내부에서 chart 뒤·history 앞에 체온 입력을 배치한다. 별도 체온 입력 카드는 렌더하지 않아 기존 측정 기능 중복을 방지. medicationTimeline(c,feedback)도 controls+summary 뒤, history 앞에 복용 입력을 렌더. 저장 성공 피드백은 해당 체온/복용 영역에 각각 표시한다. 종료한 질병에는 신규 입력 폼을 표시하지 않되, 과거 이력은 유지한다.
+- prescriptionEntryPanel은 JSON과 수동 폼을 하나의 명시적 ill-prescription-methods 레이아웃으로 그룹화하고 JSON textarea는 항상 표시한다. JSON 미리보기/확인 후 저장 및 수동 묶음 저장의 기존 이벤트/검증 규칙은 변경하지 않는다.
+- 인접 기록 구조/열려 있는 JSON/두 처방 폼/병원 섹션 위치는 tests/illness-care.test.js로 검증. 이 변경은 프런트 전용으로 Apps Script Code.gs 및 저장 스키마에 영향이 없다.
