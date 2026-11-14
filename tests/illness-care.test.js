@@ -826,6 +826,12 @@ function intake(at,status='taken',extra={}){
   "Two quick-entry actions precede long graphs and the reference-only prescription");
  assert.equal((html.match(/data-form="temp"/g)||[]).length,1,"one single fever entry form");
  assert.equal((html.match(/data-form="group-dose"/g)||[]).length,1,"one single medication entry form");
+ assert.equal((html.match(/data-form="dose"/g)||[]).length,0,
+  "old individual prescription must not create a second hidden administration form");
+ assert(html.includes("이전 개별 처방 1건 (기록 보존)"));
+ assert(!html.includes("과거 복용 기록 확인 ·"),
+  "bundle cards may not duplicate the daily actual-administration history");
+ assert(html.includes("복용 내역 · 시간별 서머리"));
  assert(html.includes('data-drugs="시럽 A 3.25mL · 가루 B 0.3333g"'),
   "full selected regimen is available even if option label is shortened");
  assert(html.includes('value="legacy:imed_legacy_quick"'),
