@@ -378,7 +378,7 @@ function recordHeading(c){
  return '<section class="ill-episode-strip"><div><strong>'+E(c.title)+'</strong> '+
   '<small>'+(c.status==="closed"?"종료":"진행 중")+' · '+E(fullDate(c.onsetAt))+'</small></div>'+
   '<div class="ill-episode-facts"><span>최근 '+(latest?latest.celsius.toFixed(1)+'℃':'체온 미기록')+'</span>'+
-  '<span class="ill-missed" data-ill-overdue>'+delayed+'건 복약 예정 확인</span></div>'+
+  '<span class="ill-missed" data-ill-overdue style="'+(delayed?'':'display:none')+'">'+delayed+'건 복약 예정 확인</span></div>'+
   (c.status==="closed"?'<button class="ill-secondary" data-act="reopen">질병 기록 다시 열기</button>':
   '<details><summary>질병 발생 시각·증상 수정</summary><form data-form="edit-episode" class="ill-fields">'+
   '<label>질병명<input required maxlength="80" name="title" value="'+attr(c.title)+'"></label>'+
@@ -1007,12 +1007,15 @@ function closure(c){
 }
 function syncPanel(){
  const count=Object.keys(model.pending).length;
- return card("저장 상태 · 백업",
-   '<p class="'+(noticeError?'ill-alert':'ill-muted')+'" role="status">'+E(notice)+'</p>'+
-   '<p class="ill-muted">기록은 먼저 기기에 저장하고 기존 Google Sheets로 자동 동기화합니다. 서버: '+
-    (connected?"연결됨":"확인 필요")+' · 전송 대기 '+count+'건 · 원본 충돌 '+Object.keys(model.conflicts).length+'건</p>'+
-   '<div class="ill-row-actions"><button type="button" data-act="backup">기기 원본 JSON 백업</button>'+
-   '<button type="button" data-act="refresh">서버 기록 다시 조회</button></div>');
+ const conflicts=Object.keys(model.conflicts).length;
+ const label=connected?"서버 연결됨":"서버 확인 필요";
+ return '<details class="ill-utilities"'+(noticeError||conflicts?' open':'')+'>'+
+  '<summary><strong>기록 백업·동기화</strong><small>'+E(label)+' · 대기 '+count+'건'+
+  (conflicts?' · 충돌 '+conflicts+'건':'')+'</small></summary>'+
+  '<div class="ill-utilities-body"><p class="'+(noticeError?'ill-alert':'ill-muted')+'" role="status">'+E(notice)+'</p>'+
+  '<p class="ill-muted">기기에 우선 저장하고 기존 Google Sheets와 동기화합니다.</p>'+
+  '<div class="ill-row-actions"><button type="button" data-act="backup">기기 JSON 백업</button>'+
+  '<button type="button" data-act="refresh">서버 재조회</button></div></div></details>';
 }
 function conflictsView(){
  const ids=Object.keys(model.conflicts);if(!ids.length)return "";
@@ -1287,7 +1290,7 @@ function onClick(e){
  const action=btn.dataset.act,id=btn.dataset.id,c=current();
  if(action==="export-illness-xml"){exportIllnessHistoryXml();return;}
  if(action==="select"){
-  selected=id;editMedication="";editGroup="";copyDraft=null;pendingPrescription=null;
+  selected=id;editMedication="";editGroup="";editVisit="";editTemperatureId="";editDoseId="";editDoseGroupId="";editDoseLegacy=false;copyDraft=null;pendingPrescription=null;
   const c=current();
   temperatureDay=c?.status==="closed"&&c.temperatures.length?
    dayKey([...c.temperatures].sort((a,b)=>at(b.at)-at(a.at))[0].at):dayKey(nowIso());
@@ -1364,6 +1367,30 @@ function onClick(e){
   render();return;
  }
  if(!c)return;
+ if(action==="edit-temp"){
+  const record=c.temperatures.find(t=>t.id===id);if(!record)return;
+  editTemperatureId=id;temperatureDay=dayKey(record.at);month=temperatureDay.slice(0,7);
+  render();root?.querySelector('[data-form="edit-temp"]')?.scrollIntoView?.({block:"center",behavior:"smooth"});return;
+ }
+ if(action==="cancel-edit-temp"){editTemperatureId="";render();return;}
+ if(action==="edit-dose"){
+  const groupId=String(btn.dataset.group||btn.dataset.med||"");
+  const legacy=Boolean(btn.dataset.med);
+  const owner=legacy?c.medications.find(m=>m.id===groupId):c.medicationGroups.find(g=>g.id===groupId);
+  const event=legacy?owner?.doses.find(d=>d.id===id):owner?.events.find(d=>d.id===id);
+  if(!event)return;
+  editDoseId=id;editDoseGroupId=groupId;editDoseLegacy=legacy;
+  temperatureDay=dayKey(event.at);month=temperatureDay.slice(0,7);
+  render();root?.querySelector('[data-form="edit-dose"]')?.scrollIntoView?.({block:"center",behavior:"smooth"});return;
+ }
+ if(action==="cancel-edit-dose"){
+  editDoseId="";editDoseGroupId="";editDoseLegacy=false;render();return;
+ }
+ if(action==="edit-visit"){
+  if(!c.visits.some(v=>v.id===id))return;
+  editVisit=id;render();root?.querySelector('[data-form="visit"]')?.scrollIntoView?.({block:"center",behavior:"smooth"});return;
+ }
+ if(action==="cancel-edit-visit"){editVisit="";render();return;}
  if(c.status==="closed"&&action!=="reopen"){
   notice="종료된 질병입니다. 기록을 다시 연 뒤 수정해 주세요.";noticeError=true;render();return;
  }
