@@ -667,6 +667,11 @@ function intake(at,status='taken',extra={}){
   "visit marker must be present on fever calendar cell");
  assert(html.includes("🏥"),"clinic marker must render");
  assert(html.includes("복용 내역 · 시간별 서머리"));
+ const feverPos=html.indexOf("체온 · 열 히트맵"),
+  dosingPos=html.indexOf("복용 내역 · 시간별 서머리"),
+  rxPos=html.indexOf("현재 처방 한눈에");
+ assert(feverPos>=0&&dosingPos>feverPos&&rxPos>dosingPos,
+  "daily fever recording and medication history must come BEFORE the reference prescription summary");
  assert(html.includes("항생제 A 3mL · 씨투스 0.3333g"),
   "dose selector must display medicine names and exact quantities, not only a frequency label");
  assert(!html.includes('data-act="take-group"'),
