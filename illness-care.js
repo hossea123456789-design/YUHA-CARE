@@ -51,8 +51,15 @@ function formatTemperatureInput(raw,finalize=false){
  if(/^\d{3}$/.test(text)||(finalize&&/^\d{2}$/.test(text)))return n.toFixed(1);
  return text;
 }
-const MED_UNITS=["mL","포","정","방울"];
-function validAmount(v){const n=num(v);return n!==null&&n>0&&n<=100&&Math.round(n*10)===n*10}
+const MED_UNITS=["mL","g","포","정","방울"];
+const decimalPlaces=value=>String(value??"").split(".")[1]?.length||0;
+// Manual amounts support two decimal places. For an exact prescription like
+// 0.3333g, preserve four places rather than silently rounding to 0.33g.
+function validAmount(value,unit="mL"){
+ const n=num(value);
+ if(n===null||n<=0||n>100||!MED_UNITS.includes(unit))return false;
+ return decimalPlaces(value)<=(unit==="g"?4:2);
+}
 function doseLabel(v,unit){return String(v)+(MED_UNITS.includes(unit)?unit:"mL")}
 const cleanText=(v,n=200)=>String(v??"").slice(0,n);
 const parseStore=(key,fallback)=>{try{const obj=JSON.parse(localStorage.getItem(key)||"null");return obj&&typeof obj==="object"?obj:fallback;}catch{return fallback;}};
@@ -90,6 +97,8 @@ function normalize(source){
    visitId:cleanText(g.visitId,60),
    mode:g.mode==="prn"?"prn":"scheduled",intervalHours:num(g.intervalHours),
    endsAt:isTime(g.endsAt)?g.endsAt:"",active:g.active!==false,
+   timesPerDay:num(g.timesPerDay),days:num(g.days),
+   sourceDate:cleanText(g.sourceDate,10),sourceKind:cleanText(g.sourceKind,35),
    items:Array.isArray(g.items)?g.items.map(item=>({
     id:cleanText(item.id,60),name:cleanText(item.name,120),
     amount:num(item.amount),unit:MED_UNITS.includes(item.unit)?item.unit:"mL"
@@ -152,7 +161,7 @@ function heatBand(v){
 const model={cases:{},pending:{},conflicts:{},snapshots:[]};
 let loaded=false,selected="",month=isoMonth(nowIso()),temperatureDay=dayKey(nowIso()),connected=false,initialFetchStarted=false,busy=false;
 let active=false,syncEpoch=0;
-let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",timer=null,root=null;
+let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",copyDraft=null,pendingPrescription=null,timer=null,root=null;
 function persist(){
  try{
   // Archive before changing primary records. Keep the bounded archive small
@@ -429,14 +438,14 @@ function groupItemRow(item){
  const values=item||{},unit=MED_UNITS.includes(values.unit)?values.unit:"mL";
  return '<div class="ill-drug-line" data-group-item>'+
   '<input aria-label="약 이름" required name="drugName" maxlength="120" placeholder="약 이름 (예: 챔프)" value="'+attr(values.name||"")+'">'+
-  '<input aria-label="1회 투약량" required type="number" inputmode="decimal" min="0.1" max="100" step="0.1" name="drugAmount" placeholder="1회량" value="'+attr(values.amount??"")+'">'+
+  '<input aria-label="1회 투약량" required type="number" inputmode="decimal" min="0.1" max="100" step="any" name="drugAmount" placeholder="1회량" value="'+attr(values.amount??"")+'">'+
   '<select aria-label="투약 단위" name="drugUnit">'+MED_UNITS.map(v=>'<option value="'+v+'"'+(unit===v?" selected":"")+'>'+v+'</option>').join("")+'</select>'+
   '<button type="button" class="ill-minor" data-act="remove-drug-line" aria-label="이 약 입력 줄 삭제">×</button></div>';
 }
 function medicationGroupForm(c){
  if(c.status==="closed")return "";
  const editing=c.medicationGroups.find(g=>g.id===editGroup);
- const group=editing||{};
+ const group=editing||copyDraft||{};
  const visitOptions=c.visits.length?'<label>연결 병원 (선택)<select name="visitId"><option value="">연결하지 않음</option>'+
   c.visits.map(v=>'<option value="'+attr(v.id)+'"'+(group.visitId===v.id?' selected':'')+'>'+E(v.hospital)+'</option>').join("")+
   '</select></label>':'';
@@ -479,6 +488,7 @@ function groupPanel(c){
    '<div class="ill-group-actions">'+
    (g.active?'<button type="button" class="ill-primary" data-act="take-group" data-id="'+attr(g.id)+'">묶음 전체 복용 완료</button>':'')+
    '<button type="button" class="ill-secondary" data-act="edit-group" data-id="'+attr(g.id)+'">약·용량 수정</button>'+
+   '<button type="button" class="ill-secondary" data-act="copy-group" data-id="'+attr(g.id)+'">묶음 복사</button>'+
    (g.active?'<button type="button" class="ill-secondary" data-act="end-group" data-id="'+attr(g.id)+'">복용 종료</button>':
       '<button type="button" class="ill-secondary" data-act="resume-group" data-id="'+attr(g.id)+'">복용 재개</button>')+
    '</div>'+
@@ -739,7 +749,7 @@ function onSubmit(e){
    const items=names.map((name,i)=>{
     const amount=num(amounts[i]),unit=String(units[i]||"mL");
     need(String(name||"").trim(),"약 이름을 입력해 주세요");
-    need(validAmount(amount),"처방된 1회량을 소수 첫째 자리까지 확인해 주세요");
+    need(validAmount(amount,unit),"1회량은 소수 둘째 자리까지 입력해 주세요. g 처방 원문은 넷째 자리까지 보존합니다.");
     need(MED_UNITS.includes(unit),"복용 단위를 선택해 주세요");
     return {id:old?.items[i]?.id||newId(),name:String(name).trim(),amount,unit};
    });
@@ -749,9 +759,13 @@ function onSubmit(e){
    const ends=get(form,"endsAt"),group={
     name:get(form,"groupName")||"복용 묶음 "+(c.medicationGroups.length+1),
     mode,intervalHours:interval,endsAt:ends?inputTime(ends):"",
-    visitId:get(form,"visitId"),items
+    visitId:get(form,"visitId"),items,
+    timesPerDay:copyDraft?.timesPerDay??old?.timesPerDay??null,
+    days:copyDraft?.days??old?.days??null,
+    sourceDate:copyDraft?.sourceDate??old?.sourceDate??"",
+    sourceKind:copyDraft?.sourceKind??old?.sourceKind??""
    };
-   editGroup="";
+   editGroup="";copyDraft=null;
    changeCase(c.id,r=>{
     const currentGroup=r.medicationGroups.find(g=>g.id===editId);
     if(currentGroup)Object.assign(currentGroup,group);
@@ -825,7 +839,7 @@ function onClick(e){
  const btn=e.target.closest("[data-act]");if(!btn)return;
  const action=btn.dataset.act,id=btn.dataset.id,c=current();
  if(action==="select"){
-  selected=id;editMedication="";
+  selected=id;editMedication="";editGroup="";copyDraft=null;pendingPrescription=null;
   const c=current();
   temperatureDay=c?.status==="closed"&&c.temperatures.length?
    dayKey([...c.temperatures].sort((a,b)=>at(b.at)-at(a.at))[0].at):dayKey(nowIso());
@@ -872,17 +886,29 @@ function onClick(e){
   notice="종료된 질병입니다. 기록을 다시 연 뒤 수정해 주세요.";noticeError=true;render();return;
  }
  if(action==="go-group"){
+  editGroup="";copyDraft=null;render();
   const form=root?.querySelector(".ill-group-editor");
   if(form){form.open=true;form.scrollIntoView({block:"start",behavior:"smooth"});}
   return;
  }
  if(action==="edit-group"){
-  editGroup=id;render();
+  copyDraft=null;editGroup=id;render();
   const form=root?.querySelector(".ill-group-editor");
   if(form){form.open=true;form.scrollIntoView({block:"start",behavior:"smooth"});}
   return;
  }
- if(action==="cancel-edit-group"){editGroup="";render();return;}
+ if(action==="cancel-edit-group"){editGroup="";copyDraft=null;render();return;}
+ if(action==="copy-group"){
+  const g=c.medicationGroups.find(x=>x.id===id);
+  if(!g)return;
+  editGroup="";
+  copyDraft={...clone(g),id:"",name:(g.name||"복용 묶음")+" (복사본)",
+   items:g.items.map(item=>({...clone(item),id:newId()})),events:[],active:true};
+  render();
+  const form=root?.querySelector(".ill-group-editor");
+  if(form){form.open=true;form.scrollIntoView({block:"start",behavior:"smooth"});}
+  return;
+ }
  if(action==="take-group"){
   const group=c.medicationGroups.find(g=>g.id===id&&g.active);
   if(!group)return;
