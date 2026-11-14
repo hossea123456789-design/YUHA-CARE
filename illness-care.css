@@ -317,3 +317,11 @@
  .ill-quick-unit .ill-temp-quick>label input{font-size:20px}
  .ill-quick-unit .ill-temp-quick>button{padding:7px 10px}
 }
+
+/* Compact legacy medication list; actual administrations live in the single timeline. */
+.ill-old-list{display:flex;flex-direction:column;gap:7px;margin:10px 0}
+.ill-old-med{border:1px solid #dce9ee;background:#f9fcfd;border-radius:10px;padding:10px 11px}
+.ill-old-med-head{display:flex;align-items:center;justify-content:space-between;gap:9px}
+.ill-old-med-head strong{font-size:12.5px;color:#2e6177;overflow-wrap:anywhere}
+.ill-old-med>.ill-muted{margin:6px 0!important}
+.ill-old-med>.ill-record-actions{margin-top:7px}
