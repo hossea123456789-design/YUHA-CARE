@@ -185,7 +185,7 @@ function intake(at,status='taken',extra={}){
   calls.push({method,args});
   if(method==='getIllnessCases'){
    assert.equal(args.length,0,'shared app read does not request a password');
-   success({ok:true,schemaVersion:2,cases:structuredClone(server)});
+   success({ok:true,schemaVersion:3,cases:structuredClone(server)});
   }else if(method==='syncIllnessCase'){
    assert.equal(args.length,1,'save requires only one entry payload');
    assert(!('passphrase' in args[0]),'shared app save must not send a secret');
