@@ -764,24 +764,25 @@ function groupMedicineLabel(group,short=false){
  return list.join(" · ")+(remaining?" 외 "+remaining+"종":"");
 }
 function currentPrescriptionPanel(c){
- const groups=c.medicationGroups.filter(g=>!g.deletedAt&&g.active);
- const singles=c.medications.filter(m=>m.active);
+ const groups=c.medicationGroups.filter(g=>!g.deletedAt&&(c.status==="closed"||g.active));
+ const singles=c.medications.filter(m=>c.status==="closed"||m.active);
  const allDrugs=groups.flatMap(g=>g.items||[]).map(i=>i.name+" "+doseLabel(i.amount,i.unit))
   .concat(singles.map(m=>m.name+" "+doseLabel(m.doseMl,"mL")));
  const status=c.status==="closed"?"질병 종료 · 처방 보관":groups.length+singles.length+"개 복용 단위 · "+allDrugs.length+"종 약";
- return card("현재 처방 한눈에",
+ return card(c.status==="closed"?"지난 처방 내역":"현재 처방 한눈에",
   '<div class="ill-current-prescription"><p class="ill-prescription-status">'+E(status)+'</p>'+
   (allDrugs.length?'<ul class="ill-prescription-compact">'+allDrugs.slice(0,8).map(name=>'<li>'+E(name)+'</li>').join("")+
    (allDrugs.length>8?'<li>외 '+(allDrugs.length-8)+'종</li>':'')+'</ul>':
-   '<p class="ill-muted">현재 복용 중인 처방 묶음이 없습니다.</p>')+
-  '<div class="ill-row-actions"><button type="button" class="ill-secondary" data-act="manage-prescription">처방 목록·수정 열기</button></div>'+
-  '<p class="ill-muted">복용 시간과 실제량은 아래 ‘복용 내역’에서 기록합니다.</p></div>');
+   '<p class="ill-muted">'+(c.status==="closed"?'이 질병에 보관된 처방이 없습니다.':'현재 복용 중인 처방 묶음이 없습니다.')+'</p>')+
+  '<div class="ill-row-actions"><button type="button" class="ill-secondary" data-act="manage-prescription">'+
+  (c.status==="closed"?'처방 이력 펼치기':'처방 목록·수정 열기')+'</button></div>'+
+  '<p class="ill-muted">체온과 복용 기록은 화면 위쪽에서 입력하고 조회합니다.</p></div>');
 }
-function medicationManagement(c){
+function medicationManagement(c,stayOpen=false){
  const active=c.medicationGroups.filter(g=>g.active&&!g.deletedAt).length;
  const total=c.medicationGroups.length;
  const forceOpen=Boolean(editGroup||copyDraft||editMedication||pendingPrescription);
- return '<details class="ill-manager"'+(forceOpen?' open':'')+'><summary>'+
+ return '<details class="ill-manager"'+(forceOpen||stayOpen?' open':'')+'><summary>'+
   '<strong>처방 목록·약 묶음 관리</strong><small>전체 '+total+'개 묶음 · 복용 중 '+active+'개 · 등록·수정·복사·삭제</small>'+
   '</summary><div class="ill-manager-body">'+
   groupPanel(c)+prescriptionJsonForm(c)+medicationGroupForm(c)+legacyPanel(c)+
@@ -822,10 +823,6 @@ function medicationTimeline(c){
  const day=temperatureDay||dayKey(nowIso()),entries=dailyMedicationEvents(c,day);
  const totalTaken=entries.filter(e=>e.status==="taken").length;
  const skipped=entries.filter(e=>e.status==="skipped").length;
- const activeGroups=c.medicationGroups.filter(g=>!g.deletedAt&&g.active);
- const activeOptions=activeGroups.map(g=>
-  '<option value="'+attr(g.id)+'">'+E(groupMedicineLabel(g,true))+
-  (g.timesPerDay?' · 1일 '+g.timesPerDay+'회':'')+'</option>').join("");
  const dateTitle=day===dayKey(nowIso())?"오늘 복용 기록":"복용 기록 · "+day;
  const controls='<div class="ill-dose-nav">'+
   '<button type="button" data-act="dose-day-prev" aria-label="전날 복용 기록">‹</button>'+
@@ -1056,21 +1053,25 @@ function conflictsView(){
 }
 function render(){
  hydrate();active=true;root=document.getElementById("main");if(!root)return;
+ const openEpisode=root.dataset.illnessEpisode||"";
+ const keepManagerOpen=openEpisode===selected&&root.querySelector?.(".ill-manager")?.open===true;
  const c=current();
  root.innerHTML='<div class="ill-root"><div class="ill-heading"><h2>유하 질병 기록</h2>'+
   '<p>체온과 복약을 기록하고 경과를 확인하세요.</p></div>'+
   illnessSelect()+
   (c?recordHeading(c)+quickEntryPanel(c)+feverHeat(c)+medicationTimeline(c)+currentPrescriptionPanel(c)+visitForm(c)+
-    medicationManagement(c)+closure(c):
+    medicationManagement(c,keepManagerOpen)+closure(c):
    card("기록이 없습니다",'<p class="ill-muted">발생 시각과 증상을 기록해 시작하세요.</p>'))+
   episodeForm()+
   syncPanel()+
   conflictsView()+'</div>';
+ root.dataset.illnessEpisode=selected||"";
  if(!root.dataset.illnessBound){root.dataset.illnessBound="true";
   root.addEventListener("submit",onSubmit);
   root.addEventListener("click",onClick);
   root.addEventListener("input",onInput);
   root.addEventListener("focusout",onTemperatureBlur);
+  root.addEventListener("change",onQuickSelectionChange);
  }
  if(!timer)timer=setInterval(()=>{if(root&&root.querySelector(".ill-root"))refreshStatusText();},60000);
  if(!initialFetchStarted){initialFetchStarted=true;void connect();}
@@ -1110,6 +1111,12 @@ function onInput(e){
    input.setSelectionRange(formatted.length,formatted.length);
  }
  updateTemperaturePreview(input.value);
+}
+function onQuickSelectionChange(e){
+ if(e.target?.name!=="groupId")return;
+ const select=e.target;
+ const preview=select.closest?.(".ill-quick-unit")?.querySelector?.("[data-group-preview]");
+ if(preview)preview.textContent=select.selectedOptions?.[0]?.dataset?.drugs||"";
 }
 function onTemperatureBlur(e){
  if(e.target?.name!=="celsius")return;
@@ -1395,6 +1402,11 @@ function onClick(e){
   render();return;
  }
  if(!c)return;
+ if(action==="manage-prescription"){
+  const manager=root?.querySelector(".ill-manager");
+  if(manager){manager.open=true;manager.scrollIntoView?.({block:"start",behavior:"smooth"});}
+  return;
+ }
  if(action==="edit-temp"){
   const record=c.temperatures.find(t=>t.id===id);if(!record)return;
   editTemperatureId=id;temperatureDay=dayKey(record.at);month=temperatureDay.slice(0,7);
@@ -1421,11 +1433,6 @@ function onClick(e){
  if(action==="cancel-edit-visit"){editVisit="";render();return;}
  if(c.status==="closed"&&action!=="reopen"){
   notice="종료된 질병입니다. 기록을 다시 연 뒤 수정해 주세요.";noticeError=true;render();return;
- }
- if(action==="manage-prescription"){
-  const manager=root?.querySelector(".ill-manager");
-  if(manager){manager.open=true;manager.scrollIntoView?.({block:"start",behavior:"smooth"});}
-  return;
  }
  if(action==="go-group"){
   editGroup="";copyDraft=null;render();
