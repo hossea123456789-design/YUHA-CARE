@@ -772,7 +772,8 @@ function currentPrescriptionPanel(c){
   (allDrugs.length?'<ul class="ill-prescription-compact">'+allDrugs.slice(0,8).map(name=>'<li>'+E(name)+'</li>').join("")+
    (allDrugs.length>8?'<li>외 '+(allDrugs.length-8)+'종</li>':'')+'</ul>':
    '<p class="ill-muted">현재 복용 중인 처방 묶음이 없습니다.</p>')+
-  '<p class="ill-muted">복용 기록은 위 ‘복용 내역’에서 입력합니다. 아래에서 처방 약과 묶음을 관리할 수 있습니다.</p></div>');
+  '<div class="ill-row-actions"><button type="button" class="ill-secondary" data-act="manage-prescription">처방 목록·수정 열기</button></div>'+
+  '<p class="ill-muted">복용 시간과 실제량은 아래 ‘복용 내역’에서 기록합니다.</p></div>');
 }
 function medicationManagement(c){
  const active=c.medicationGroups.filter(g=>g.active&&!g.deletedAt).length;
@@ -1032,7 +1033,7 @@ function render(){
   '<button type="button" class="history-export-trigger" data-act="export-illness-xml">XML 기록 추출</button></div>'+
   '<p class="ill-muted ill-safety-note">복약 예정 시각은 입력된 처방 간격만 참고하며, 실제 복용 판단은 처방 지시를 우선합니다. 앱을 닫으면 푸시 알림은 제공되지 않습니다.</p>'+
   illnessSelect()+
-  (c?recordHeading(c)+feverHeat(c)+medicationTimeline(c)+visitForm(c)+currentPrescriptionPanel(c)+
+  (c?recordHeading(c)+currentPrescriptionPanel(c)+feverHeat(c)+medicationTimeline(c)+visitForm(c)+
     medicationManagement(c)+closure(c):
    card("기록이 없습니다",'<p class="ill-muted">발생 시각과 증상을 기록해 시작하세요.</p>'))+
   episodeForm()+
@@ -1394,8 +1395,15 @@ function onClick(e){
  if(c.status==="closed"&&action!=="reopen"){
   notice="종료된 질병입니다. 기록을 다시 연 뒤 수정해 주세요.";noticeError=true;render();return;
  }
+ if(action==="manage-prescription"){
+  const manager=root?.querySelector(".ill-manager");
+  if(manager){manager.open=true;manager.scrollIntoView?.({block:"start",behavior:"smooth"});}
+  return;
+ }
  if(action==="go-group"){
   editGroup="";copyDraft=null;render();
+  const manager=root?.querySelector(".ill-manager");
+  if(manager)manager.open=true;
   const form=root?.querySelector(".ill-group-editor");
   if(form){form.open=true;form.scrollIntoView({block:"start",behavior:"smooth"});}
   return;
