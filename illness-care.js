@@ -784,6 +784,37 @@ function medicationManagement(c){
   groupPanel(c)+prescriptionJsonForm(c)+medicationGroupForm(c)+legacyPanel(c)+
   '</div></details>';
 }
+function doseEditForm(c,entries){
+ const record=entries.find(e=>e.id===editDoseId&&e.groupId===editDoseGroupId&&e.legacy===editDoseLegacy);
+ if(!record)return "";
+ const group=record.legacy?c.medications.find(m=>m.id===record.groupId):
+  c.medicationGroups.find(g=>g.id===record.groupId);
+ if(!group)return "";
+ const drugs=record.legacy?[]:(record.items.length?record.items:(group.items||[]));
+ const values=record.legacy?
+  '<label>실제 복용량 (mL)<input type="number" name="actualAmountMl" min="0.01" max="100" step="any" value="'+attr(record.items[0]?.amount??group.doseMl??"")+'"></label>':
+  '<div class="ill-edit-drugs"><strong>실제 복용량 · 약별 수정</strong>'+drugs.map(drug=>
+   '<label>'+E(drug.name)+' ('+E(drug.unit)+')'+
+   '<input type="hidden" name="doseDrugId" value="'+attr(drug.id)+'">'+
+   '<input type="hidden" name="doseDrugName" value="'+attr(drug.name)+'">'+
+   '<input type="hidden" name="doseDrugUnit" value="'+attr(drug.unit)+'">'+
+   '<input type="number" name="doseDrugAmount" min="0.0001" max="100" step="any" value="'+attr(drug.amount??"")+'"></label>').join("")+
+   '</div>';
+ return '<form data-form="edit-dose" class="ill-edit-record">'+
+  '<h4>이전 복용 기록 수정 · '+E(groupMedicineLabel(record.legacy?{items:[{name:group.name,amount:group.doseMl,unit:"mL"}]}:group,true))+'</h4>'+
+  '<input type="hidden" name="editId" value="'+attr(record.id)+'">'+
+  '<input type="hidden" name="groupId" value="'+attr(record.groupId)+'">'+
+  '<input type="hidden" name="legacy" value="'+(record.legacy?'yes':'no')+'">'+
+  '<div class="ill-edit-grid">'+
+  '<label>실제 복용 시각<input type="datetime-local" name="at" required value="'+localInput(record.at)+'"></label>'+
+  '<label>상태<select name="status"><option value="taken"'+(record.status==="taken"?' selected':'')+'>복용 완료</option>'+
+  '<option value="skipped"'+(record.status==="skipped"?' selected':'')+'>미복용</option></select></label></div>'+
+  values+
+  '<label>메모<input name="note" maxlength="300" value="'+attr(record.note)+'"></label>'+
+  '<p class="ill-muted">변경한 수량은 당시 실제 먹인 양이어야 합니다. 현재 처방량과 혼동하지 마세요. 미복용으로 바꾸면 실제 복용량은 비워집니다.</p>'+
+  '<div class="ill-record-actions"><button type="submit" class="ill-primary">복용 기록 수정 저장</button>'+
+  '<button type="button" class="ill-secondary" data-act="cancel-edit-dose">취소</button></div></form>';
+}
 function medicationTimeline(c){
  const day=temperatureDay||dayKey(nowIso()),entries=dailyMedicationEvents(c,day);
  const totalTaken=entries.filter(e=>e.status==="taken").length;
@@ -825,8 +856,9 @@ function medicationTimeline(c){
     '<span class="ill-tag">'+(e.status==="skipped"?"미복용":"복용 완료")+'</span></div>'+
     '<div class="ill-dose-event-items">'+amount+'</div>'+
     (e.note?'<p>'+E(e.note)+'</p>':'')+
+    '<div class="ill-record-actions"><button type="button" class="ill-secondary" data-act="edit-dose" data-id="'+attr(e.id)+'" data-'+(e.legacy?'med':'group')+'="'+attr(e.groupId)+'">수정</button>'+
     '<button type="button" class="ill-text-danger" data-act="'+(e.legacy?'remove-dose':'remove-group-event')+
-    '" data-id="'+attr(e.id)+'" data-'+(e.legacy?'med':'group')+'="'+attr(e.groupId)+'">기록 삭제</button>'+
+    '" data-id="'+attr(e.id)+'" data-'+(e.legacy?'med':'group')+'="'+attr(e.groupId)+'">삭제</button></div>'+
     '</div></article>';
   }).join("")+'</div>':
   '<div class="ill-dose-empty">이 날짜에 등록된 복용·미복용 기록이 없습니다.</div>';
@@ -834,7 +866,7 @@ function medicationTimeline(c){
  const archivedNotice=deletedWithEvents.length?
   '<p class="ill-muted">삭제 보관된 묶음 '+deletedWithEvents.length+'개의 복약 이력은 아래 ‘삭제한 묶음’에서 복원할 때 다시 표시됩니다.</p>':'';
  return card("복용 내역 · 시간별 서머리",
-  controls+summary+quick+history+archivedNotice,
+  controls+summary+quick+history+doseEditForm(c,entries)+archivedNotice,
   "ill-dose-summary");
 }
 function legacyPanel(c){
@@ -847,6 +879,18 @@ function legacyPanel(c){
 function dailyTemperatureReadings(temperatures,date){
  return (temperatures||[]).filter(t=>dayKey(t.at)===date&&Number.isFinite(t.celsius))
   .sort((a,b)=>at(a.at)-at(b.at)||String(a.id||"").localeCompare(String(b.id||"")));
+}
+function temperatureEditForm(c){
+ const record=c.temperatures.find(t=>t.id===editTemperatureId);
+ if(!record)return "";
+ return '<form data-form="edit-temp" class="ill-edit-record">'+
+  '<h4>체온 기록 수정</h4><input type="hidden" name="editId" value="'+attr(record.id)+'">'+
+  '<div class="ill-edit-grid"><label>측정 시각<input required type="datetime-local" name="at" value="'+localInput(record.at)+'"></label>'+
+  '<label>측정 체온 (℃)<input required name="celsius" inputmode="decimal" maxlength="4" value="'+attr(record.celsius.toFixed(1))+'"></label>'+
+  '<label>측정 부위<select name="site">'+siteOpts(record.site)+'</select></label>'+
+  '<label>메모<input name="note" maxlength="300" value="'+attr(record.note)+'"></label></div>'+
+  '<div class="ill-record-actions"><button class="ill-primary" type="submit">체온 수정 저장</button>'+
+  '<button type="button" class="ill-secondary" data-act="cancel-edit-temp">취소</button></div></form>';
 }
 function temperatureTrend(c){
  const date=temperatureDay,readings=dailyTemperatureReadings(c.temperatures,date);
@@ -899,12 +943,13 @@ function temperatureTrend(c){
      E(new Date(t.at).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false}))+
     '</time><strong>'+t.celsius.toFixed(1)+'℃</strong><span>'+E(SITES[t.site]||"기타")+'</span>'+
     (t.note?'<small>'+E(t.note)+'</small>':'')+
-    '<button type="button" class="ill-text-danger" data-act="remove-temp" data-id="'+attr(t.id)+'">삭제</button></div>').join("")+
+    '<div class="ill-record-actions"><button type="button" class="ill-secondary" data-act="edit-temp" data-id="'+attr(t.id)+'">수정</button>'+
+    '<button type="button" class="ill-text-danger" data-act="remove-temp" data-id="'+attr(t.id)+'">삭제</button></div></div>').join("")+
   '</div>':'';
  return '<section class="ill-day-trend"><div class="ill-day-trend-head"><h4>'+label+
    (selectedToday?' · 오늘':'')+' 체온 변화</h4>'+
    (!selectedToday?'<button type="button" data-act="temp-today" class="ill-secondary">오늘 보기</button>':'')+
-  '</div>'+stats+chart+history+
+  '</div>'+stats+chart+history+temperatureEditForm(c)+
   '<p class="ill-muted">실제로 측정한 시점만 연결했습니다. 측정 사이 시간의 체온은 확인할 수 없습니다.</p></section>';
 }
 function feverHeat(c){
@@ -1058,7 +1103,10 @@ function onSubmit(e){
    newEpisode(title,inputTime(get(form,"onset")),get(form,"symptoms"),get(form,"note"));return;
   }
   const c=current();need(c,"질병 기록을 먼저 선택해 주세요");
-  if(c.status==="closed"&&type!=="close")throw Error("종료된 질병입니다. 기록을 다시 열고 수정해 주세요.");
+  if(c.status==="closed"&&!["close","edit-temp","edit-dose","visit"].includes(type))
+   throw Error("종료된 질병입니다. 기록을 다시 연 뒤 새 내용을 입력해 주세요.");
+  if(c.status==="closed"&&type==="visit"&&!get(form,"editId"))
+   throw Error("종료된 질병에는 새로운 병원 방문을 등록할 수 없습니다.");
   if(type==="edit-episode"){
    const title=get(form,"title");need(title,"질병 이름을 입력해 주세요");
    const onsetAt=inputTime(get(form,"onset"));
@@ -1160,6 +1208,57 @@ function onSubmit(e){
    const log={id:newId(),at:atTime,status,amountMl:status==="taken"?dose:null,
      note:get(form,"note"),scheduledFor:status==="skipped"&&g.dueAt?g.dueAt:""};
    changeCase(c.id,r=>r.medications.find(x=>x.id===id).doses.push(log));return;
+  }
+  if(type==="edit-temp"){
+   const id=get(form,"editId"),record=c.temperatures.find(t=>t.id===id);
+   need(record,"수정할 체온 기록을 찾을 수 없습니다.");
+   const celsius=parseTemperature(get(form,"celsius"));
+   need(celsius!==null,"체온을 확인해 주세요. 예: 385 → 38.5℃");
+   const site=get(form,"site");need(SITES[site],"측정 부위를 선택해 주세요.");
+   const time=inputTime(get(form,"at")),note=get(form,"note");
+   editTemperatureId="";temperatureDay=dayKey(time);month=temperatureDay.slice(0,7);
+   changeCase(c.id,r=>{
+    const row=r.temperatures.find(t=>t.id===id);
+    Object.assign(row,{at:time,celsius,site,note});
+   });return;
+  }
+  if(type==="edit-dose"){
+   const id=get(form,"editId"),groupId=get(form,"groupId"),legacy=get(form,"legacy")==="yes";
+   const owner=legacy?c.medications.find(m=>m.id===groupId):
+    c.medicationGroups.find(g=>g.id===groupId);
+   const currentEvent=legacy?owner?.doses.find(d=>d.id===id):owner?.events.find(d=>d.id===id);
+   need(owner&&currentEvent,"수정할 복용 기록을 찾을 수 없습니다.");
+   const status=get(form,"status")==="skipped"?"skipped":"taken";
+   const time=inputTime(get(form,"at")),note=get(form,"note");
+   let amount=null,items=[];
+   if(status==="taken"){
+    if(legacy){
+     amount=num(get(form,"actualAmountMl"));
+     need(validAmount(amount,"mL"),"실제 복용량을 소수 둘째 자리까지 입력해 주세요.");
+    }else{
+     const data=new FormData(form);
+     const ids=data.getAll("doseDrugId"),names=data.getAll("doseDrugName"),
+      units=data.getAll("doseDrugUnit"),amounts=data.getAll("doseDrugAmount");
+     need(ids.length>0&&ids.length===names.length&&ids.length===units.length&&ids.length===amounts.length,
+      "복용한 약별 실제량을 모두 확인해 주세요.");
+     items=ids.map((value,i)=>{
+      const unit=String(units[i]),v=num(amounts[i]);
+      need(MED_UNITS.includes(unit)&&validAmount(v,unit),"약별 실제 복용량·단위를 확인하세요.");
+      return {id:String(value),name:String(names[i]),unit,amount:v};
+     });
+    }
+   }
+   editDoseId="";editDoseGroupId="";editDoseLegacy=false;
+   temperatureDay=dayKey(time);month=temperatureDay.slice(0,7);
+   changeCase(c.id,r=>{
+    const entry=legacy?r.medications.find(m=>m.id===groupId)?.doses.find(d=>d.id===id):
+     r.medicationGroups.find(g=>g.id===groupId)?.events.find(d=>d.id===id);
+    if(!entry)return;
+    Object.assign(entry,{at:time,status,note});
+    if(legacy)entry.amountMl=status==="taken"?amount:null;
+    else entry.items=status==="taken"?items:[];
+    if(status==="taken")entry.scheduledFor="";
+   });return;
   }
   if(type==="temp"){
    const n=parseTemperature(get(form,"celsius"));
