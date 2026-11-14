@@ -479,9 +479,14 @@ function parsePrescriptionJson(input){
     first.timesPerDay+"회/일 · "+first.days+"일",items,
     timesPerDay:first.timesPerDay,days:first.days});
   });
-  for(const med of mlist)if(!used.has(med.name))
-   plans.push({name:med.timesPerDay+"회/일 · "+med.days+"일 (추가)",
-    items:[med],timesPerDay:med.timesPerDay,days:med.days});
+  const remaining=new Map();
+  for(const med of mlist)if(!used.has(med.name)){
+   const key=med.timesPerDay+"x"+med.days;
+   if(!remaining.has(key))remaining.set(key,{name:med.timesPerDay+"회/일 · "+med.days+"일 (추가)",
+     items:[],timesPerDay:med.timesPerDay,days:med.days});
+   remaining.get(key).items.push(med);
+  }
+  plans.push(...remaining.values());
  }else{
   const grouped=new Map();
   for(const med of mlist){
