@@ -1047,13 +1047,16 @@ function illnessValidateEpisode_(raw){
  const medicationGroups=illnessLimitedArray_(raw.medicationGroups,60).map(g=>{
   const mode=g.mode==='prn'?'prn':'scheduled';
   const intervalHours=illnessNumber_(g.intervalHours,.5,72,true);
-  if(mode==='scheduled'&&intervalHours===null)throw new Error('정기 복용 묶음의 처방 간격 입력 필요');
+  if(mode==='scheduled'&&intervalHours===null&&g.timesPerDay===null)
+   throw new Error('정기 복용 묶음은 처방 간격 또는 1일 횟수 필요');
   const validatedItem=item=>{
    const name=illnessText_(item.name,120);
    if(!name.trim())throw new Error('복용 묶음에 약 이름 필요');
-   const amount=illnessNumber_(item.amount,.1,100,false);
-   if(Math.abs(amount*10-Math.round(amount*10))>1e-7)throw new Error('투약량은 소수 첫째 자리까지 입력');
-   const unit=['mL','포','정','방울'].includes(item.unit)?item.unit:'mL';
+   const unit=['mL','g','포','정','방울'].includes(item.unit)?item.unit:'mL';
+   const amount=illnessNumber_(item.amount,unit==='g'?.0001:.01,100,false);
+   const scale=unit==='g'?10000:100;
+   if(Math.abs(amount*scale-Math.round(amount*scale))>1e-6)
+    throw new Error(unit==='g'?'g 처방량은 원문 최대 소수 넷째 자리까지 보존':'투약량은 소수 둘째 자리까지 입력');
    return {id:illnessId_(item.id),name,amount,unit};
   };
   const items=illnessLimitedArray_(g.items,20).map(validatedItem);
@@ -1068,8 +1071,15 @@ function illnessValidateEpisode_(raw){
     scheduledFor:illnessStamp_(d.scheduledFor,true),
     items:status==='skipped'?[]:recorded};
   });
+  const timesPerDay=g.timesPerDay===null||g.timesPerDay===undefined?null:illnessNumber_(g.timesPerDay,1,12,false);
+  const days=g.days===null||g.days===undefined?null:illnessNumber_(g.days,1,60,false);
+  if((timesPerDay!==null&&!Number.isInteger(timesPerDay))||(days!==null&&!Number.isInteger(days)))
+   throw new Error('처방 횟수·일수는 정수여야 합니다.');
+  if(mode==='scheduled'&&intervalHours===null&&timesPerDay===null)
+   throw new Error('정기 복용 묶음에는 처방 간격 또는 1일 횟수가 필요합니다.');
   return {id:illnessId_(g.id),name:illnessText_(g.name,80),
-   visitId:illnessText_(g.visitId,60),mode,intervalHours,
+   visitId:illnessText_(g.visitId,60),mode,intervalHours,timesPerDay,days,
+   sourceDate:illnessText_(g.sourceDate,10),sourceKind:illnessText_(g.sourceKind,35),
    endsAt:illnessStamp_(g.endsAt,true),active:g.active!==false,items,events};
  });
  if(new Set(medicationGroups.map(g=>g.id)).size!==medicationGroups.length)
@@ -1117,7 +1127,7 @@ function illnessAll_(){
 }
 function getIllnessCases(){
  const data=illnessAll_();
- return {ok:true,cases:data.records,schemaVersion:2};
+ return {ok:true,cases:data.records,schemaVersion:3};
 }
 function illnessArchiveConflict_(id,oldValue,localValue,newValue,revision){
  const ss=SpreadsheetApp.getActiveSpreadsheet();
