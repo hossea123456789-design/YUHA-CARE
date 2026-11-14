@@ -96,3 +96,13 @@
 - UI에서 투약 이력의 상시 서머리를 유지하면서 그룹 아래의 중복 입력 폼은 제거하고, 그룹 카드의 한 번에 전체 복용 버튼은 유지한다. 복약 시각 경고 및 질병 종료 계산에서 삭제된 묶음은 제외한다. 삭제된 묶음 안의 이력은 복원 전에는 기본 서머리에서 제외된다고 명시한다.
 - `apps-script/Code.gs`: 서버 `illnessValidateEpisode_()`에서 `deletedAt`를 검증·보존하고 **질병 API v4**로 변경. v3는 이 필드를 무시해 삭제 사실을 소실시키므로 프런트는 v4 확인 전 서버로 기록을 보내지 않고 로컬 pending을 보존한다. **수면 API는 v3를 유지**하고 아내 회복 API는 v7을 유지한다.
 - 자동 테스트: `tests/illness-care.test.js`에는 상시 서머리, 그룹·구버전 단독 투약 이력 합산, 삭제 확인 취소/확정, 기존 실제량 보존, 복원 후 자동 재복용 금지 등을 추가. `tests/illness-api.test.js`는 v4의 삭제 메타데이터 및 실제 투약량 서버 왕복·복원·날짜 입력 검증. 모바일 캐시 `20261114-dose-timeline-v4`로 교체.
+
+## 2026-11-14 — 체온·복약 XML 내보내기 규격
+
+- 질병 기록 XML 추출은 기존 history-export.js의 전체·월별·기간 선택 팝업에 새로운 illness 종류를 등록해 구현했습니다. 질병 API는 월별 행이 아니라 에피소드 전체 JSON이므로 서버에서 getIllnessCases를 정확히 한 번만 호출합니다.
+- illness-care.js는 UI 내보내기 요청 시점에만 로컬 질병 기록, 동기화 대기, 충돌의 깊은 복사본을 제공합니다. XML 생성은 기록을 읽기만 하고 변경하거나 저장하지 않습니다.
+- XML 루트는 yuhaCareHistory의 illness category입니다. 질병별 record와 원본별 version(source=serverVersion/deviceVersion/pendingChanges/conflictDeviceVersion/conflictServerVersion) 아래에 episodeDetails, hospitalVisits, temperatureHistory, dailyTemperatureSummary, medicationGroups, prescribedDrugs, administrations, administeredDrugs, legacyMedications를 둡니다.
+- 체온은 실측 시각·℃·측정부위·메모를 전부 내보내고, 동일 날짜의 측정값으로 최고·최저·측정 횟수·히트맵용 열 구간을 계산합니다. 요약의 구간은 의료 진단이 아닙니다.
+- 묶음에 현재 처방된 약별량과 과거 이벤트별 실제 투약량 스냅샷을 모두 포함해 처방 변경 뒤에도 정확한 과거량이 남습니다. g·정 단위의 0.3333·0.25 등 정확한 소수값을 반올림하지 않습니다. 삭제한 묶음도 deletedAt 속성과 복용 내역을 유지합니다.
+- 선택 날짜 범위의 체온·투약·진료 사건만 내보내며 질병 시작일이 범위 밖이어도 기간 내 기록은 포함합니다. 버전은 별도 보관하고 합산하지 않습니다. 서버 조회 실패 시 사용자 선택의 부분 다운로드에만 complete=false XML 생성을 허용합니다.
+- history-export.test.js, history-export-ui.test.js, illness-care.test.js 및 CI의 Python ElementTree XML 파싱으로 값·날짜·원본·서버 실패를 검증했습니다. 이번 기능의 새 백엔드 함수는 없으며 기존 질병 API v4의 배포 여부는 별도입니다.
