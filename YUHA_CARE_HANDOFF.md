@@ -1127,3 +1127,17 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - 묶음 하위 이력과 예전 개별 처방의 중복 기록 폼 제거. 실제 과거 투약 이벤트 및 체온 데이터는 변형하거나 삭제하지 않고 기존 시간별 이력과 XML에서 확인. 종료된 질병의 처방 내역 열람도 허용하지만 새 투약은 차단.
 - XML 다운로드는 접힌 기록 백업·동기화로 이동. 변경 파일은 illness-care.js, illness-care.css, index.html, tests/illness-care.test.js이며 서버 Code.gs 및 질병 API v4 스키마는 변경하지 않음.
 - tests/illness-care.test.js가 빠른 기록 위치, 중복 폼 부재, 개별약 기록, 전체 약명 미리보기, 이전 묶음 관리 펼침 유지, 저장 성공 문구, 지금 버튼과 종료 이력 열람을 검증하도록 확장됨.
+
+## 58. 2026-11-15 — 사용자 지시대로 질병 탭 1~8 순서 재배치
+
+### 결정된 화면 IA
+- 공통 선택/상태 아래 **1 체온 히트맵, 2 체온 입력, 3 약 복용 히스토리, 4 약 복용 입력, 5 처방 JSON 및 수동 입력(같은 카드에서 모두 표시), 6 등록한 약 리스트, 7 질병 관리(새 질병 등록·완치 처리·완치 해제), 8 나머지(병원 방문·백업/동기화·원본 충돌)** 순.
+- 이전에 모델이 제안했던 '바로 기록하기' 통합 입력을 강제로 상단에 배치하지 않고, 사용자 지정 영역 간 인접 관계를 정확히 지킨다. 불필요하게 현재 처방 요약을 별도 카드로 렌더하지 않는다.
+
+### 코드
+- illness-care.js의 render()를 위 순서로 재배치. feverHeat는 히트맵·실측 추이, quickTemperatureForm은 2번 별도 카드. medicationTimeline은 실제 타임라인, quickMedicineForm은 4번 별도 카드로 각각 유일한 입력창.
+- prescriptionJsonForm의 접힌 JSON textarea/details를 제거해 항상 보이도록 변경. medicationGroupForm의 자체 카드·details도 제거해 동일한 prescriptionEntryPanel 카드에 수동 등록 입력까지 함께 표시. 기존 파싱·미리보기·검토 후 저장, 복용 단위·정밀도·묶음 복사, ID 및 이력 보존 규칙 유지.
+- groupPanel 중복 카드 제거, registeredMedicinePanel에서 등록된 그룹·이전 개별 처방을 카드로 일원화. 약 이름·실제 1회량이 목록 제목에 표시됨.
+- 질병 신규 등록·명칭/발생 시점 수정·완치/질병 종료·완치 해제를 diseaseManagementPanel 한 곳으로 이동. 완치 해제 시 종료된 처방은 자동으로 복용 중으로 되돌리지 않음. 병원 진료와 XML 등 추가 기능은 이후 섹션.
+- index.html의 illness-care.js 및 CSS 캐시를 20261115-user-ordered-v8로 갱신. 새 Apps Script 배포는 이번 UI 변경 때문에 필요하지 않으며 서버 질병 schemaVersion 4 유지.
+- tests/illness-care.test.js UI 회귀 검증에 위 영역 순서, JSON textarea 비접힘, 수동 그룹 폼 노출, 기존 체온·복약·진료 수정과 종료 데이터 보존, 완치 해제를 반영.
