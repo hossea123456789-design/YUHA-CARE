@@ -774,9 +774,10 @@ function intake(at,status='taken',extra={}){
  storage.set("yuha_illness_records_v1",JSON.stringify({[episodeId]:episode}));
  const e=setup();
  e.window.YuhaIllness.render();
- const actions=e.root.innerHTML.match(/<div class="ill-group-actions"[^>]*>[\\s\\S]*?<\\/div><\\/div>/);
- assert(actions,"medicine actions must consist of two dedicated rows");
- const html=actions[0],labels=["약·용량 수정","묶음 복사","복용 종료","묶음 삭제"];
+ const begin=e.root.innerHTML.indexOf('<div class="ill-group-actions"');
+ const end=e.root.innerHTML.indexOf("</div></div>",begin);
+ assert(begin>=0&&end>begin,"medicine actions must consist of two dedicated rows");
+ const html=e.root.innerHTML.slice(begin,end+12),labels=["약·용량 수정","묶음 복사","복용 종료","묶음 삭제"];
  let last=-1;
  for(const label of labels){
   const i=html.indexOf(label);
