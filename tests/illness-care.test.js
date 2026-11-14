@@ -834,6 +834,8 @@ function intake(at,status='taken',extra={}){
  assert(html.includes("복용 내역 · 시간별 서머리"));
  assert(html.includes('data-drugs="시럽 A 3.25mL · 가루 B 0.3333g"'),
   "full selected regimen is available even if option label is shortened");
+ assert(html.includes('data-act="dose-time-now"'),
+  "a stale prefilled timestamp can be refreshed with one tap");
  assert(html.includes('value="legacy:imed_legacy_quick"'),
   "previously saved individual medicines can be recorded from the primary form");
  assert(html.indexOf("XML 기록 추출")>html.indexOf("복용 내역 · 시간별 서머리"),
@@ -843,6 +845,14 @@ function intake(at,status='taken',extra={}){
   closest(){return {querySelector:()=>preview}}};
  e.root.handlers.change({target:select});
  assert.equal(preview.textContent,"기존 개별 시럽 2.25mL");
+ const actualTime={value:"2000-01-01T00:00"};
+ const nowButton={dataset:{act:"dose-time-now"},closest(selector){
+  return selector==="form"?{querySelector:()=>actualTime}:this;
+ }};
+ e.root.handlers.click({target:{closest:()=>nowButton}});
+ assert.match(actualTime.value,/^20\d\d-\d\d-\d\dT\d\d:\d\d$/,
+  "now control must replace the old time with a fresh local timestamp");
+ assert.notEqual(actualTime.value,"2000-01-01T00:00");
  const submit=(type,values)=>{
   const form={dataset:{form:type},values};
   e.root.handlers.submit({preventDefault(){},target:{closest:()=>form}});
@@ -889,6 +899,8 @@ function intake(at,status='taken',extra={}){
  }:null;
  e.window.YuhaIllness.render();
  assert(e.root.innerHTML.includes("지난 처방 내역"));
+ assert(e.root.innerHTML.includes("지난 처방 열람"),
+  "completed illness should label its medicine management as read-only");
  assert(e.root.innerHTML.includes("해열 시럽 2mL"),
   "completed illnesses must retain a readable prescription summary");
  assert(!e.root.innerHTML.includes('data-form="temp"'));
