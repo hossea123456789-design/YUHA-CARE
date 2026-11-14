@@ -1074,3 +1074,17 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - 묶음 복사는 새 그룹 및 약 ID를 발급하고 기존 events를 복제하지 않는다. 일반 투약량은 소수 둘째 자리까지, 처방 원문의 0.3333g 등은 넷째 자리까지 정확히 보존한다. g, mL, 정, 포, 방울 지원.
 - Apps Script getIllnessCases schemaVersion=3 및 illnessValidateEpisode_ 확장. v3 운영 웹앱 배포 전에는 로컬 큐만 보관하며 기기 간 동기화는 미확인. 사용자가 직접 기존 Apps Script Code.gs의 전체 최신본으로 교체 후 기존 웹앱의 새 버전 배포.
 - 브라우저 캐시 키 illness-care.js/css?v=20261114-prescription-json-v3 반영. 테스트는 tests/illness-care.test.js, tests/illness-api.test.js. 본 세션에서 최신 Actions 결과를 확인한다.
+
+## 54. 2026-11-14 — 복약 서머리 상시 표시 + 묶음 삭제·복원
+
+### 사용자 요구 및 화면
+- 기존 묶음 하위에 '시간 수정·미복용 기록/이력' 폼이 숨어 있어 실제 복약 기록을 알기 어려웠다는 피드백. **체온 히트맵 바로 아래에 날짜별 '복용 내역 · 시간별 서머리'를 상시 표시**하도록 변경했다.
+- 서머리에는 오늘/선택일 이동, 완료·미복용·총 기록 횟수, 실제 복용/미복용을 **바로 기록하는 폼**(묶음·시각·상태·메모), 기록된 시각마다 묶음명/약명/실제 이벤트에 저장된 용량을 표시. 과거 개별 `medications[].doses[]`도 섞어 시간순으로 나타낸다. 묶음 아래의 중복 입력 폼은 제거하고, 묶음의 '묶음 전체 복용 완료' 원터치 버튼은 유지했다.
+- 복용 묶음 카드에는 **'묶음 삭제'**를 추가한다. 확인 후 원본 `medicationGroups[]` 객체는 지우지 않고 `deletedAt` ISO 시각과 `active:false`를 남겨 서버·기기 전체 이력을 보존. 삭제한 묶음은 화면의 기본 묶음 목록·복약 서머리에 표시하지 않지만 **삭제한 묶음 → 복원**으로 복구 가능하다. 복원 후에도 active:false라 의사 처방 지시 없이 재복용 상태로 전환되지 않음.
+- 삭제하기 전 changeCase가 기존 원본 스냅샷을 저장하고 서버 pending에 기록. 기존 투약량 스냅샷과 기타 수면·회복 데이터는 유지한다.
+
+### 서버 / 테스트 / 배포
+- `illness-care.js` normalize와 `apps-script/Code.gs`의 illnessValidateEpisode_에 `deletedAt` 필드 보존을 추가. **질병 API schemaVersion:4** 필수. 구버전 v3 서버는 tombstone을 제거할 위험이 있어 프런트는 v4가 배포되기 전까지 전체 질병 동기화를 막고 기기 원본·pending을 유지한다.
+- 서버 버전 업데이트 과정에서 기존 **수면 API schemaVersion:3**과 **아내 회복 API schemaVersion:7**은 유지했음을 별도 검증했다.
+- `tests/illness-care.test.js`: 상시 복약 타임라인, 과거 개별 약 기록 합산, 약별 실제 투약량 스냅샷 불변, 삭제 취소→보관→복원, 서버 pending 보존 확인. `tests/illness-api.test.js`: 삭제 메타데이터와 기록의 v4 저장/재조회 및 복원.
+- `index.html` 스크립트와 CSS 캐시를 `20261114-dose-timeline-v4`로 갱신. GitHub Pages 변경만으로 Apps Script는 자동 배포되지 않으므로, 사용자가 현재 시트에 연결된 Code.gs 전체 최신본으로 기존 웹앱 **배포 관리 → 수정 → 새 버전**을 실행해야 한다.
