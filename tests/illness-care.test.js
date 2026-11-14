@@ -670,7 +670,7 @@ function intake(at,status='taken',extra={}){
  const f=html.indexOf("체온 · 열 히트맵"),t=html.indexOf('class="ill-inline-entry ill-temperature-inline-entry"'),
   h=html.indexOf("복용 내역 · 시간별 서머리"),d=html.indexOf('class="ill-inline-entry ill-dose-inline-entry"'),
   j=html.indexOf("약 묶음 등록"),l=html.indexOf("등록한 약 리스트"),
-  m=html.indexOf("질병 관리"),v=html.indexOf("병원 방문");
+  m=html.indexOf("질병 관리"),v=html.indexOf("진료 · 병원 방문");
  assert(f>=0&&f<t&&t<h&&h<d&&d<j&&j<l&&l<m&&m<v,
   "temperature entry is in its graph section; medication entry is in its history section; hospital stays in its section");
  const chart=html.indexOf('class="ill-trend-svg"'),measured=html.indexOf('class="ill-temp-history"'),
