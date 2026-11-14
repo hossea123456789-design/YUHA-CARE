@@ -154,3 +154,33 @@ function entry(){
  assert.throws(()=>e.fn('illnessValidateEpisode_')(invalid),/중복/);
  console.log('PASS illness API: two-item bundle sync, immutable dose snapshot, backward compatibility and validation');
 })();
+
+(function testGramAndFrequencyImportBackend(){
+ const e=setup(),raw=entry();
+ raw.medicationGroups=[{
+  id:"igrambundle01",name:"3회/일 · 4일",mode:"scheduled",intervalHours:null,
+  timesPerDay:3,days:4,sourceDate:"2026-11-14",sourceKind:"prescription-json",
+  visitId:"",endsAt:"",active:true,
+  items:[{id:"igram01",name:"건조 시럽",amount:0.3333,unit:"g"},
+   {id:"itablet01",name:"정제",amount:0.25,unit:"정"}],events:[]
+ }];
+ const created=e.fn("syncIllnessCase")({episode:raw,expectedRevision:""});
+ assert.equal(created.ok,true);
+ const recovered=e.fn("getIllnessCases")();
+ assert.equal(recovered.schemaVersion,3);
+ const g=recovered.cases[raw.id].medicationGroups[0];
+ assert.equal(g.intervalHours,null,"timesPerDay must not become inferred 8h");
+ assert.equal(g.timesPerDay,3);
+ assert.equal(g.days,4);
+ assert.equal(g.sourceDate,"2026-11-14");
+ assert.equal(g.items[0].amount,0.3333);
+ assert.equal(g.items[1].amount,0.25);
+ const invalid=structuredClone(raw);
+ invalid.medicationGroups[0].items[1].amount=0.251;
+ assert.throws(()=>e.fn("illnessValidateEpisode_")(invalid),/소수 둘째/);
+ invalid.medicationGroups[0].items[1].amount=0.25;
+ invalid.medicationGroups[0].items[0].amount=0.33333;
+ assert.throws(()=>e.fn("illnessValidateEpisode_")(invalid),/소수 넷째/);
+ assert.equal(e.tabs.has("SLEEP_LOG"),true);
+ console.log("PASS illness API: schema v3 exact 0.3333g and 0.25 tablet roundtrip, frequency metadata and precision");
+})();
