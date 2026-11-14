@@ -162,7 +162,7 @@ function heatBand(v){
 const model={cases:{},pending:{},conflicts:{},snapshots:[]};
 let loaded=false,selected="",month=isoMonth(nowIso()),temperatureDay=dayKey(nowIso()),connected=false,initialFetchStarted=false,busy=false;
 let active=false,syncEpoch=0;
-let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",copyDraft=null,pendingPrescription=null,timer=null,root=null;
+let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",editVisit="",editTemperatureId="",editDoseId="",editDoseGroupId="",editDoseLegacy=false,copyDraft=null,pendingPrescription=null,timer=null,root=null;
 function persist(){
  try{
   // Archive before changing primary records. Keep the bounded archive small
@@ -389,16 +389,29 @@ function recordHeading(c){
   '</section>';
 }
 function visitForm(c){
- return card("병원 방문 기록",'<details><summary>+ 병원 방문 추가</summary><form data-form="visit" class="ill-fields">'+
- '<label>방문 시각<input required name="at" type="datetime-local" value="'+localInput(nowIso())+'"></label>'+
- '<label>병원명<input required name="hospital" maxlength="120" placeholder="병원 이름"></label>'+
- '<label>진단명 · 의사 설명<input name="diagnosis" maxlength="200" placeholder="진단명 / 소견"></label>'+
- '<label>처방·주의사항<input name="notes" maxlength="500" placeholder="진료 시 들은 복약/관리 지침"></label>'+
- '<button type="submit" class="ill-primary">병원 방문 저장</button></form></details>'+
- (c.visits.length?'<div class="ill-history">'+[...c.visits].sort((a,b)=>at(b.at)-at(a.at)).map(v=>
- '<div class="ill-history-item"><b>'+E(v.hospital)+'</b> <small>'+E(displayTime(v.at))+'</small>'+
- '<p>'+E(v.diagnosis||"진단 미입력")+'</p>'+(v.notes?'<p>'+E(v.notes)+'</p>':'')+
- '<button data-act="remove-visit" data-id="'+attr(v.id)+'" class="ill-text-danger">기록 삭제</button></div>').join("")+'</div>':''));
+ const editing=c.visits.find(v=>v.id===editVisit);
+ const visits=[...c.visits].sort((a,b)=>at(b.at)-at(a.at));
+ const form=editing||c.status==="active"?
+  '<form data-form="visit" class="ill-fields">'+
+   '<input type="hidden" name="editId" value="'+attr(editing?.id||"")+'">'+
+   '<label>방문 일시<input required name="at" type="datetime-local" value="'+localInput(editing?.at||nowIso())+'"></label>'+
+   '<label>병원 이름<input required name="hospital" maxlength="120" value="'+attr(editing?.hospital||"")+'" placeholder="병원 이름"></label>'+
+   '<label>진단·진료 내용<input name="diagnosis" maxlength="200" value="'+attr(editing?.diagnosis||"")+'" placeholder="진료 메모"></label>'+
+   '<label>처방·안내사항<input name="notes" maxlength="500" value="'+attr(editing?.notes||"")+'" placeholder="의사 설명"></label>'+
+   '<button type="submit" class="ill-primary">'+(editing?"방문 기록 수정 저장":"병원 방문 기록 추가")+'</button>'+
+   (editing?'<button type="button" class="ill-secondary" data-act="cancel-edit-visit">취소</button>':'')+
+   '</form>':'';
+ const visitEntries=visits.length?'<div class="ill-visit-list">'+visits.map(v=>
+  '<article class="ill-visit-entry"><div><span class="ill-visit-date">🏥 '+E(displayTime(v.at))+'</span>'+
+  '<strong>'+E(v.hospital)+'</strong></div>'+
+  (v.diagnosis?'<p>'+E(v.diagnosis)+'</p>':'')+
+  (v.notes?'<p class="ill-muted">'+E(v.notes)+'</p>':'')+
+  '<div class="ill-record-actions"><button type="button" class="ill-secondary" data-act="edit-visit" data-id="'+attr(v.id)+'">수정</button>'+
+  '<button type="button" class="ill-text-danger" data-act="remove-visit" data-id="'+attr(v.id)+'">삭제</button></div></article>').join("")+'</div>':
+  '<p class="ill-muted">아직 병원 방문 기록이 없습니다. 진료받은 날짜는 위 히트맵에 🏥로 표시됩니다.</p>';
+ return card("진료 · 병원 방문",visitEntries+
+  (form?'<details class="ill-visit-editor"'+(editing?' open':'')+'><summary>'+
+   (editing?"방문 기록 수정 중":"+ 병원 방문 기록 추가")+'</summary>'+form+'</details>':''));
 }
 function medicationForm(c){
  const m=c.medications.find(x=>x.id===editMedication)||null;
@@ -898,21 +911,30 @@ function feverHeat(c){
  const [y,m]=month.split("-").map(Number);
  const days=new Date(y,m,0).getDate(),first=(new Date(y,m-1,1).getDay()+6)%7;
  const bands=dailyMax(c.temperatures);
+ const visitDays={};
+ for(const v of c.visits||[]){const d=dayKey(v.at);if(d)visitDays[d]=(visitDays[d]||0)+1;}
  let cells=["월","화","수","목","금","토","일"].map(d=>'<span class="ill-dow">'+d+'</span>').join("");
  for(let i=0;i<first;i++)cells+='<span></span>';
  for(let d=1;d<=days;d++){
   const date=month+"-"+String(d).padStart(2,"0"),v=bands[date];
   cells+='<button type="button" data-act="temp-day" data-day="'+date+'" aria-pressed="'+(date===temperatureDay?"true":"false")+
    '" aria-label="'+date+' · '+(v===undefined?"체온 미측정":v.toFixed(1)+"도")+
+   (visitDays[date]?' · 병원 방문 '+visitDays[date]+'회':'')+
    '" class="ill-heat '+heatBand(v)+(date===temperatureDay?' selected':'')+
-   '" title="'+date+' · '+(v===undefined?"미측정":v.toFixed(1)+"℃")+'">'+d+
+   '" title="'+date+' · '+(v===undefined?"미측정":v.toFixed(1)+"℃")+
+   (visitDays[date]?' · 병원 방문 '+visitDays[date]+'회':'')+'">'+d+
+   (visitDays[date]?'<span class="ill-hospital-pin" aria-hidden="true">🏥</span>':'')+
    '<strong>'+(v===undefined?"·":v.toFixed(1))+'</strong></button>';
  }
  return card("체온 · 열 히트맵",
   '<div class="ill-heat-head"><button type="button" data-act="month-prev" aria-label="이전 달">‹</button><strong>'+y+'년 '+m+'월</strong>'+
    '<button type="button" data-act="month-next" aria-label="다음 달">›</button></div>'+
   '<div class="ill-heat-grid">'+cells+'</div>'+
-  '<div class="ill-temp-legend"><span>미측정</span><span>37.5 미만</span><span>37.5~37.9</span><span>38~38.9</span><span>39 이상</span></div>'+
+  '<div class="ill-temp-legend"><span>미측정</span><span>37.5 미만</span><span>37.5~37.9</span><span>38~38.9</span><span>39 이상</span><span class="ill-hospital-legend">🏥 병원 방문</span></div>'+
+  (visitDays[temperatureDay]?'<div class="ill-visit-on-day"><strong>🏥 선택 날짜 진료 '+visitDays[temperatureDay]+'건</strong>'+
+    c.visits.filter(v=>dayKey(v.at)===temperatureDay).sort((a,b)=>at(a.at)-at(b.at)).map(v=>
+     '<p>'+E(displayTime(v.at))+' · '+E(v.hospital)+(v.diagnosis?' · '+E(v.diagnosis):'')+'</p>').join("")+
+   '</div>':'')+
   (c.status==="active"?'<form data-form="temp" class="ill-temp-quick">'+
    '<label>체온 <span>(℃)</span><input required type="text" inputmode="decimal" autocomplete="off" maxlength="4" name="celsius" placeholder="38.5" aria-describedby="illTempPreview"></label>'+
    '<button type="submit" class="ill-primary">체온 저장</button>'+
@@ -1045,8 +1067,15 @@ function onSubmit(e){
   }
   if(type==="visit"){
    const hospital=get(form,"hospital");need(hospital,"병원명을 입력해 주세요");
-   const visit={id:newId(),hospital,at:inputTime(get(form,"at")),diagnosis:get(form,"diagnosis"),notes:get(form,"notes")};
-   changeCase(c.id,r=>r.visits.push(visit));return;
+   const editId=get(form,"editId");
+   const visit={hospital,at:inputTime(get(form,"at")),diagnosis:get(form,"diagnosis"),notes:get(form,"notes")};
+   need(!editId||c.visits.some(v=>v.id===editId),"수정할 병원 기록을 찾을 수 없습니다");
+   editVisit="";temperatureDay=dayKey(visit.at);month=temperatureDay.slice(0,7);
+   changeCase(c.id,r=>{
+    const old=r.visits.find(v=>v.id===editId);
+    if(old)Object.assign(old,visit);
+    else r.visits.push({id:newId(),...visit});
+   });return;
   }
   if(type==="prescription-json"){
    const parsed=parsePrescriptionJson(get(form,"prescriptionJson"));
