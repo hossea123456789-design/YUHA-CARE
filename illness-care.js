@@ -527,9 +527,69 @@ function groupItemRow(item){
   '<select aria-label="투약 단위" name="drugUnit">'+MED_UNITS.map(v=>'<option value="'+v+'"'+(unit===v?" selected":"")+'>'+v+'</option>').join("")+'</select>'+
   '<button type="button" class="ill-minor" data-act="remove-drug-line" aria-label="이 약 입력 줄 삭제">×</button></div>';
 }
+// A portable transcription contract to paste into another chat with a photo.
+// This example is fictitious and contains no real prescription or patient data.
+function prescriptionExample(){
+ return {schema:"yuha-prescription-import/v1",dispensedAt:"2026-11-14",
+  medications:[
+   {name:"약 A",doseAmount:2.5,doseUnit:"mL",timesPerDay:2,days:4},
+   {name:"약 B",doseAmount:0.25,doseUnit:"정",timesPerDay:3,days:4},
+   {name:"약 C",doseAmount:0.3333,doseUnit:"g",timesPerDay:3,days:4}
+  ],
+  bundleTemplates:[
+   {name:"하루 2회 묶음",items:[{name:"약 A",amount:2.5,unit:"mL"}]},
+   {name:"하루 3회 묶음",items:[{name:"약 B",amount:0.25,unit:"정"},
+     {name:"약 C",amount:0.3333,unit:"g"}]}
+  ]};
+}
+function prescriptionChatRequest(){
+ const fence=String.fromCharCode(96).repeat(3);
+ return [
+  "첨부한 아기 약봉투 또는 복약안내 사진을 읽고 YUHA-CARE 질병 기록 앱에 붙여넣을 JSON으로 변환해 주세요.",
+  "",
+  "변환 규칙:",
+  "1. 사진에서 실제 확인되는 약 이름, 1회량, 단위(mL/g/정/포/방울), 1일 복용 횟수, 처방 일수를 정확하게 적으세요.",
+  "2. 판독 불가한 필수 항목은 추측하지 말고, 해당 약은 JSON에 임의로 넣지 말고 JSON 코드 블록 아래 '확인 필요'로 구분하세요.",
+  "3. 1일 2회·3회를 12시간·8시간 간격이라고 자동 환산하거나 복용 시각을 지어내지 마세요.",
+  "4. 일반 투약량은 소수 둘째 자리까지, 0.3333g처럼 사진에 더 세밀하게 적힌 g 수치는 최대 넷째 자리까지 원문 그대로 보존하세요. 절대로 반올림하지 마세요.",
+  "5. schema는 yuha-prescription-import/v1, medications는 필수 배열이며 각 항목의 name,doseAmount,doseUnit,timesPerDay,days를 채우세요.",
+  "6. bundleTemplates는 선택사항입니다. 같은 일일 복용 횟수와 처방 일수끼리 묶음을 제안하되, 같은 시간에 함께 먹어야 한다고 확인되지 않으면 단정하지 마세요.",
+  "7. 환자명·등록번호 등 불필요한 개인정보는 제외하세요. 먼저 복사 가능한 JSON 코드 블록, 이후 판독 불확실 항목만 간단히 적으세요.",
+  "",
+  "아래는 구조 참고용 가상 예시입니다. 실제 약 종류·용량으로 사용하지 마세요.",
+  fence+"json",JSON.stringify(prescriptionExample(),null,2),fence,
+  "",
+  "이제 첨부한 실제 처방 사진을 이 형식의 JSON으로 변환하세요."
+ ].join("\n");
+}
+function copyPrescriptionText(value){
+ const status=root?.querySelector("[data-prescription-copy-status]");
+ const report=(message,failed)=>{
+  if(status){status.textContent=message;status.className=failed?"ill-alert":"ill-muted";}
+ };
+ return (async()=>{
+  try{
+   if(window.navigator?.clipboard?.writeText)await window.navigator.clipboard.writeText(value);
+   else{
+    const field=document.createElement("textarea");
+    field.value=value;field.setAttribute("readonly","");
+    field.style.position="fixed";field.style.left="-9999px";
+    document.body.appendChild(field);field.select();
+    const copied=document.execCommand?.("copy");
+    field.remove();
+    if(!copied)throw Error("복사 권한을 확인해 주세요.");
+   }
+   report("복사 완료. 다른 채팅에 붙여넣고 약봉투 사진을 첨부하세요.",false);
+  }catch(e){report("복사 실패: 브라우저의 클립보드 권한을 확인하세요.",true);}
+ })();
+}
 function prescriptionJsonForm(c){
  if(c.status!=="active")return "";
- return card("처방 JSON 가져오기",'<details class="ill-import-details"><summary>JSON 붙여넣기 · 약 묶음 자동 생성</summary>'+
+ return card("처방 JSON 가져오기",'<div class="ill-row-actions ill-copy-actions">'+
+  '<button type="button" class="ill-secondary" data-act="copy-prescription-request">다른 채팅용 요청문 복사</button>'+
+  '<button type="button" class="ill-secondary" data-act="copy-prescription-example">예시 JSON 복사</button></div>'+
+  '<p class="ill-muted" data-prescription-copy-status>다른 채팅에서 이 요청문과 처방 사진을 보내면 앱용 JSON을 만들 수 있습니다.</p>'+
+  '<details class="ill-import-details"><summary>JSON 붙여넣기 · 약 묶음 자동 생성</summary>'+
   '<p class="ill-muted">처방약 사진에서 확인한 JSON을 붙여넣고 목록을 먼저 검토한 후 등록합니다.</p>'+
   '<form data-form="prescription-json" class="ill-fields">'+
   '<label>처방 JSON<textarea name="prescriptionJson" rows="7" maxlength="100000" spellcheck="false" placeholder="처방 JSON을 붙여넣으세요"></textarea></label>'+
@@ -960,6 +1020,12 @@ function onClick(e){
   month=temperatureDay.slice(0,7);render();return;
  }
  if(action==="backup"){backup();return;}
+ if(action==="copy-prescription-request"){
+  void copyPrescriptionText(prescriptionChatRequest());return;
+ }
+ if(action==="copy-prescription-example"){
+  void copyPrescriptionText(JSON.stringify(prescriptionExample(),null,2));return;
+ }
  if(action==="cancel-json-import"){
   pendingPrescription=null;
   const slot=root?.querySelector("#illPrescriptionPreview");
@@ -1095,5 +1161,5 @@ window.addEventListener("online",()=>{
  if(active&&!busy)void connect();
 });
 window.YuhaIllness={render,stop,model,
- _test:{normalize,guidance,groupGuidance,parsePrescriptionJson,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
+ _test:{normalize,guidance,groupGuidance,parsePrescriptionJson,prescriptionExample,prescriptionChatRequest,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
 })();
