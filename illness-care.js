@@ -663,14 +663,8 @@ function groupPanel(c){
    (g.active?'<button type="button" class="ill-secondary" data-act="end-group" data-id="'+attr(g.id)+'">복용 종료</button>':
       '<button type="button" class="ill-secondary" data-act="resume-group" data-id="'+attr(g.id)+'">복용 재개</button>')+
    '</div>'+
-   '<details><summary>시간 수정·미복용 기록 / 이력 '+history.length+'건</summary>'+
-   (g.active?'<form data-form="group-dose" class="ill-fields ill-dose-edit">'+
-    '<input type="hidden" name="groupId" value="'+attr(g.id)+'">'+
-    '<label>기록 시각<input required type="datetime-local" name="at" value="'+localInput(nowIso())+'"></label>'+
-    '<label>기록 종류<select name="status"><option value="taken">전체 복용 완료</option>'+
-    '<option value="skipped">정기 복용 건너뜀</option></select></label>'+
-    '<label>메모 (선택)<input name="note" maxlength="300" placeholder="관찰 내용"></label>'+
-    '<button class="ill-secondary" type="submit">해당 시간으로 기록</button></form>':'')+
+   '<details><summary>이 묶음의 과거 복용 기록 '+history.length+'건</summary>'+
+
    (history.length?'<div class="ill-history">'+history.map(d=>
     '<div class="ill-history-item">'+E(displayTime(d.at))+' · '+
     (d.status==="skipped"?"미복용":'<strong>'+E(d.items.map(item=>item.name+" "+doseLabel(item.amount,item.unit)).join(", "))+'</strong>')+
@@ -690,6 +684,91 @@ function groupPanel(c){
   '<small>이전 입력 기록은 아래 접이식 목록에서 수정하거나 복용 완료할 수 있습니다.</small></div>':'';
  return card("현재 복용 중인 약 · 묶음",sections+oldMedicines+past+archive+
  '<p class="ill-muted">‘묶음 전체 복용 완료’는 표시된 약을 모두 실제 복용한 경우에만 누르세요. 일부만 먹었다면 묶음을 나눠서 기록하세요.</p>');
+}
+// Always-visible medication timeline across ALL currently retained medicine groups
+// and legacy standalone medicines. Actual administered amounts are read only
+// from immutable event snapshots; never from today's edited prescription.
+function dailyMedicationEvents(c,day,{includeDeleted=false}={}){
+ const events=[];
+ for(const group of c.medicationGroups||[]){
+  if(group.deletedAt&&!includeDeleted)continue;
+  for(const event of group.events||[]){
+   if(dayKey(event.at)!==day)continue;
+   events.push({
+    id:event.id,groupId:group.id,at:event.at,
+    status:event.status==="skipped"?"skipped":"taken",
+    name:group.name||"약 묶음",deleted:!!group.deletedAt,
+    items:event.status==="skipped"?[]:clone(event.items||[]),
+    note:event.note||"",legacy:false
+   });
+  }
+ }
+ for(const med of c.medications||[]){
+  for(const dose of med.doses||[]){
+   if(dayKey(dose.at)!==day)continue;
+   events.push({
+    id:dose.id,groupId:med.id,at:dose.at,
+    status:dose.status==="skipped"?"skipped":"taken",
+    name:med.name||"기존 개별 약",deleted:false,
+    items:dose.status==="skipped"?[]:(num(dose.amountMl)!==null?
+     [{name:med.name,amount:dose.amountMl,unit:"mL"}]:[]),
+    note:dose.note||"",legacy:true
+   });
+  }
+ }
+ return events.sort((a,b)=>at(b.at)-at(a.at)||String(a.id).localeCompare(String(b.id)));
+}
+function medicationTimeline(c){
+ const day=temperatureDay||dayKey(nowIso()),entries=dailyMedicationEvents(c,day);
+ const totalTaken=entries.filter(e=>e.status==="taken").length;
+ const skipped=entries.filter(e=>e.status==="skipped").length;
+ const activeGroups=c.medicationGroups.filter(g=>!g.deletedAt&&g.active);
+ const activeOptions=activeGroups.map(g=>
+  '<option value="'+attr(g.id)+'">'+E(g.name)+(g.timesPerDay?' · 1일 '+g.timesPerDay+'회':'')+'</option>').join("");
+ const dateTitle=day===dayKey(nowIso())?"오늘 복용 기록":"복용 기록 · "+day;
+ const controls='<div class="ill-dose-nav">'+
+  '<button type="button" data-act="dose-day-prev" aria-label="전날 복용 기록">‹</button>'+
+  '<strong>'+E(dateTitle)+'</strong>'+
+  '<button type="button" data-act="dose-day-next" aria-label="다음날 복용 기록">›</button>'+
+  (day!==dayKey(nowIso())?'<button type="button" data-act="dose-day-today" class="ill-secondary">오늘</button>':'')+
+  '</div>';
+ const summary='<div class="ill-dose-stats"><div>복용 완료<strong>'+totalTaken+'회</strong></div>'+
+  '<div>미복용 기록<strong>'+skipped+'회</strong></div>'+
+  '<div>실제 기록<strong>'+entries.length+'건</strong></div></div>';
+ const quick= c.status==="active" && activeGroups.length?
+   '<form data-form="group-dose" class="ill-dose-quick">'+
+   '<label>복용 묶음<select name="groupId">'+activeOptions+'</select></label>'+
+   '<label>기록 시각<input type="datetime-local" name="at" required value="'+localInput(nowIso())+'"></label>'+
+   '<label>상태<select name="status"><option value="taken">실제 복용 완료</option>'+
+   '<option value="skipped">미복용</option></select></label>'+
+   '<label>메모 (선택)<input type="text" name="note" maxlength="300" placeholder="예: 외출 중, 복용 지연"></label>'+
+   '<button type="submit" class="ill-primary">복용 기록 저장</button></form>':
+  (c.status==="active"?'<p class="ill-muted">복용 묶음을 등록하면 여기에서 바로 투약 시각과 실제 복용 여부를 기록할 수 있습니다.</p>':'');
+ const history=entries.length?
+  '<div class="ill-dose-timeline" aria-label="선택한 날짜의 복약 시간별 이력">'+
+  entries.map(e=>{
+   const time=displayTime(e.at);
+   const amount=e.status==="taken"?
+    (e.items.length?e.items.map(item=>E(item.name)+' <b>'+E(doseLabel(item.amount,item.unit))+'</b>').join('<span class="ill-dose-item-sep"></span>'):
+     '<span class="ill-muted">실제 투약량 미기록</span>'):
+    '<span class="ill-muted">복용하지 않음 (실제 투약량 없음)</span>';
+   return '<article class="ill-dose-event '+(e.status==="skipped"?"skipped":"taken")+'">'+
+    '<time>'+E(time)+'</time><div class="ill-dose-event-body">'+
+    '<div class="ill-dose-event-head"><strong>'+E(e.name)+'</strong>'+
+    '<span class="ill-tag">'+(e.status==="skipped"?"미복용":"복용 완료")+'</span></div>'+
+    '<div class="ill-dose-event-items">'+amount+'</div>'+
+    (e.note?'<p>'+E(e.note)+'</p>':'')+
+    '<button type="button" class="ill-text-danger" data-act="'+(e.legacy?'remove-dose':'remove-group-event')+
+    '" data-id="'+attr(e.id)+'" data-'+(e.legacy?'med':'group')+'="'+attr(e.groupId)+'">기록 삭제</button>'+
+    '</div></article>';
+  }).join("")+'</div>':
+  '<div class="ill-dose-empty">이 날짜에 등록된 복용·미복용 기록이 없습니다.</div>';
+ const deletedWithEvents=c.medicationGroups.filter(g=>g.deletedAt&&g.events.some(e=>dayKey(e.at)===day));
+ const archivedNotice=deletedWithEvents.length?
+  '<p class="ill-muted">삭제 보관된 묶음 '+deletedWithEvents.length+'개의 복약 이력은 아래 ‘삭제한 묶음’에서 복원할 때 다시 표시됩니다.</p>':'';
+ return card("복용 내역 · 시간별 서머리",
+  controls+summary+quick+history+archivedNotice,
+  "ill-dose-summary");
 }
 function legacyPanel(c){
  if(!c.medications.length)return "";
@@ -828,7 +907,7 @@ function render(){
   '<p>질병별 시간순 기록 · 병원·처방·복용·체온</p></div>'+
   '<div class="ill-alert">이 앱은 입력한 처방 간격으로 참고 시각만 계산합니다. 실제 투약 판단은 약 봉투·처방 지시가 우선입니다. 앱을 닫으면 지연 경고를 푸시 알림으로 보내지 않습니다.</div>'+
   illnessSelect()+
-  (c?recordHeading(c)+feverHeat(c)+groupPanel(c)+prescriptionJsonForm(c)+medicationGroupForm(c)+
+  (c?recordHeading(c)+feverHeat(c)+medicationTimeline(c)+groupPanel(c)+prescriptionJsonForm(c)+medicationGroupForm(c)+
     legacyPanel(c)+visitForm(c)+closure(c):
    card("기록이 없습니다",'<p class="ill-muted">발생 시각과 증상을 기록해 시작하세요.</p>'))+
   episodeForm()+
@@ -963,6 +1042,7 @@ function onSubmit(e){
     "정기 복용의 첫 실제 복용 이후에만 미복용을 기록할 수 있습니다");
    const time=inputTime(get(form,"at"));
    const next=groupGuidance(g,new Date(time));
+   temperatureDay=dayKey(time);month=temperatureDay.slice(0,7);
    const evt={id:newId(),at:time,status,note:get(form,"note"),
     scheduledFor:status==="skipped"&&next.dueAt?next.dueAt:"",
     items:status==="taken"?clone(g.items):[]};
@@ -992,6 +1072,7 @@ function onSubmit(e){
    const atTime=inputTime(get(form,"at")),dose=num(get(form,"amountMl"),m.doseMl);
    if(status==="taken")need(dose!==null&&dose>0&&dose<=100,"실제 복용 용량(mL)을 확인해 주세요");
    const g=guidance(m,new Date(atTime));
+   temperatureDay=dayKey(atTime);month=temperatureDay.slice(0,7);
    const log={id:newId(),at:atTime,status,amountMl:status==="taken"?dose:null,
      note:get(form,"note"),scheduledFor:status==="skipped"&&g.dueAt?g.dueAt:""};
    changeCase(c.id,r=>r.medications.find(x=>x.id===id).doses.push(log));return;
@@ -1070,6 +1151,15 @@ function onClick(e){
 
  if(action==="refresh"){if(!busy)void connect();return;}
  if(action==="choose-server"||action==="choose-local"){chooseConflict(id,action==="choose-server"?"server":"local");return;}
+ if(action==="dose-day-today"){
+  temperatureDay=dayKey(nowIso());month=temperatureDay.slice(0,7);render();return;
+ }
+ if(action==="dose-day-prev"||action==="dose-day-next"){
+  const date=new Date((temperatureDay||dayKey(nowIso()))+"T12:00:00");
+  date.setDate(date.getDate()+(action==="dose-day-prev"?-1:1));
+  temperatureDay=dayKey(date.toISOString());month=temperatureDay.slice(0,7);
+  render();return;
+ }
  if(action==="temp-day"){
   const day=String(btn.dataset.day||"");
   if(/^\d{4}-\d{2}-\d{2}$/.test(day)){
@@ -1141,6 +1231,7 @@ function onClick(e){
  if(action==="take-group"){
   const group=c.medicationGroups.find(g=>g.id===id&&g.active&&!g.deletedAt);
   if(!group)return;
+  temperatureDay=dayKey(nowIso());month=temperatureDay.slice(0,7);
   const evt={id:newId(),at:nowIso(),status:"taken",note:"",
    scheduledFor:"",items:clone(group.items)};
   changeCase(c.id,r=>r.medicationGroups.find(g=>g.id===id).events.push(evt));
@@ -1191,5 +1282,5 @@ window.addEventListener("online",()=>{
  if(active&&!busy)void connect();
 });
 window.YuhaIllness={render,stop,model,
- _test:{normalize,guidance,groupGuidance,parsePrescriptionJson,prescriptionExample,prescriptionChatRequest,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
+ _test:{normalize,guidance,groupGuidance,dailyMedicationEvents,medicationTimeline,parsePrescriptionJson,prescriptionExample,prescriptionChatRequest,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
 })();
