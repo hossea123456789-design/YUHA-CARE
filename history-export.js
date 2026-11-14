@@ -229,6 +229,25 @@ function illnessVersionXml(src,source,start,end,additional={}){
   xml+="          </reading>\n";
  }
  xml+="        </temperatureHistory>\n";
+ // Derived heatmap values are not measurements. Keep every raw reading above.
+ const daily=new Map();
+ for(const r of temp){
+  const v=Number(r.celsius),day=illnessEventDay(r.at);
+  if(!Number.isFinite(v)||!validDate(day))continue;
+  const d=daily.get(day)||{day,count:0,min:v,max:v};
+  d.count++;d.min=Math.min(d.min,v);d.max=Math.max(d.max,v);
+  daily.set(day,d);
+ }
+ xml+="        <dailyTemperatureSummary"+attr("count",daily.size)+
+  attr("source","calculated-from-observed-readings")+
+  attr("isClinicalDiagnosis","false")+">\n";
+ for(const d of [...daily.values()].sort((a,b)=>a.day.localeCompare(b.day))){
+  const band=d.max>=39?"high":d.max>=38?"fever":d.max>=37.5?"borderline":"normal";
+  xml+="          <day"+attr("date",d.day)+attr("measuredCount",d.count)+
+   attr("minCelsius",d.min)+attr("maxCelsius",d.max)+
+   attr("heatBand",band)+"/>\n";
+ }
+ xml+="        </dailyTemperatureSummary>\n";
  xml+="        <medicationGroups"+attr("count",scoped.groups.length)+">\n";
  for(const g of scoped.groups){
   xml+="          <group"+attr("id",g.id||"")+attr("name",g.name||"")+
@@ -324,10 +343,11 @@ function buildIllnessXml(doc){
   attr("startDate",start)+attr("endDate",end)+attr("preset",doc.preset||"none")+'/>\n'+
   '    <source'+attr("mode",doc.mode||"server-and-device")+
   attr("failedMonths",failed.join(","))+attr("recordCount",count)+'/>\n'+
-  '    <analysisNote>날짜 범위는 실제 측정·투약·병원 방문 시각의 브라우저 현지 날짜로 필터링합니다. 질병 발생일이 이전 달이어도 기간 내 복약 기록이 있으면 포함됩니다. 복용 수량은 처방 기준과 투약 당시 실제 수량을 구분합니다. 1일 횟수를 임의의 시간 간격으로 환산하지 않습니다. 삭제된 묶음의 이력도 deletedAt과 함께 유지됩니다. serverVersion, deviceVersion, pendingChanges, conflictVersions는 서로 다른 원본으로 같은 투약 사실이 중복될 수 있으므로 합산하지 마세요. complete는 서버 조회 성공 여부만 뜻합니다. 원본은 변경하지 않았습니다.</analysisNote>\n'+
+  '    <analysisNote>날짜 범위는 실제 측정·투약·병원 방문 시각의 브라우저 현지 날짜로 필터링합니다. 질병 발생일이 이전 달이어도 기간 내 복약 기록이 있으면 포함됩니다. 복용 수량은 처방 기준과 투약 당시 실제 수량을 구분합니다. 1일 횟수를 임의의 시간 간격으로 환산하지 않습니다. 삭제된 묶음의 이력도 deletedAt과 함께 유지됩니다. dailyTemperatureSummary는 실제 체온 기록으로 계산한 날짜별 최저/최고와 화면용 구간으로 진단이 아닙니다. serverVersion, deviceVersion, pendingChanges, conflictVersions는 서로 다른 원본으로 같은 투약 사실이 중복될 수 있으므로 합산하지 마세요. complete는 서버 조회 성공 여부만 뜻합니다. 원본은 변경하지 않았습니다.</analysisNote>\n'+
   '  </metadata>\n'+
   '  <fieldDefinitions>\n'+
   '    <field key="temperatureHistory.reading.celsius" label="실측 체온" unit="℃"/>\n'+
+  '    <field key="dailyTemperatureSummary.day.maxCelsius" label="해당 날짜의 최고 실측 체온" unit="℃"/>\n'+
   '    <field key="medicationGroups.group.administrations.administration" label="묶음 복용·미복용 기록"/>\n'+
   '    <field key="administeredDrugs.drug.amount" label="실제 약별 복용량" unit="drug.unit"/>\n'+
   '    <field key="legacyMedications.medication.administrations" label="구형 개별 약 복용 기록"/>\n'+
