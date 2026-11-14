@@ -117,3 +117,11 @@
 - 체온 `edit-temp` 폼은 동일 `temperatures[].id`의 시각·℃·측정부위·메모를 수정하고, 복약 `edit-dose` 폼은 묶음 `events[]` 또는 옛 `medications[].doses[]`의 시각·복용 여부·약별 **당시 실제 투약량**을 수정. 의료 용량 검증(일반 소수 둘째, 원문 g 최대 넷째)을 동일하게 적용. 기존 ID를 보존하고 이벤트를 중복 추가하지 않으며, 종료 상태의 질병에서도 과거 사실 정정은 가능. 모든 쓰기는 기존 `changeCase()` 스냅샷·pending 큐를 거친다.
 - `index.html`에서 `renderTabs()`는 한 번만 wheel 핸들러를 연결. 너비가 넘칠 때만 가로 휠 스크롤+preventDefault, Ctrl/Meta 조합 또는 다 표시될 때는 일반 브라우저 동작 유지. CSS는 가로 flex 스트립을 강제해 PC에서도 한 행을 유지.
 - 프런트와 테스트만 변경됐고 Apps Script API 및 Google Sheets 저장 스키마는 **질병 v4 그대로**다. 테스트는 `tests/illness-care.test.js`의 실제 폼 수정·원본 ID·투약량·종료 처리·히트맵 병원 표시·PC 휠 실행 검증 및 기존 전체 회귀 테스트로 수행.
+
+## 2026-11-15 — 빠른 기록 우선 UI/UX 2차 검증
+
+- 이전 구성은 체온 등록이 긴 월간 달력 아래, 약 복용 입력은 그래프·측정 이력 아래에 있어 매일 기록하기 불편했습니다. 개선 후 순서: recordHeading → quickEntryPanel(quickTemperatureForm과 quickMedicineForm) → feverHeat → medicationTimeline → currentPrescriptionPanel → visitForm → medicationManagement → closure → episodeForm → syncPanel.
+- 실제 체온·복약 기록 입력 폼은 각각 하나만 유지합니다. 둘 다 화면 위쪽의 같은 카드에 있으며, 그래프/타임라인/처방 상세에는 중복 폼이 없습니다. 복용 그룹을 선택하면 모든 약명·처방량을 미리 보고, 기존 개별 처방은 legacy ID로 구분해 같은 빠른 입력 폼으로 기록합니다.
+- 복용 시각은 사용자 수정 가능하며 dose-time-now 액션으로 오래된 초기 시각을 현재 시간으로 갱신합니다. changeCase의 persist() 성공 시에만 해당 기록이 기기에 저장됐다는 메시지를 표시합니다. 복약 지시 확인 경고는 간결하게 유지합니다.
+- 처방 관리는 기본 접힌 상태지만 사용자가 열면 동일 질병에서 재렌더링해도 유지됩니다. 묶음 하위의 중복 복용 이력과 구형 개별 약의 중복 투약 폼을 제거했으며 실제 데이터는 기존 event/doses에 남깁니다. 완료된 질병은 지난 처방만 열람할 수 있습니다.
+- XML 버튼은 기록 백업·동기화에 배치했습니다. 앱 스크립트와 Google Sheets 필드에 변경이 없어 운영 질병 API v4를 계속 사용합니다. 테스트는 입력 순서·중복 배제·기존약 호환·원본 이력 보존·관리 펼침·현재 시각 버튼 등을 포함합니다.
