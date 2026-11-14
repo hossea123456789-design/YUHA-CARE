@@ -680,14 +680,14 @@ function groupPanel(c){
  const all=c.medicationGroups.filter(g=>g.active&&!g.deletedAt);
  const finished=c.medicationGroups.filter(g=>!g.active&&!g.deletedAt);
  const deleted=c.medicationGroups.filter(g=>!!g.deletedAt);
- if(!all.length&&!finished.length&&!deleted.length)return card("약 묶음 관리",
-  '<div class="ill-empty"><strong>등록된 약이 없습니다</strong><p>같이 복용하는 약의 이름과 1회량만 등록하세요. 복용 기록은 묶음 단위로 남깁니다.</p>'+
-  '<button class="ill-primary" data-act="go-group" type="button">+ 복용 묶음 만들기</button></div>');
+ if(!all.length&&!finished.length&&!deleted.length)
+  return '<div class="ill-empty"><strong>등록된 약 묶음이 없습니다.</strong>'+
+   '<p>위에서 JSON을 가져오거나 약을 직접 입력해 등록할 수 있습니다.</p></div>';
  const renderGroup=g=>{
   const info=groupGuidance(g),history=[...g.events].sort((a,b)=>at(b.at)-at(a.at));
   const items=g.items.map(item=>'<li><span>'+E(item.name)+'</span><strong>'+E(doseLabel(item.amount,item.unit))+'</strong></li>').join("");
   return '<article data-ill-group-id="'+attr(g.id)+'" class="ill-group '+info.state+'">'+
-   '<div class="ill-summary"><strong>'+E(g.name||"함께 복용하는 약")+'</strong>'+
+   '<div class="ill-summary"><strong>'+E(groupMedicineLabel(g,true))+'</strong>'+
    '<span class="ill-tag">'+(g.active?(g.mode==="prn"?"필요시 복용":"정기 복용"):"복용 종료")+'</span></div>'+
    '<ul class="ill-drug-list">'+items+'</ul>'+
    (g.timesPerDay?'<p class="ill-muted">1일 '+E(g.timesPerDay)+'회 · '+E(g.days||"?")+'일'+
@@ -712,8 +712,8 @@ function groupPanel(c){
   '<p class="ill-muted">삭제한 묶음과 기존 투약 기록은 보관됩니다. 삭제한 묶음의 이력은 일반 복약 서머리에서 제외합니다.</p>'+
   deleted.map(g=>'<div class="ill-archive-row"><span>'+E(g.name)+' · 복용 이력 '+g.events.length+'건</span>'+
    (c.status==="active"?'<button type="button" class="ill-secondary" data-act="restore-group" data-id="'+attr(g.id)+'">복원</button>':'')+'</div>').join("")+'</details>':'';
- return card("약 묶음 관리",sections+past+archive+
- '<p class="ill-muted">복용 기록은 화면 위쪽 ‘복용 내역’에서 입력합니다. 함께 복용한 약의 범위는 처방 지시를 확인해 기록하세요.</p>');
+ return '<div class="ill-registered-groups">'+sections+past+archive+
+ '<p class="ill-muted">복용·미복용 기록과 수정은 위 시간별 히스토리에서 확인합니다.</p></div>';
 }
 // Always-visible medication timeline across ALL currently retained medicine groups
 // and legacy standalone medicines. Actual administered amounts are read only
@@ -779,10 +779,8 @@ function prescriptionEntryPanel(c){
 }
 function registeredMedicinePanel(c){
  const legacy=c.medications?.length?legacyPanel(c):"";
- return '<section class="ill-medicine-list" aria-label="등록한 약 리스트">'+
-  '<h3>등록한 약 리스트</h3>'+
-  groupPanel(c)+legacy+
-  '</section>';
+ return card("등록한 약 리스트",
+  groupPanel(c)+legacy,"ill-medicine-list");
 }
 function doseEditForm(c,entries){
  const record=entries.find(e=>e.id===editDoseId&&e.groupId===editDoseGroupId&&e.legacy===editDoseLegacy);
