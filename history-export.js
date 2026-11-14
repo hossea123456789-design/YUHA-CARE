@@ -429,7 +429,11 @@ function download(kind,scope,out){
  return filename;
 }
 function open(options){
- if(!options||!SPEC[options.kind]||typeof options.fetchMonth!=="function"||typeof options.localMonth!=="function")throw Error("내보내기 설정이 없습니다.");
+ if(!options||!SPEC[options.kind]||
+  (options.kind==="illness"?
+   typeof options.fetchIllness!=="function"||typeof options.localIllness!=="function":
+   typeof options.fetchMonth!=="function"||typeof options.localMonth!=="function"))
+  throw Error("내보내기 설정이 없습니다.");
  if(document.getElementById("yuhaHistoryExportModal"))return;
  const today=new Date(),todayDay=localDate(today),nowMonth=todayDay.slice(0,7);
  const initial=VALID_MONTH.test(options.month||"")?options.month:nowMonth;
@@ -460,6 +464,8 @@ function open(options){
  '</div>'+
  '<p class="history-export-sensitive">'+(kind==="mental"?
   "메모·점수·편지 원문이 포함된 민감정보 파일입니다. PIN과 서버 비밀번호는 포함하지 않지만 XML 파일 자체는 암호화되지 않습니다.":
+  kind==="illness"?
+  "질병명·체온·진료·실제 복용 시각과 약별 투약량이 포함됩니다. 삭제 보관된 묶음의 복약 이력도 추출됩니다. XML 파일 자체는 암호화되지 않습니다.":
   "수면 시간 전체 기록이 포함된 XML 파일입니다. 파일 자체는 암호화되지 않습니다.")+'</p>'+
  '<div class="history-export-status" role="status" aria-live="polite" data-status>준비됨 · 서버 기록까지 확인해 추출합니다.</div>'+
  '<div class="history-export-progress" role="progressbar" aria-label="조회 월 진행 상태" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-progress><div data-bar></div></div>'+
@@ -549,20 +555,27 @@ function open(options){
   let range=null;
   try{
    check();range=getRange();
-   const out=new Array(range.months.length);
+   // Illness API returns complete episodes in a single call. Do NOT fetch
+   // the same full JSON again for every requested calendar month.
+   const requestMonths=kind==="illness"?[range.first]:range.months;
+   const out=new Array(requestMonths.length);
    let next=0,completed=0,firstError=null;
    const concurrent=onlyDevice?1:Math.min(3,range.months.length);
    async function worker(){
     while(next<range.months.length){
      check();
-     const index=next++,month=range.months[index],device=options.localMonth(month);
-     const snapshot={month,device:device.records||{},pending:device.pending||{},conflicts:device.conflicts||{},server:{}};
+     const index=next++,month=requestMonths[index],
+      device=kind==="illness"?options.localIllness():options.localMonth(month);
+     const snapshot={month,device:kind==="illness"?device.cases||{}:device.records||{},
+       pending:device.pending||{},conflicts:device.conflicts||{},server:{}};
      if(!onlyDevice){
       try{
-       const result=await options.fetchMonth(month);
+       const result=kind==="illness"?await options.fetchIllness():await options.fetchMonth(month);
        check();
        if(!result?.ok)throw Error("서버 응답 오류");
-       snapshot.server=result.records||{};
+       if(kind==="illness"&&Number(result.schemaVersion)!==4)
+        throw Error("질병 기록 Apps Script v4가 배포되지 않았습니다. 서버 기록은 미확인 상태입니다.");
+       snapshot.server=kind==="illness"?result.cases||{}:result.records||{};
       }catch(err){
        if(cancelled)throw err;
        snapshot.error=String(err?.message||err).slice(0,140);
@@ -584,7 +597,7 @@ function open(options){
    }else{
     const name=download(kind,range.scope,result);
     lastDownload=result;lastDownloadScope=range.scope;again.hidden=false;
-    setProgress(out.length,out.length,name+" · "+result.recordCount+"일치 XML 추출 완료"+
+    setProgress(out.length,out.length,name+" · "+result.recordCount+(kind==="illness"?"개 질병":"일")+" XML 추출 완료"+
        (result.complete?"":" (기기 기록만 포함 · 불완전)"));
    }
   }catch(err){
@@ -599,7 +612,7 @@ function open(options){
     startDate:lastRange.startDate,endDate:lastRange.endDate,preset:lastRange.preset,months:lastBatches,fields:options.fields||[],context:options.context||{},mode:"partial"});
    const name=download(kind,lastRange.scope+"-partial",result);
    lastDownload=result;lastDownloadScope=lastRange.scope+"-partial";again.hidden=false;
-   status.textContent=name+" · "+result.recordCount+"일치 추출 · 서버 미확인 월 "+result.failed.length+"개";
+   status.textContent=name+" · "+result.recordCount+(kind==="illness"?"개 질병":"일")+" 추출 · 서버 미확인 "+result.failed.length+"건";
   }catch(err){status.textContent="부분 추출 실패: "+String(err?.message||err);}
  });
  again.addEventListener("click",()=>{
