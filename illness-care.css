@@ -184,3 +184,40 @@
 .ill-import-group li{display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:12px}
 .ill-import-group b{white-space:nowrap;color:#226483}
 @media(max-width:360px){.ill-copy-actions{grid-template-columns:1fr}}
+
+/* ILLNESS V4 ALWAYS-VISIBLE MEDICATION HISTORY */
+.ill-dose-summary{border-color:#bfdde6;box-shadow:0 1px 8px rgba(36,108,137,.05)}
+.ill-dose-nav{display:flex;gap:9px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:11px}
+.ill-dose-nav>strong{color:#255d75;font-size:13px;min-width:115px;text-align:center}
+.ill-dose-nav>button{border:0;border-radius:10px;background:#e7f3f7;color:#2c6580;min-width:31px;min-height:33px;font-size:18px;cursor:pointer}
+.ill-dose-nav>button.ill-secondary{font-size:11px;min-width:46px;padding:6px}
+.ill-dose-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:6px 0 12px}
+.ill-dose-stats div{padding:10px 6px;background:#f0f8fa;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:10px;color:#68828e}
+.ill-dose-stats strong{font-size:18px;color:#215f7b;font-variant-numeric:tabular-nums}
+.ill-dose-quick{padding:12px;border:1px solid #d4e6ec;border-radius:12px;background:#f8fcfd;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0 14px}
+.ill-dose-quick label{display:flex;flex-direction:column;gap:5px;color:#496e81;font-size:11px;font-weight:730;min-width:0}
+.ill-dose-quick input,.ill-dose-quick select{width:100%;min-width:0;font-size:13px;border:1px solid #d2e1e8;border-radius:9px;background:#fff;color:#294759;padding:9px;min-height:39px}
+.ill-dose-quick button{grid-column:1/-1}
+.ill-dose-timeline{border-left:2px solid #d9e8ef;margin:10px 0 0 5px;padding-left:11px;display:flex;flex-direction:column;gap:8px}
+.ill-dose-event{position:relative;display:grid;grid-template-columns:75px minmax(0,1fr);gap:9px;padding:10px 8px;border:1px solid #e2edf1;border-radius:10px;background:#fff;font-size:12px}
+.ill-dose-event::before{position:absolute;content:"";height:9px;width:9px;left:-18px;top:15px;border-radius:50%;background:#3d95a7;box-shadow:0 0 0 3px #f9fcfd}
+.ill-dose-event.skipped::before{background:#c87257}
+.ill-dose-event.skipped{background:#fffaf7;border-color:#f0dacb}
+.ill-dose-event>time{color:#55778b;font-size:11px;line-height:1.6;font-weight:760}
+.ill-dose-event-body{min-width:0}
+.ill-dose-event-head{display:flex;gap:7px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.ill-dose-event-head strong{font-size:12px;color:#315d72;overflow-wrap:anywhere}
+.ill-dose-event-head .ill-tag{font-size:10px}
+.ill-dose-event-items{display:flex;gap:4px;flex-direction:column;margin:7px 0 3px;color:#4b6677;font-size:12px;overflow-wrap:anywhere}
+.ill-dose-event-items b{font-variant-numeric:tabular-nums;color:#195e7d;font-size:13px}
+.ill-dose-item-sep{display:block;border-top:1px dashed #edf2f5;margin:2px 0}
+.ill-dose-event p{font-size:11px;margin:4px 0}
+.ill-dose-event button{margin-top:5px;margin-left:0}
+.ill-dose-empty{margin-top:9px;border:1px dashed #d7e3e9;border-radius:10px;padding:18px 11px;text-align:center;background:#f6fafb;color:#758e9b;font-size:12px}
+.ill-group-archive{border:1px dashed #bacdd9;border-radius:10px;background:#f5f8fa;margin-top:10px;padding:9px}
+.ill-group-archive>summary{font-size:12px;font-weight:730;color:#506e80;cursor:pointer}
+.ill-archive-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid #e4ecf0;padding:9px 0;font-size:12px;line-height:1.5}
+.ill-archive-row span{overflow-wrap:anywhere}
+.ill-archive-row button{flex:0 0 auto}
+.ill-group-actions .ill-text-danger{grid-column:1/-1;min-height:35px;margin:0;background:#fff2f3;border:1px solid #f4d2d8;font-size:11px}
+@media(max-width:380px){.ill-dose-event{grid-template-columns:65px minmax(0,1fr);gap:6px}.ill-dose-quick{gap:6px}.ill-dose-quick input,.ill-dose-quick select{font-size:12px;padding:8px 6px}}
