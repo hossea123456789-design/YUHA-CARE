@@ -516,7 +516,7 @@ function intake(at,status='taken',extra={}){
  click("copy-prescription-request");
  assert(copied.includes("첨부한")&&copied.includes("bundleTemplates"));
  click("copy-prescription-example");
- assert.deepEqual(JSON.parse(copied),example);
+ assert.equal(JSON.stringify(JSON.parse(copied)),JSON.stringify(example));
  assert.equal(e.model.cases[episode.id].medicationGroups.length,0,
   "copying must not mutate existing illness records");
  console.log("PASS illness: cross-chat prompt and example JSON copy with no data modifications");
