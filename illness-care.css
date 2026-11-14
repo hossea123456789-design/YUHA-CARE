@@ -331,3 +331,37 @@
 .ill-time-control input{min-width:0;max-width:100%}
 .ill-time-control button{min-width:0;min-height:43px;padding:7px 3px;font-size:11px;font-weight:750;border-radius:8px}
 .ill-dose-warning{margin:-3px 0 0!important;font-size:10.5px!important;color:#6e8390}
+
+/* ILLNESS V8 USER-ORDERED FLOW: keep each task next to its relevant history. */
+.ill-temp-entry,.ill-medicine-entry{background:#f7fbfd;border-color:#cddfe8}
+.ill-temp-entry>h3,.ill-medicine-entry>h3{font-size:15px;color:#1e5d77}
+.ill-temp-entry .ill-temp-quick{margin:4px 0 0;max-width:700px}
+.ill-medicine-entry .ill-dose-quick{margin:3px 0 0;max-width:770px;padding:10px;border:1px solid #d9e8ee;background:#fff;border-radius:12px}
+.ill-medicine-entry .ill-dose-selection{margin:4px 0}
+.ill-prescription-entry{border-color:#c8dfe9}
+.ill-prescription-entry .ill-json-area{display:flex;flex-direction:column;gap:8px}
+.ill-prescription-entry .ill-json-area>h4,.ill-prescription-entry .ill-group-editor>h4{font-size:14px;font-weight:780;color:#225e78;margin:0}
+.ill-prescription-entry .ill-json-area>.ill-muted{margin:0!important}
+.ill-prescription-entry .ill-json-form{margin:3px 0 0}
+.ill-prescription-entry .ill-json-form textarea{min-height:135px;font-size:12.5px;line-height:1.6;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#fbfdff}
+.ill-prescription-entry .ill-json-form button{align-self:stretch;min-height:42px}
+.ill-prescription-manual{border-top:1px solid #dce9ef;margin-top:18px;padding-top:16px}
+.ill-prescription-manual .ill-group-editor{display:block}
+.ill-prescription-manual .ill-group-editor>.ill-fields{margin:11px 0 0}
+.ill-prescription-manual .ill-group-editor .ill-group-items{margin-top:6px}
+.ill-prescription-manual .ill-group-editor button[type=submit]{width:100%;min-height:42px}
+.ill-medicine-list>.ill-registered-groups{margin:6px 0}
+.ill-medicine-list .ill-group{margin:8px 0;padding:10px;border:1px solid #dce9ed;border-radius:12px}
+.ill-medicine-list .ill-summary>strong{overflow-wrap:anywhere}
+.ill-medicine-list>.ill-legacy{margin-top:12px}
+.ill-disease-manager{border-color:#d2e5e8}
+.ill-disease-manager .ill-disease-status{border:1px solid #d6e8e8;border-radius:10px;padding:10px 12px;background:#f3faf8;color:#386a68}
+.ill-disease-manager>details{padding:10px 0;margin:6px 0;border-top:1px solid #e5edf0}
+.ill-disease-manager>details:first-of-type{margin-top:10px}
+.ill-disease-manager>details>summary{min-height:33px;display:flex;align-items:center;cursor:pointer;font-weight:750;font-size:12.5px;color:#27657e}
+.ill-disease-manager button[data-act="reopen"]{width:100%;margin:8px 0}
+.ill-episode-strip{margin:0}
+@media(min-width:920px){
+ .ill-prescription-entry .ill-json-form textarea{min-height:170px}
+ .ill-prescription-entry .ill-copy-actions{justify-content:flex-start}
+}
