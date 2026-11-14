@@ -772,8 +772,9 @@ function medicationManagement(c,stayOpen=false){
  const active=c.medicationGroups.filter(g=>g.active&&!g.deletedAt).length;
  const total=c.medicationGroups.length;
  const forceOpen=Boolean(editGroup||copyDraft||editMedication||pendingPrescription);
+ const hint=c.status==="closed"?"지난 처방 열람":"등록·수정·복사·삭제";
  return '<details class="ill-manager"'+(forceOpen||stayOpen?' open':'')+'><summary>'+
-  '<strong>처방 목록·약 묶음 관리</strong><small>전체 '+total+'개 묶음 · 복용 중 '+active+'개 · 등록·수정·복사·삭제</small>'+
+  '<strong>처방 목록·약 묶음 관리</strong><small>전체 '+total+'개 묶음 · 복용 중 '+active+'개 · '+hint+'</small>'+
   '</summary><div class="ill-manager-body">'+
   groupPanel(c)+prescriptionJsonForm(c)+medicationGroupForm(c)+legacyPanel(c)+
   '</div></details>';
@@ -921,8 +922,10 @@ function quickMedicineForm(c){
  return '<form data-form="group-dose" class="ill-dose-quick">'+
   '<label>복용할 약 선택<select name="groupId">'+groupOptions+legacyOptions+'</select></label>'+
   '<p class="ill-dose-selection" data-group-preview aria-live="polite">'+E(firstPreview)+'</p>'+
+  '<p class="ill-muted ill-dose-warning">‘복용 완료’는 선택한 약을 모두 실제로 먹인 경우에만 기록하세요.</p>'+
   '<div class="ill-quick-dose-grid">'+
-  '<label>실제 복용 시각<input type="datetime-local" name="at" required value="'+localInput(nowIso())+'"></label>'+
+  '<label>실제 복용 시각<span class="ill-time-control"><input type="datetime-local" name="at" required value="'+localInput(nowIso())+'">'+
+  '<button type="button" class="ill-secondary" data-act="dose-time-now" aria-label="복용 시각을 현재 시각으로 변경">지금</button></span></label>'+
   '<label>복용 여부<select name="status"><option value="taken">복용 완료</option>'+
   '<option value="skipped">미복용</option></select></label></div>'+
   '<details class="ill-dose-note"><summary>메모 추가 (선택)</summary>'+
@@ -1431,6 +1434,11 @@ function onClick(e){
   render();return;
  }
  if(!c)return;
+ if(action==="dose-time-now"){
+  const field=btn.closest?.("form")?.querySelector?.('[name="at"]');
+  if(field)field.value=localInput(nowIso());
+  return;
+ }
  if(action==="manage-prescription"){
   const manager=root?.querySelector(".ill-manager");
   if(manager){manager.open=true;manager.scrollIntoView?.({block:"start",behavior:"smooth"});}
