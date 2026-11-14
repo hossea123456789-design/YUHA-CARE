@@ -522,6 +522,26 @@ function groupItemRow(item){
   '<select aria-label="투약 단위" name="drugUnit">'+MED_UNITS.map(v=>'<option value="'+v+'"'+(unit===v?" selected":"")+'>'+v+'</option>').join("")+'</select>'+
   '<button type="button" class="ill-minor" data-act="remove-drug-line" aria-label="이 약 입력 줄 삭제">×</button></div>';
 }
+function prescriptionJsonForm(c){
+ if(c.status!=="active")return "";
+ return card("처방 JSON 가져오기",'<details class="ill-import-details"><summary>JSON 붙여넣기 · 약 묶음 자동 생성</summary>'+
+  '<p class="ill-muted">처방약 사진에서 확인한 JSON을 붙여넣고 목록을 먼저 검토한 후 등록합니다.</p>'+
+  '<form data-form="prescription-json" class="ill-fields">'+
+  '<label>처방 JSON<textarea name="prescriptionJson" rows="7" maxlength="100000" spellcheck="false" placeholder="처방 JSON을 붙여넣으세요"></textarea></label>'+
+  '<button type="submit" class="ill-secondary">JSON 분석 · 등록 전 확인</button></form>'+
+  '<div id="illPrescriptionPreview" aria-live="polite"></div>'+
+  '<p class="ill-muted">1일 횟수만으로 시간 간격을 추측하지 않습니다. 복용 시간은 처방 지시에 따라 확인하세요.</p></details>');
+}
+function prescriptionPreview(result){
+ const groups=result.groups.map(g=>'<div class="ill-import-group"><strong>'+E(g.name)+'</strong>'+
+  '<small>1일 '+g.timesPerDay+'회 · '+g.days+'일 · 시간 간격 미확인</small>'+
+  '<ul>'+g.items.map(i=>'<li>'+E(i.name)+' <b>'+E(doseLabel(i.amount,i.unit))+'</b></li>').join("")+'</ul></div>').join("");
+ return '<div class="ill-import-preview"><h4>저장 전 확인 · '+result.medicationCount+'종 / '+result.groups.length+'묶음</h4>'+
+  (result.hasExtraPrecision?'<p class="ill-alert">처방 원문의 0.3333g 등은 반올림하지 않았습니다. 실제 약봉투를 확인하세요.</p>':'')+
+  '<p class="ill-alert">'+E(result.note)+'</p>'+groups+
+  '<div class="ill-row-actions"><button type="button" class="ill-primary" data-act="confirm-json-import">확인한 약 묶음 등록</button>'+
+  '<button type="button" class="ill-secondary" data-act="cancel-json-import">취소</button></div></div>';
+}
 function medicationGroupForm(c){
  if(c.status==="closed")return "";
  const editing=c.medicationGroups.find(g=>g.id===editGroup);
@@ -529,7 +549,7 @@ function medicationGroupForm(c){
  const visitOptions=c.visits.length?'<label>연결 병원 (선택)<select name="visitId"><option value="">연결하지 않음</option>'+
   c.visits.map(v=>'<option value="'+attr(v.id)+'"'+(group.visitId===v.id?' selected':'')+'>'+E(v.hospital)+'</option>').join("")+
   '</select></label>':'';
- return card("약 묶음 추가",'<details class="ill-group-editor" '+(editing||!c.medicationGroups.length?'open':'')+'><summary>'+
+ return card("약 묶음 추가",'<details class="ill-group-editor" '+(editing||copyDraft||!c.medicationGroups.length?'open':'')+'><summary>'+
   (editing?'복용 묶음 수정':'함께 복용하는 약 등록')+'</summary>'+
   '<form data-form="group" class="ill-fields">'+
   '<input type="hidden" name="editGroupId" value="'+attr(editing?.id||"")+'">'+
@@ -564,6 +584,8 @@ function groupPanel(c){
    '<div class="ill-summary"><strong>'+E(g.name||"함께 복용하는 약")+'</strong>'+
    '<span class="ill-tag">'+(g.active?(g.mode==="prn"?"필요시 복용":"정기 복용"):"복용 종료")+'</span></div>'+
    '<ul class="ill-drug-list">'+items+'</ul>'+
+   (g.timesPerDay?'<p class="ill-muted">1일 '+E(g.timesPerDay)+'회 · '+E(g.days||"?")+'일'+
+     (g.intervalHours?' · '+E(g.intervalHours)+'시간 간격':' · 시간 간격 미확인')+'</p>':'')+
    (g.active?'<p class="ill-guidance" role="status">'+E(info.text)+'</p>':'<p class="ill-muted">복용 종료된 묶음</p>')+
    '<div class="ill-group-actions">'+
    (g.active?'<button type="button" class="ill-primary" data-act="take-group" data-id="'+attr(g.id)+'">묶음 전체 복용 완료</button>':'')+
@@ -733,7 +755,7 @@ function render(){
   '<p>질병별 시간순 기록 · 병원·처방·복용·체온</p></div>'+
   '<div class="ill-alert">이 앱은 입력한 처방 간격으로 참고 시각만 계산합니다. 실제 투약 판단은 약 봉투·처방 지시가 우선입니다. 앱을 닫으면 지연 경고를 푸시 알림으로 보내지 않습니다.</div>'+
   illnessSelect()+
-  (c?recordHeading(c)+feverHeat(c)+groupPanel(c)+medicationGroupForm(c)+
+  (c?recordHeading(c)+feverHeat(c)+groupPanel(c)+prescriptionJsonForm(c)+medicationGroupForm(c)+
     legacyPanel(c)+visitForm(c)+closure(c):
    card("기록이 없습니다",'<p class="ill-muted">발생 시각과 증상을 기록해 시작하세요.</p>'))+
   episodeForm()+
@@ -819,6 +841,13 @@ function onSubmit(e){
    const visit={id:newId(),hospital,at:inputTime(get(form,"at")),diagnosis:get(form,"diagnosis"),notes:get(form,"notes")};
    changeCase(c.id,r=>r.visits.push(visit));return;
   }
+  if(type==="prescription-json"){
+   const parsed=parsePrescriptionJson(get(form,"prescriptionJson"));
+   pendingPrescription={episodeId:c.id,result:parsed};
+   const slot=root?.querySelector("#illPrescriptionPreview");
+   if(slot)slot.innerHTML=prescriptionPreview(parsed);
+   return;
+  }
   if(type==="group"){
    const data=new FormData(form);
    const names=data.getAll("drugName"),amounts=data.getAll("drugAmount"),
@@ -834,7 +863,7 @@ function onSubmit(e){
     return {id:old?.items[i]?.id||newId(),name:String(name).trim(),amount,unit};
    });
    const mode=get(form,"mode")==="prn"?"prn":"scheduled",interval=num(get(form,"intervalHours"));
-   need(mode==="prn"||interval!==null,"정기 복용 묶음의 처방 간격(시간)을 입력해 주세요");
+   need(mode==="prn"||interval!==null||old?.timesPerDay||copyDraft?.timesPerDay,"정기 복용 묶음은 처방 간격이 필요합니다. 횟수만 있는 가져오기 기록은 미확인으로 보관합니다.");
    need(interval===null||(interval>=.5&&interval<=72),"처방 간격을 확인해 주세요 (0.5~72시간)");
    const ends=get(form,"endsAt"),group={
     name:get(form,"groupName")||"복용 묶음 "+(c.medicationGroups.length+1),
@@ -926,6 +955,25 @@ function onClick(e){
   month=temperatureDay.slice(0,7);render();return;
  }
  if(action==="backup"){backup();return;}
+ if(action==="cancel-json-import"){
+  pendingPrescription=null;
+  const slot=root?.querySelector("#illPrescriptionPreview");
+  if(slot)slot.innerHTML="";
+  return;
+ }
+ if(action==="confirm-json-import"){
+  if(!c||c.status!=="active"||pendingPrescription?.episodeId!==c.id)return;
+  const toAdd=pendingPrescription.result.groups.filter(g=>!c.medicationGroups.some(existing=>samePrescriptionGroup(g,existing)));
+  if(!toAdd.length){
+   pendingPrescription=null;notice="동일한 묶음이 이미 등록되어 중복 저장하지 않았습니다";noticeError=false;
+   render();return;
+  }
+  if(!window.confirm(toAdd.length+"개 묶음을 등록할까요? 약 이름·1회량·횟수를 확인했나요?"))return;
+  pendingPrescription=null;
+  changeCase(c.id,r=>r.medicationGroups.push(...toAdd));
+  notice=toAdd.length+"개 약 묶음을 기기에 기록했습니다";noticeError=false;
+  return;
+ }
  if(action==="add-drug-line"){
   const list=btn.closest(".ill-group-editor")?.querySelector(".ill-group-items");
   if(list&&list.querySelectorAll("[data-group-item]").length<20)
@@ -1042,5 +1090,5 @@ window.addEventListener("online",()=>{
  if(active&&!busy)void connect();
 });
 window.YuhaIllness={render,stop,model,
- _test:{normalize,guidance,groupGuidance,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
+ _test:{normalize,guidance,groupGuidance,parsePrescriptionJson,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
 })();
