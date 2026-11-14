@@ -836,15 +836,6 @@ function medicationTimeline(c){
  const summary='<div class="ill-dose-stats"><div>복용 완료<strong>'+totalTaken+'회</strong></div>'+
   '<div>미복용 기록<strong>'+skipped+'회</strong></div>'+
   '<div>실제 기록<strong>'+entries.length+'건</strong></div></div>';
- const quick= c.status==="active" && activeGroups.length?
-   '<form data-form="group-dose" class="ill-dose-quick">'+
-   '<label>복용할 약 선택<select name="groupId">'+activeOptions+'</select></label>'+
-   '<label>기록 시각<input type="datetime-local" name="at" required value="'+localInput(nowIso())+'"></label>'+
-   '<label>상태<select name="status"><option value="taken">실제 복용 완료</option>'+
-   '<option value="skipped">미복용</option></select></label>'+
-   '<label>메모 (선택)<input type="text" name="note" maxlength="300" placeholder="예: 외출 중, 복용 지연"></label>'+
-   '<button type="submit" class="ill-primary">복용 기록 저장</button></form>':
-  (c.status==="active"?'<p class="ill-muted">복용 묶음을 등록하면 여기에서 바로 투약 시각과 실제 복용 여부를 기록할 수 있습니다.</p>':'');
  const history=entries.length?
   '<div class="ill-dose-timeline" aria-label="선택한 날짜의 복약 시간별 이력">'+
   entries.map(e=>{
@@ -869,7 +860,7 @@ function medicationTimeline(c){
  const archivedNotice=deletedWithEvents.length?
   '<p class="ill-muted">삭제 보관된 묶음 '+deletedWithEvents.length+'개의 복약 이력은 아래 ‘삭제한 묶음’에서 복원할 때 다시 표시됩니다.</p>':'';
  return card("복용 내역 · 시간별 서머리",
-  controls+summary+quick+history+doseEditForm(c,entries)+archivedNotice,
+  controls+summary+history+doseEditForm(c,entries)+archivedNotice,
   "ill-dose-summary");
 }
 function legacyPanel(c){
@@ -882,6 +873,50 @@ function legacyPanel(c){
 function dailyTemperatureReadings(temperatures,date){
  return (temperatures||[]).filter(t=>dayKey(t.at)===date&&Number.isFinite(t.celsius))
   .sort((a,b)=>at(a.at)-at(b.at)||String(a.id||"").localeCompare(String(b.id||"")));
+}
+function quickTemperatureForm(c){
+ return '<form data-form="temp" class="ill-temp-quick">'+
+  '<label>체온 <span>(℃)</span><input required type="text" inputmode="decimal" autocomplete="off" maxlength="4" name="celsius" placeholder="38.5" aria-describedby="illTempPreview"></label>'+
+  '<button type="submit" class="ill-primary">체온 저장</button>'+
+  '<small id="illTempPreview" data-temp-preview>385 입력 → 38.5℃로 자동 표시</small>'+
+  '<details class="ill-temp-details"><summary>측정 시각·부위·메모 (선택)</summary>'+
+  '<label>측정 시각<input required type="datetime-local" name="at" value="'+localInput(nowIso())+'"></label>'+
+  '<label>측정 부위<select name="site">'+siteOpts()+'</select></label>'+
+  '<label>메모<input name="note" maxlength="300" placeholder="해열제 전후 등"></label></details>'+
+  '</form>';
+}
+function quickEntryPanel(c){
+ if(c.status!=="active")return "";
+ return card("바로 기록하기",
+  '<p class="ill-quick-subtitle">체온과 약 복용을 스크롤 없이 먼저 입력합니다. 측정·복용 시각은 필요하면 수정할 수 있습니다.</p>'+
+  '<div class="ill-quick-grid">'+
+  '<div class="ill-quick-unit"><h4>🌡️ 체온 측정</h4>'+quickTemperatureForm(c)+'</div>'+
+  '<div class="ill-quick-unit"><h4>💊 약 복용</h4>'+quickMedicineForm(c)+'</div>'+
+  '</div>'+
+  '<p class="ill-muted ill-quick-foot">복약 지시가 우선입니다. 처방 간격을 입력하지 않은 약에는 지연 시각을 추정하지 않습니다.</p>',
+  "ill-quick-card");
+}
+function quickMedicineForm(c){
+ const activeGroups=c.medicationGroups.filter(g=>!g.deletedAt&&g.active);
+ if(!activeGroups.length)return '<p class="ill-muted">현재 복용할 약 묶음이 없습니다. 처방을 등록하면 여기에서 바로 기록할 수 있습니다.</p>'+
+  '<button type="button" class="ill-secondary" data-act="manage-prescription">처방 등록하기</button>';
+ const options=activeGroups.map(g=>{
+  const details=(g.items||[]).map(i=>i.name+" "+doseLabel(i.amount,i.unit)).join(" · ");
+  return '<option value="'+attr(g.id)+'" data-drugs="'+attr(details)+'">'+
+   E(groupMedicineLabel(g,true))+(g.timesPerDay?' · 하루 '+E(g.timesPerDay)+'회':'')+'</option>';
+ }).join("");
+ const first=activeGroups[0];
+ return '<form data-form="group-dose" class="ill-dose-quick">'+
+  '<label>복용할 약 묶음<select name="groupId">'+options+'</select></label>'+
+  '<p class="ill-dose-selection" data-group-preview aria-live="polite">'+
+  E((first.items||[]).map(i=>i.name+" "+doseLabel(i.amount,i.unit)).join(" · "))+'</p>'+
+  '<div class="ill-quick-dose-grid">'+
+  '<label>실제 복용 시각<input type="datetime-local" name="at" required value="'+localInput(nowIso())+'"></label>'+
+  '<label>복용 여부<select name="status"><option value="taken">복용 완료</option>'+
+  '<option value="skipped">미복용</option></select></label></div>'+
+  '<details class="ill-dose-note"><summary>메모 추가 (선택)</summary>'+
+  '<label>메모<input name="note" maxlength="300" placeholder="예: 외출 중, 복용 지연"></label></details>'+
+  '<button type="submit" class="ill-primary">복용 기록 저장</button></form>';
 }
 function temperatureEditForm(c){
  const record=c.temperatures.find(t=>t.id===editTemperatureId);
@@ -983,15 +1018,6 @@ function feverHeat(c){
     c.visits.filter(v=>dayKey(v.at)===temperatureDay).sort((a,b)=>at(a.at)-at(b.at)).map(v=>
      '<p>'+E(displayTime(v.at))+' · '+E(v.hospital)+(v.diagnosis?' · '+E(v.diagnosis):'')+'</p>').join("")+
    '</div>':'')+
-  (c.status==="active"?'<form data-form="temp" class="ill-temp-quick">'+
-   '<label>체온 <span>(℃)</span><input required type="text" inputmode="decimal" autocomplete="off" maxlength="4" name="celsius" placeholder="38.5" aria-describedby="illTempPreview"></label>'+
-   '<button type="submit" class="ill-primary">체온 저장</button>'+
-   '<small id="illTempPreview" data-temp-preview>숫자 세 자리 입력 시 소수점을 자동 표시합니다.</small>'+
-   '<details class="ill-temp-details"><summary>측정 시각·부위 수정</summary>'+
-   '<label>측정 시각<input required type="datetime-local" name="at" value="'+localInput(nowIso())+'"></label>'+
-   '<label>측정 부위<select name="site">'+siteOpts()+'</select></label>'+
-   '<label>메모<input name="note" maxlength="300" placeholder="해열제 전후 등"></label></details>'+
-   '</form>':'')+
   temperatureTrend(c)+
   '<p class="ill-muted">달력에서 날짜를 누르면 해당 날짜의 체온 그래프와 측정 이력을 볼 수 있습니다. 색상은 그날의 최고 실측 체온입니다.</p>');
 }
@@ -1018,6 +1044,7 @@ function syncPanel(){
   '<div class="ill-utilities-body"><p class="'+(noticeError?'ill-alert':'ill-muted')+'" role="status">'+E(notice)+'</p>'+
   '<p class="ill-muted">기기에 우선 저장하고 기존 Google Sheets와 동기화합니다.</p>'+
   '<div class="ill-row-actions"><button type="button" data-act="backup">기기 JSON 백업</button>'+
+  '<button type="button" data-act="export-illness-xml">XML 기록 추출</button>'+
   '<button type="button" data-act="refresh">서버 재조회</button></div></div></details>';
 }
 function conflictsView(){
@@ -1031,11 +1058,9 @@ function render(){
  hydrate();active=true;root=document.getElementById("main");if(!root)return;
  const c=current();
  root.innerHTML='<div class="ill-root"><div class="ill-heading"><h2>유하 질병 기록</h2>'+
-  '<p>질병별 시간순 기록 · 병원·처방·복용·체온</p>'+
-  '<button type="button" class="history-export-trigger" data-act="export-illness-xml">XML 기록 추출</button></div>'+
-  '<p class="ill-muted ill-safety-note">복약 예정 시각은 입력된 처방 간격만 참고하며, 실제 복용 판단은 처방 지시를 우선합니다. 앱을 닫으면 푸시 알림은 제공되지 않습니다.</p>'+
+  '<p>체온과 복약을 기록하고 경과를 확인하세요.</p></div>'+
   illnessSelect()+
-  (c?recordHeading(c)+feverHeat(c)+medicationTimeline(c)+currentPrescriptionPanel(c)+visitForm(c)+
+  (c?recordHeading(c)+quickEntryPanel(c)+feverHeat(c)+medicationTimeline(c)+currentPrescriptionPanel(c)+visitForm(c)+
     medicationManagement(c)+closure(c):
    card("기록이 없습니다",'<p class="ill-muted">발생 시각과 증상을 기록해 시작하세요.</p>'))+
   episodeForm()+
