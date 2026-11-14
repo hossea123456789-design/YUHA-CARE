@@ -105,7 +105,7 @@ function intake(at,status='taken',extra={}){
  const e2=setup();
  e2.window.YuhaIllness.render();
  assert.equal(e2.model.cases[id].title,'발열·콧물');
- for(const label of ['새 질병 등록','병원 방문','처방 등록','복용 내역','체온 · 열 히트맵','질병 관리'])assert(e2.root.innerHTML.includes(label),label);
+ for(const label of ['새 질병 등록','병원 방문','약 묶음 등록','복용 내역','체온 · 열 히트맵','질병 관리'])assert(e2.root.innerHTML.includes(label),label);
  assert(e2.root.innerHTML.includes('가상병원'));
  assert(e2.root.innerHTML.includes('38.2'));
  assert(!e2.root.innerHTML.includes('실제 처방 용량을 자동 제안하지 않습니다.')); // wording can change
@@ -667,18 +667,25 @@ function intake(at,status='taken',extra={}){
   "visit marker must be present on fever calendar cell");
  assert(html.includes("🏥"),"clinic marker must render");
  assert(html.includes("복용 내역 · 시간별 서머리"));
- const f=html.indexOf("체온 · 열 히트맵"),t=html.indexOf("체온 입력"),
-  h=html.indexOf("복용 내역 · 시간별 서머리"),d=html.indexOf("약 복용 입력"),
-  j=html.indexOf("처방 등록 · JSON / 직접 입력"),l=html.indexOf("등록한 약 리스트"),
-  m=html.indexOf("질병 관리");
- assert(f>=0&&f<t&&t<h&&h<d&&d<j&&j<l&&l<m,
-  "strict user-specified block order");
+ const f=html.indexOf("체온 · 열 히트맵"),t=html.indexOf('class="ill-inline-entry ill-temperature-inline-entry"'),
+  h=html.indexOf("복용 내역 · 시간별 서머리"),d=html.indexOf('class="ill-inline-entry ill-dose-inline-entry"'),
+  j=html.indexOf("약 묶음 등록"),l=html.indexOf("등록한 약 리스트"),
+  m=html.indexOf("질병 관리"),v=html.indexOf("병원 방문");
+ assert(f>=0&&f<t&&t<h&&h<d&&d<j&&j<l&&l<m&&m<v,
+  "temperature entry is in its graph section; medication entry is in its history section; hospital stays in its section");
+ const chart=html.indexOf('class="ill-trend-svg"'),measured=html.indexOf('class="ill-temp-history"'),
+  actualDoseHistory=html.indexOf('class="ill-dose-timeline"');
+ assert(chart>=0&&chart<t&&t<measured,
+  "temperature entry must be immediately below graph and above measurement history");
+ assert(actualDoseHistory>=0&&d<actualDoseHistory,
+  "dose entry must be directly before the time-ordered dose events");
  assert(html.includes("항생제 A 3mL · 씨투스 0.3333g"),
   "dose selector must display medicine names and exact quantities, not only a frequency label");
  assert(!html.includes('data-act="take-group"'),
   "group details must no longer have duplicate one-touch dose button");
  assert(html.includes('name="prescriptionJson"'));
  assert(!html.includes('class="ill-import-details"'),"JSON textarea must always be exposed");
+ assert(html.includes('class="ill-prescription-methods"'),"JSON and manual are grouped in one card");
  assert(html.includes('data-form="group"'),"manual entry is visible in same prescription card");
  assert(html.includes('data-act="edit-temp"'));
  assert(html.includes('data-act="edit-dose"'));
@@ -822,12 +829,17 @@ function intake(at,status='taken',extra={}){
  const e=setup(),get=()=>e.model.cases[id];
  e.window.YuhaIllness.render();
  let html=e.root.innerHTML;
- const f=html.indexOf("체온 · 열 히트맵"),t=html.indexOf("체온 입력"),
-  h=html.indexOf("복용 내역 · 시간별 서머리"),d=html.indexOf("약 복용 입력"),
-  j=html.indexOf("처방 등록 · JSON / 직접 입력"),l=html.indexOf("등록한 약 리스트"),
+ const f=html.indexOf("체온 · 열 히트맵"),t=html.indexOf('class="ill-inline-entry ill-temperature-inline-entry"'),
+  h=html.indexOf("복용 내역 · 시간별 서머리"),d=html.indexOf('class="ill-inline-entry ill-dose-inline-entry"'),
+  j=html.indexOf("약 묶음 등록"),l=html.indexOf("등록한 약 리스트"),
   m=html.indexOf("질병 관리");
  assert(f>=0&&f<t&&t<h&&h<d&&d<j&&j<l&&l<m,
-  "heatmap, fever input, dosing history, dosing input, JSON/manual, medicines, disease");
+  "heatmap with embedded fever entry, dose history with embedded entry, one open JSON/manual card, preserved disease section");
+ assert(html.indexOf('class="ill-trend-empty"')<t,"temperature input is below the chart placeholder when no readings");
+ assert(html.indexOf('class="ill-dose-stats"')<d,"medication input is below the date stats");
+ assert(html.indexOf('class="ill-dose-empty"')>d,"medication input is above the empty/history state");
+ assert(html.includes('class="ill-prescription-methods"'),
+  "JSON and manual entries must share an always-visible registration layout");
  assert(html.includes('name="prescriptionJson"'));
  assert(!html.includes('class="ill-import-details"'));
  assert(html.includes('data-form="group"'));
@@ -890,7 +902,7 @@ function intake(at,status='taken',extra={}){
  };
  storage.set("yuha_illness_records_v1",JSON.stringify({[id]:episode}));
  const e=setup();e.window.YuhaIllness.render();
- assert(e.root.innerHTML.includes("처방 등록 · JSON / 직접 입력"));
+ assert(e.root.innerHTML.includes("약 묶음 등록"));
  assert(e.root.innerHTML.includes("등록한 약 리스트"));
  assert(e.root.innerHTML.includes("질병 관리"));
  e.model.cases[id].status="closed";
