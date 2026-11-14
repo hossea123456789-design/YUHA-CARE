@@ -319,10 +319,16 @@
       .app-progress,.app-progress::before,.app-progress-icon::before,.app-progress-icon::after,
       .app-progress-fill,.connection-state::before{animation:none!important;transition:none!important}
     }
-  </style>
+      /* Desktop scrollable navigation; all tab labels stay on one horizontal row. */
+    .tabs{display:flex!important;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;
+      min-width:0;width:100%;max-width:100%;scrollbar-width:thin;overscroll-behavior-x:contain;
+      grid-template-columns:none!important;scroll-behavior:auto}
+    .tabs .tab-btn{flex:0 0 auto;white-space:nowrap;min-width:90px;padding:10px 12px}
+    @media(max-width:470px){.tabs .tab-btn{min-width:86px;padding:9px 10px}}
+</style>
   <link rel="stylesheet" href="design.css?v=20261111-sleep-timeline-v1" />
   <link rel="stylesheet" href="mental.css?v=20261112-single-score1">
-  <link rel="stylesheet" href="illness-care.css?v=20261114-dose-timeline-v4">
+  <link rel="stylesheet" href="illness-care.css?v=20261114-illness-ux-v5">
 </head>
 
 <body>
@@ -464,7 +470,7 @@
   <script src="bridge-client.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental.js?v=20261112-single-score1"></script>
-  <script src="illness-care.js?v=20261114-illness-xml-v1"></script>
+  <script src="illness-care.js?v=20261114-illness-ux-v5"></script>
   <script src="sleep-monthly.js?v=20261111-sleep-observations-v1"></script>
   <script src="history-export.js?v=20261114-illness-xml-v1"></script>
   <script>
@@ -958,6 +964,19 @@
     };
     function renderTabs() {
       const tabs = document.getElementById("tabs");
+      // When the tab strip overflows on desktop, convert mouse-wheel
+      // movement to horizontal navigation. Do not hijack page scrolling
+      // while every tab is visible, or Ctrl+wheel browser zoom.
+      if(!tabs.dataset.wheelBound){
+        tabs.addEventListener("wheel", (event)=>{
+          if(event.ctrlKey||event.metaKey||tabs.scrollWidth<=tabs.clientWidth+1)return;
+          const delta=Math.abs(event.deltaY)>=Math.abs(event.deltaX)?event.deltaY:event.deltaX;
+          if(!delta)return;
+          tabs.scrollLeft+=delta;
+          event.preventDefault();
+        },{passive:false});
+        tabs.dataset.wheelBound="true";
+      }
       // 탭을 다시 그려도 가로 스크롤 위치를 유지합니다.
       const previousScrollLeft=tabs.scrollLeft;
       tabs.innerHTML = "";
