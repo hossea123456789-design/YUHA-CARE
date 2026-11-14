@@ -470,7 +470,7 @@ function getSleepMonth(year, month) {
       if (Object.keys(payload).some(key=>payload[key])) records[dateKey] = payload;
     });
   }
-  return {ok:true, year:y, month:m, records, birthDate:getChildBirthDate_(), nap2Supported:true, metadataSupported:true, schemaVersion:3};
+  return {ok:true, year:y, month:m, records, birthDate:getChildBirthDate_(), nap2Supported:true, metadataSupported:true, schemaVersion:4};
 }
 
 // 날짜·칸 단위 저장: 체크리스트 JSON이나 다른 수면 칸을 덮어쓰지 않습니다.
@@ -1080,7 +1080,8 @@ function illnessValidateEpisode_(raw){
   return {id:illnessId_(g.id),name:illnessText_(g.name,80),
    visitId:illnessText_(g.visitId,60),mode,intervalHours,timesPerDay,days,
    sourceDate:illnessText_(g.sourceDate,10),sourceKind:illnessText_(g.sourceKind,35),
-   endsAt:illnessStamp_(g.endsAt,true),active:g.active!==false,items,events};
+   endsAt:illnessStamp_(g.endsAt,true),active:g.active!==false,
+   deletedAt:illnessStamp_(g.deletedAt,true),items,events};
  });
  if(new Set(medicationGroups.map(g=>g.id)).size!==medicationGroups.length)
   throw new Error('복용 묶음 ID 중복');
@@ -1127,7 +1128,7 @@ function illnessAll_(){
 }
 function getIllnessCases(){
  const data=illnessAll_();
- return {ok:true,cases:data.records,schemaVersion:3};
+ return {ok:true,cases:data.records,schemaVersion:4};
 }
 function illnessArchiveConflict_(id,oldValue,localValue,newValue,revision){
  const ss=SpreadsheetApp.getActiveSpreadsheet();
