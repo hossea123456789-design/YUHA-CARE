@@ -1035,7 +1035,7 @@ function render(){
   '<button type="button" class="history-export-trigger" data-act="export-illness-xml">XML 기록 추출</button></div>'+
   '<p class="ill-muted ill-safety-note">복약 예정 시각은 입력된 처방 간격만 참고하며, 실제 복용 판단은 처방 지시를 우선합니다. 앱을 닫으면 푸시 알림은 제공되지 않습니다.</p>'+
   illnessSelect()+
-  (c?recordHeading(c)+currentPrescriptionPanel(c)+feverHeat(c)+medicationTimeline(c)+visitForm(c)+
+  (c?recordHeading(c)+feverHeat(c)+medicationTimeline(c)+currentPrescriptionPanel(c)+visitForm(c)+
     medicationManagement(c)+closure(c):
    card("기록이 없습니다",'<p class="ill-muted">발생 시각과 증상을 기록해 시작하세요.</p>'))+
   episodeForm()+
