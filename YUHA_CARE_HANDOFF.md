@@ -1141,3 +1141,10 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - 질병 신규 등록·명칭/발생 시점 수정·완치/질병 종료·완치 해제를 diseaseManagementPanel 한 곳으로 이동. 완치 해제 시 종료된 처방은 자동으로 복용 중으로 되돌리지 않음. 병원 진료와 XML 등 추가 기능은 이후 섹션.
 - index.html의 illness-care.js 및 CSS 캐시를 20261115-user-ordered-v8로 갱신. 새 Apps Script 배포는 이번 UI 변경 때문에 필요하지 않으며 서버 질병 schemaVersion 4 유지.
 - tests/illness-care.test.js UI 회귀 검증에 위 영역 순서, JSON textarea 비접힘, 수동 그룹 폼 노출, 기존 체온·복약·진료 수정과 종료 데이터 보존, 완치 해제를 반영.
+
+## 58. 2026-11-15 — 체온·복약 입력을 해당 그래프/이력 바로 옆으로 이동
+
+- 사용자의 구체적 UX 지시: 체온은 히트맵·그래프 **바로 아래**에 저장 폼, 복용은 **시간별 이력 수정 바로 위**에 저장 폼을 넣는다. 병원·처방의 기존 순서는 유지한다. 약 묶음 등록은 JSON+수동 입력을 한 블록에 함께 배치하며 JSON 붙여넣기 영역은 기본 노출한다.
+- illness-care.js에서 별도 최상위 체온/약 복용 입력 카드를 없애고, temperatureTrend(c,feedback)의 stats+chart 뒤/체온 기록 목록 앞에 quickTemperatureForm(c)를 렌더한다. medicationTimeline(c,feedback)의 날짜/통계 뒤/복용 이력 앞에 quickMedicineForm(c)를 렌더한다. 입력 폼 개수는 각 1개, 실제 events/temperatures 데이터 구조와 수정 액션은 유지. 저장 피드백은 기록 종류에 맞는 영역으로 전달한다.
+- prescriptionEntryPanel은 하나의 ill-prescription-entry 카드 안에서 JSON textarea·복사 버튼·분석 버튼과 직접 묶음 등록 폼을 모두 펼쳐 제공. 데스크톱 두 열, 모바일 한 열이며 hidden details로 JSON을 감추지 않는다. 병원 visitForm과 등록한 약 리스트/질병 관리의 순서는 변경하지 않았다.
+- CSS와 index.html의 JS/CSS 캐시를 갱신. tests/illness-care.test.js는 그래프→체온 입력→이력 및 통계→복용 입력→이력의 실제 DOM 순서, JSON·수동 동시 노출 및 병원 배치 보존을 검증한다. 서버 API v4·Google Sheets 구조·백업 XML은 변경하지 않음.
