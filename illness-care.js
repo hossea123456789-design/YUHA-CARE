@@ -428,7 +428,87 @@ function medicines(c){
    '<p class="ill-muted">활성 상태의 처방약이 없어 복용 기록을 추가할 수 없습니다.</p>')+
   '<p class="ill-muted">‘지연’은 입력된 정기 복용 간격과 마지막 실제 기록만 비교합니다. 필요시 약에는 지연 경고를 표시하지 않습니다. 누락된 약을 임의로 두 배 복용하거나, 해열제 간 교차 복용을 앱에서 계산하지 않습니다.</p>');
 }
+// Two-stage prescription import: review before save, never infer q8h/q12h
+// from "N times per day" and never silently round exact prescribed amounts.
+function parsePrescriptionJson(input){
+ if(typeof input!=="string"||input.length>100000)throw Error("JSON은 100KB 이하로 입력해 주세요.");
+ let doc;
+ try{doc=JSON.parse(input)}catch{throw Error("JSON 형식 오류: 쉼표와 따옴표를 확인하세요.");}
+ if(!doc||typeof doc!=="object"||Array.isArray(doc)||doc.schema!=="yuha-prescription-import/v1")
+  throw Error('schema는 "yuha-prescription-import/v1"이어야 합니다.');
+ if(!Array.isArray(doc.medications)||!doc.medications.length||doc.medications.length>40)
+  throw Error("medications에 약 1~40개가 필요합니다.");
+ const natural=(v,max,label)=>{
+  const n=Number(v);if(!Number.isInteger(n)||n<1||n>max)throw Error(label+"은 1~"+max+" 정수여야 합니다.");
+  return n;
+ };
+ const mlist=doc.medications.map((m,i)=>{
+  if(!m||typeof m!=="object"||Array.isArray(m))throw Error((i+1)+"번째 약 입력을 확인하세요.");
+  const name=String(m.name??"").trim(),unit=String(m.doseUnit??"");
+  if(!name||name.length>120||!MED_UNITS.includes(unit)||!validAmount(m.doseAmount,unit))
+   throw Error((i+1)+"번째 약 이름·1회량·단위를 확인하세요.");
+  return {name,amount:num(m.doseAmount),unit,
+   timesPerDay:natural(m.timesPerDay,12,name+" 1일 횟수"),
+   days:natural(m.days,60,name+" 일수")};
+ });
+ if(new Set(mlist.map(m=>m.name)).size!==mlist.length)throw Error("중복 약 이름을 구별해 주세요.");
+ const byName=new Map(mlist.map(m=>[m.name,m]));
+ const sourceDate=String(doc.dispensedAt??"");
+ if(sourceDate&&!/^\d{4}-\d{2}-\d{2}$/.test(sourceDate))throw Error("조제일은 YYYY-MM-DD 형식입니다.");
+ const templates=doc.bundleTemplates;
+ if(templates!==undefined&&(!Array.isArray(templates)||templates.length>60))
+  throw Error("bundleTemplates는 최대 60개의 배열입니다.");
+ const plans=[];
+ if(templates?.length){
+  const used=new Set();
+  templates.forEach((t,i)=>{
+   if(!t||!Array.isArray(t.items)||!t.items.length||t.items.length>20)
+    throw Error((i+1)+"번째 묶음 items를 확인하세요.");
+   const items=t.items.map(v=>{
+    const original=byName.get(String(v?.name??""));
+    if(!original)throw Error("처방 원본에 없는 약: "+String(v?.name??""));
+    if((v.amount!==undefined&&Number(v.amount)!==original.amount)||
+       (v.unit!==undefined&&v.unit!==original.unit))
+     throw Error(original.name+"의 묶음 1회량이 처방 원본과 일치하지 않습니다.");
+    used.add(original.name);return original;
+   });
+   const first=items[0];
+   if(!items.every(m=>m.timesPerDay===first.timesPerDay&&m.days===first.days))
+    throw Error("한 묶음에 1일 횟수·처방 일수가 다른 약이 있습니다.");
+   plans.push({name:String(t.name??"").trim().slice(0,80)||
+    first.timesPerDay+"회/일 · "+first.days+"일",items,
+    timesPerDay:first.timesPerDay,days:first.days});
+  });
+  for(const med of mlist)if(!used.has(med.name))
+   plans.push({name:med.timesPerDay+"회/일 · "+med.days+"일 (추가)",
+    items:[med],timesPerDay:med.timesPerDay,days:med.days});
+ }else{
+  const grouped=new Map();
+  for(const med of mlist){
+   const key=med.timesPerDay+"x"+med.days;
+   if(!grouped.has(key))grouped.set(key,{name:med.timesPerDay+"회/일 · "+med.days+"일",
+     items:[],timesPerDay:med.timesPerDay,days:med.days});
+   grouped.get(key).items.push(med);
+  }
+  plans.push(...grouped.values());
+ }
+ const groups=plans.map(g=>({id:newId(),name:g.name,mode:"scheduled",
+  intervalHours:null,timesPerDay:g.timesPerDay,days:g.days,sourceDate,
+  sourceKind:"prescription-json",visitId:"",endsAt:"",active:true,
+  items:g.items.map(i=>({id:newId(),name:i.name,amount:i.amount,unit:i.unit})),events:[]}));
+ return {groups,medicationCount:mlist.length,sourceDate,
+  hasExtraPrecision:mlist.some(m=>m.unit==="g"&&decimalPlaces(m.amount)>2),
+  note:"1일 복용 횟수만으로 복용 간격을 추정하지 않았습니다. 의사·약사에게 확인한 시간 간격을 별도로 입력하세요."};
+}
+function samePrescriptionGroup(a,b){
+ const compact=x=>JSON.stringify({name:x.name,days:x.days??null,
+  timesPerDay:x.timesPerDay??null,sourceDate:x.sourceDate||"",
+  items:(x.items||[]).map(i=>[i.name,i.amount,i.unit])});
+ return compact(a)===compact(b);
+}
 function groupGuidance(g,now=new Date()){
+ if(g.active&&g.mode==="scheduled"&&!g.intervalHours)
+  return {state:"invalid",text:"1일 "+(g.timesPerDay||"?")+"회 · 시간 간격 미확인. 처방 지시 확인 후 안내 가능",dueAt:null};
  const anyTaken=g.events?.some(e=>e.status==="taken");
  if(g.active&&g.mode!=="prn"&&!anyTaken)
   return {state:"not-started",text:"첫 묶음 복용을 기록하면 다음 예정 시각을 안내합니다.",dueAt:null};
