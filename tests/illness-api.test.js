@@ -184,3 +184,41 @@ function entry(){
  assert.equal(e.tabs.has("SLEEP_LOG"),true);
  console.log("PASS illness API: schema v3 exact 0.3333g and 0.25 tablet roundtrip, frequency metadata and precision");
 })();
+
+(function testArchivedBundlePreservesDosesAndRevision(){
+ const e=setup(),episode=entry(),now="2026-11-14T16:20:00.000Z";
+ episode.medicationGroups=[{
+  id:"igroup_archive",name:"테스트 약 묶음",mode:"scheduled",intervalHours:8,
+  timesPerDay:3,days:4,sourceDate:"2026-11-14",sourceKind:"prescription-json",
+  endsAt:"",visitId:"",active:true,deletedAt:"",
+  items:[{id:"iitem_one",name:"시럽",amount:2.5,unit:"mL"}],
+  events:[{id:"ievent_one",at:now,status:"taken",note:"실제 기록",
+   scheduledFor:"",items:[{id:"iitem_one",name:"시럽",amount:2.5,unit:"mL"}]}]
+ }];
+ const first=e.fn("syncIllnessCase")({episode,expectedRevision:""});
+ assert.equal(first.ok,true);
+ const removed=structuredClone(episode);
+ removed.medicationGroups[0].deletedAt="2026-11-14T16:30:00.000Z";
+ removed.medicationGroups[0].active=false;
+ const archived=e.fn("syncIllnessCase")({episode:removed,expectedRevision:first.revision});
+ assert.equal(archived.ok,true);
+ let stored=e.fn("getIllnessCases")();
+ assert.equal(stored.schemaVersion,4);
+ assert.equal(stored.cases[episode.id].medicationGroups[0].deletedAt,removed.medicationGroups[0].deletedAt);
+ assert.equal(stored.cases[episode.id].medicationGroups[0].events[0].items[0].amount,2.5);
+ assert.equal(stored.cases[episode.id].medications[0].doses[0].amountMl,2.5,
+  "existing individual drug log unchanged");
+ const restored=structuredClone(removed);
+ restored.medicationGroups[0].deletedAt="";
+ restored.medicationGroups[0].active=false;
+ const result=e.fn("syncIllnessCase")({episode:restored,expectedRevision:archived.revision});
+ assert.equal(result.ok,true);
+ stored=e.fn("getIllnessCases")();
+ assert.equal(stored.cases[episode.id].medicationGroups[0].deletedAt,"");
+ assert.equal(stored.cases[episode.id].medicationGroups[0].active,false,
+  "restoring an archived group must not resume medication automatically");
+ assert.equal(stored.cases[episode.id].medicationGroups[0].events.length,1);
+ const invalid=structuredClone(restored);invalid.medicationGroups[0].deletedAt="not-a-date";
+ assert.throws(()=>e.fn("illnessValidateEpisode_")(invalid),/날짜/);
+ console.log("PASS illness API: archived group and actual doses survive server v4 roundtrip and restore");
+})();
