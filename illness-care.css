@@ -84,7 +84,12 @@
 .ill-drug-list li{display:flex;justify-content:space-between;gap:10px;align-items:center;background:white;border:1px solid #e7eff0;border-radius:9px;padding:9px 11px}
 .ill-drug-list span{font-size:13px;font-weight:700;overflow-wrap:anywhere}
 .ill-drug-list strong{font-size:17px;color:#166584;white-space:nowrap;font-variant-numeric:tabular-nums}
-.ill-group-actions{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:7px;margin-top:10px}
+.ill-group-actions{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.ill-group-action-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ill-group-actions .ill-group-action-row button{width:100%;min-width:0;min-height:40px;margin:0;padding:8px 6px;line-height:1.3;text-align:center;font-size:11.5px;white-space:normal}
+.ill-group-status-actions{padding-top:8px;border-top:1px solid #e6edf1}
+.ill-group-status-actions .ill-secondary{background:#f5f8fa;border-color:#e0e9ee;color:#5c7480}
+.ill-group-status-actions .ill-text-danger{background:#fff8f8;color:#a94d60;border-color:#f0d9de}
 .ill-group-actions .ill-primary{grid-column:span 2}
 .ill-group-actions .ill-secondary{border:1px solid #cce0e6;color:#39677b}
 .ill-group>details{margin-top:12px;border-top:1px solid #dae8eb;padding-top:8px}
@@ -219,7 +224,7 @@
 .ill-archive-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid #e4ecf0;padding:9px 0;font-size:12px;line-height:1.5}
 .ill-archive-row span{overflow-wrap:anywhere}
 .ill-archive-row button{flex:0 0 auto}
-.ill-group-actions .ill-text-danger{grid-column:1/-1;min-height:35px;margin:0;background:#fff2f3;border:1px solid #f4d2d8;font-size:11px}
+.ill-group-actions .ill-text-danger{grid-column:auto;min-height:40px;margin:0;background:#fff8f8;border:1px solid #f0d9de;font-size:11.5px}
 @media(max-width:380px){.ill-dose-event{grid-template-columns:65px minmax(0,1fr);gap:6px}.ill-dose-quick{gap:6px}.ill-dose-quick input,.ill-dose-quick select{font-size:12px;padding:8px 6px}}
 
 /* ILLNESS V5 STREAMLINED FLOW — timeline first, long data management folded. */
