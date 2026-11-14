@@ -183,3 +183,57 @@ function fixture(){
  assert(f.status.textContent.includes("시작일과 종료일"));
  console.log("PASS popup: year-to-date and invalid custom-date protection");
 })();
+
+
+(async function testIllnessExportFetchesOneFullEpisodeSnapshot(){
+ const f=fixture();
+ let remoteCalls=0,localCalls=0;
+ const episode={
+  id:"itest_xml",title:"진료 & 발열",onsetAt:"2026-09-20T07:00:00.000Z",
+  temperatures:[{id:"it1",at:"2026-11-02T08:20:00.000Z",celsius:38.5,site:"ear"}],
+  medicationGroups:[{id:"ig1",name:"같이 먹는 약",deletedAt:"",
+   items:[{id:"ix1",name:"약 1",amount:0.3333,unit:"g"}],
+   events:[{id:"ie1",at:"2026-11-02T13:20:00.000Z",
+    status:"taken",items:[{id:"ix1",name:"약 1",amount:0.3333,unit:"g"}]}]}],
+  medications:[]
+ };
+ f.api.open({kind:"illness",month:"2026-11",fromMonth:"2025-03",
+  localIllness:()=>{localCalls++;return {cases:{itest_xml:episode},pending:{},conflicts:{}};},
+  fetchIllness:async()=>{remoteCalls++;return {ok:true,schemaVersion:4,cases:{itest_xml:episode}}}
+ });
+ assert(f.cover.innerHTML.includes("질병·체온·복약"));
+ assert(f.cover.innerHTML.includes("XML 파일 자체는 암호화되지"));
+ f.run.click();await f.flush();await f.flush();
+ assert.equal(remoteCalls,1,"All history illness must fetch complete server episodes once, not per month");
+ assert.equal(localCalls,1);
+ assert.equal(f.downloads.length,1);
+ assert(f.downloads[0].name.includes("illness"));
+ const content=await f.downloads[0].file.text();
+ assert(content.includes('category="illness"'));
+ assert(content.includes('celsius="38.5"'));
+ assert(content.includes('amount="0.3333"'));
+ assert(content.includes('source="serverVersion"'));
+ assert(content.includes('source="deviceVersion"'));
+ console.log("PASS XML popup illness: single server request, all-history XML and measured doses");
+})();
+(async function testIllnessExportUnverifiedServerRequiresPartialAction(){
+ const f=fixture(),episode={
+  id:"itest_partial",title:"체온 기록",onsetAt:"2026-11-12T09:00:00.000Z",
+  temperatures:[{id:"it1",at:"2026-11-12T12:00:00.000Z",celsius:38.7}]
+ };
+ f.api.open({kind:"illness",month:"2026-11",fromMonth:"2025-03",
+  localIllness:()=>({cases:{itest_partial:episode},pending:{},conflicts:{}}),
+  fetchIllness:async()=>{throw Error("Apps Script v4 미배포")}
+ });
+ f.run.click();await f.flush();await f.flush();
+ assert.equal(f.downloads.length,0,"Failed server read cannot be silently a complete export");
+ assert.equal(f.partial.hidden,false,"Explicit incomplete export option must appear");
+ f.partial.click();
+ assert.equal(f.downloads.length,1);
+ const content=await f.downloads[0].file.text();
+ assert(content.includes('category="illness"'));
+ assert(content.includes('complete="false"'));
+ assert(content.includes('devicePresent="true"'));
+ assert(f.downloads[0].name.includes("partial"));
+ console.log("PASS XML popup illness: unverified server requires explicit partial export");
+})();
