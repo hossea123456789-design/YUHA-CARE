@@ -691,14 +691,16 @@ function groupPanel(c){
    (g.timesPerDay?'<p class="ill-muted">1일 '+E(g.timesPerDay)+'회 · '+E(g.days||"?")+'일'+
      (g.intervalHours?' · '+E(g.intervalHours)+'시간 간격':' · 시간 간격 미확인')+'</p>':'')+
    (g.active?'<p class="ill-guidance" role="status">'+E(info.text)+'</p>':'<p class="ill-muted">복용 종료된 묶음</p>')+
-   '<div class="ill-group-actions">'+
-   ''+
+   (c.status==="active"?'<div class="ill-group-actions" aria-label="복용 묶음 관리">'+
+   '<div class="ill-group-action-row ill-group-edit-actions">'+
    '<button type="button" class="ill-secondary" data-act="edit-group" data-id="'+attr(g.id)+'">약·용량 수정</button>'+
    '<button type="button" class="ill-secondary" data-act="copy-group" data-id="'+attr(g.id)+'">묶음 복사</button>'+
-   '<button type="button" class="ill-text-danger" data-act="delete-group" data-id="'+attr(g.id)+'">묶음 삭제</button>'+
+   '</div>'+
+   '<div class="ill-group-action-row ill-group-status-actions">'+
    (g.active?'<button type="button" class="ill-secondary" data-act="end-group" data-id="'+attr(g.id)+'">복용 종료</button>':
       '<button type="button" class="ill-secondary" data-act="resume-group" data-id="'+attr(g.id)+'">복용 재개</button>')+
-   '</div>'+
+   '<button type="button" class="ill-text-danger" data-act="delete-group" data-id="'+attr(g.id)+'">묶음 삭제</button>'+
+   '</div></div>':'')+
    '<details><summary>과거 복용 기록 확인 · '+history.length+'건</summary>'+
 
    (history.length?'<div class="ill-history">'+history.map(d=>
