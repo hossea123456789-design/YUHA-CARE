@@ -221,3 +221,55 @@
 .ill-archive-row button{flex:0 0 auto}
 .ill-group-actions .ill-text-danger{grid-column:1/-1;min-height:35px;margin:0;background:#fff2f3;border:1px solid #f4d2d8;font-size:11px}
 @media(max-width:380px){.ill-dose-event{grid-template-columns:65px minmax(0,1fr);gap:6px}.ill-dose-quick{gap:6px}.ill-dose-quick input,.ill-dose-quick select{font-size:12px;padding:8px 6px}}
+
+/* ILLNESS V5 STREAMLINED FLOW — timeline first, long data management folded. */
+.ill-manager,.ill-utilities{background:#fff;border:1px solid #d6e6eb;border-radius:15px;padding:0;margin:0}
+.ill-manager>summary,.ill-utilities>summary{display:flex;justify-content:space-between;align-items:center;gap:10px;list-style:none;cursor:pointer;padding:14px 16px;color:#31596e;font-weight:780}
+.ill-manager>summary::-webkit-details-marker,.ill-utilities>summary::-webkit-details-marker{display:none}
+.ill-manager>summary::after,.ill-utilities>summary::after{content:"⌄";color:#477f95;font-weight:900;font-size:20px;line-height:1}
+.ill-manager[open]>summary::after,.ill-utilities[open]>summary::after{transform:rotate(180deg)}
+.ill-manager>summary strong,.ill-utilities>summary strong{display:block;font-size:14px}
+.ill-manager>summary small,.ill-utilities>summary small{display:block;color:#728897;font-size:10px;font-weight:570;margin-top:4px}
+.ill-manager-body,.ill-utilities-body{border-top:1px solid #e3ebee;padding:12px}
+.ill-manager-body>.ill-card{margin-bottom:10px}
+.ill-current-prescription{padding:2px 0 0}
+.ill-prescription-status{font-size:12px;color:#3f7282;font-weight:800;margin-top:0!important}
+.ill-prescription-compact{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:7px;list-style:none;padding:0;margin:10px 0}
+.ill-prescription-compact li{min-width:0;border-radius:9px;background:#f0f8fa;border:1px solid #e1eff3;padding:10px 9px;font-size:12px;font-weight:700;color:#245d72;overflow-wrap:anywhere}
+.ill-group-actions .ill-secondary{min-width:0}
+.ill-group-actions>.ill-primary{display:none}
+.ill-heat{position:relative}
+.ill-hospital-pin{position:absolute;right:1px;top:1px;font-size:11px;line-height:1.25;filter:saturate(.9);pointer-events:none}
+.ill-hospital-legend{font-weight:760;color:#486d79}
+.ill-visit-on-day{margin:9px 0;padding:10px 12px;border:1px solid #c4e2d7;background:#effaf5;color:#286b55;border-radius:11px;font-size:12px}
+.ill-visit-on-day strong{font-size:12px}
+.ill-visit-on-day p{margin:3px 0!important;font-size:11px}
+.ill-visit-list{display:flex;flex-direction:column;gap:7px}
+.ill-visit-entry{display:flex;flex-direction:column;gap:5px;background:#f7fbfd;border:1px solid #e2edf1;padding:10px 12px;border-radius:11px}
+.ill-visit-entry>div:first-child{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.ill-visit-entry strong{font-size:13px;color:#315c72}
+.ill-visit-date{font-size:11px;font-weight:790;color:#2b7e70}
+.ill-visit-entry p{margin:1px 0!important}
+.ill-visit-editor{margin-top:9px}
+.ill-record-actions{display:flex;justify-content:flex-end;gap:5px;flex-wrap:wrap;align-items:center;margin-top:5px}
+.ill-record-actions button{min-height:28px;font-size:11px;padding:6px 10px;margin:0}
+.ill-record-actions .ill-text-danger{background:#fff0f1;border:1px solid #f1d6da}
+.ill-edit-record{border:1px solid #bddde6;background:#f1f9fc;border-radius:12px;padding:12px;margin:12px 0;display:flex;flex-direction:column;gap:9px}
+.ill-edit-record h4{color:#1b647b;margin:0 0 3px;font-size:13px}
+.ill-edit-record>label,.ill-edit-grid label,.ill-edit-drugs label{min-width:0;display:flex;flex-direction:column;gap:5px;font-size:11px;color:#41687d;font-weight:740}
+.ill-edit-record input,.ill-edit-record select{width:100%;min-width:0;border:1px solid #c9dfe8;border-radius:8px;padding:10px;font-size:13px;background:#fff;color:#314958}
+.ill-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.ill-edit-drugs{display:flex;flex-direction:column;gap:9px;border-top:1px solid #d4e7ed;padding-top:9px}
+.ill-edit-drugs>strong{font-size:12px;color:#275b70}
+.ill-edit-drugs label{display:grid;grid-template-columns:minmax(0,1fr) 115px;align-items:center;gap:8px}
+.ill-edit-record .ill-record-actions{justify-content:flex-start}
+.ill-temp-history-row>.ill-record-actions{margin-left:auto}
+.ill-dose-event>.ill-dose-event-body>.ill-record-actions{margin-top:8px;justify-content:flex-end}
+.ill-safety-note{padding:4px 2px;margin:0!important}
+@media(max-width:420px){
+  .ill-edit-grid{grid-template-columns:1fr}
+  .ill-edit-drugs label{grid-template-columns:minmax(0,1fr) 95px}
+  .ill-prescription-compact{grid-template-columns:1fr}
+  .ill-manager>summary,.ill-utilities>summary{padding:12px}
+  .ill-heat{min-height:48px}
+}
