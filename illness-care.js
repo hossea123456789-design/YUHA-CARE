@@ -891,12 +891,12 @@ function quickTemperatureForm(c){
 function quickEntryPanel(c){
  if(c.status!=="active")return "";
  return card("바로 기록하기",
-  '<p class="ill-quick-subtitle">체온과 약 복용을 스크롤 없이 먼저 입력합니다. 측정·복용 시각은 필요하면 수정할 수 있습니다.</p>'+
+  '<p class="ill-quick-subtitle">체온과 복용 기록을 화면 위쪽에서 바로 입력합니다. 기록 시각은 필요하면 수정할 수 있습니다.</p>'+
+  (lastActionFeedback?'<p class="ill-entry-feedback" role="status">'+E(lastActionFeedback)+'</p>':'')+
   '<div class="ill-quick-grid">'+
   '<div class="ill-quick-unit"><h4>🌡️ 체온 측정</h4>'+quickTemperatureForm(c)+'</div>'+
   '<div class="ill-quick-unit"><h4>💊 약 복용</h4>'+quickMedicineForm(c)+'</div>'+
   '</div>'+
-  (lastActionFeedback?'<p class="ill-entry-feedback" role="status">'+E(lastActionFeedback)+'</p>':'')+
   '<p class="ill-muted ill-quick-foot">복약 지시가 우선입니다. 처방 간격을 입력하지 않은 약에는 지연 시각을 추정하지 않습니다.</p>',
   "ill-quick-card");
 }
