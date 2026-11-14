@@ -76,3 +76,13 @@
 - `tests/illness-care.test.js`에 임의 순서로 들어온 여러 측정값의 시간순 정렬, 선택 날짜 전환, 한 건·미기록 표시, 그래프 점 개수, 측정 이력 상시 열림, 새 체온 저장 시 당일 그래프 갱신을 추가. GitHub Actions SHA `298ab4e6bbd8`의 테스트/Pages 배포 성공 확인(2026-11-14 KST).
 - 변경 내용은 화면 전용이므로 Apps Script의 질병 서버 스키마 v2 코드 자체를 변경하지 않음. 이전 턴의 약 묶음 JSON 동기화에 필요한 기존 웹앱 v2 재배포는 여전히 별도 필요.
 
+## 2026-11-14 — 처방 JSON 입력·복사 양식·묶음 복사
+
+- 전용 JSON 입력 폼: textarea 입력 → parsePrescriptionJson() 검증 → prescriptionPreview()로 목록 확인 → 사용자의 '확인한 약 묶음 등록' 클릭 뒤에만 질병 데이터 저장. 미리보기 중에는 기존 데이터 변경 없음. 이미 동일한 묶음은 중복 등록 방지.
+- 앱에서 '다른 채팅용 요청문 복사' 버튼은 prescriptionChatRequest()가 생성하는 한국어 사진 인식 요청문과 가상 예시 JSON을 복사. '예시 JSON 복사'는 prescriptionExample()의 JSON만 복사. 사진 자체를 앱에 업로드하거나 실제 개인정보를 예시에 넣지 않음.
+- JSON schema는 yuha-prescription-import/v1. medications 배열의 각 요소에 name, doseAmount, doseUnit, timesPerDay, days가 필수. 선택적 bundleTemplates는 동일한 횟수·일수 조건의 원본 항목만 참조. 누락 필수값을 임의로 만들어 보완하지 않음.
+- 1일 2~3회는 복용 시각 간격이 아니므로 intervalHours는 null로 두고 복용 지연 경고를 계산하지 않음. 정확한 복용 간격은 처방 지시 확인 후 수동으로 설정.
+- 지원 단위는 mL, g, 포, 정, 방울. 통상 소수 둘째 자리까지, 원문 0.3333g 등 g의 정확한 표기는 넷째 자리까지 보존하고 반올림 금지.
+- 기존 묶음 복사는 신규 그룹 ID와 약별 ID, 빈 이벤트 목록을 가진 편집 초안으로 생성. 원본 그룹과 과거 복용 실측 이력은 불변.
+- Apps Script illnessValidateEpisode_()은 단위와 정밀도, timesPerDay/days/sourceDate/sourceKind 필드를 검증·보존. getIllnessCases() schemaVersion=3을 프런트에서 확인해야 서버 저장이 허용됨. 기존 운영 시트의 ILLNESS_LOG A:C 구조와 타 탭 원본은 변경하지 않음.
+- 자동 테스트: JSON 예시 파싱, 복사 버튼의 텍스트 출력, 미리보기와 명시적 등록, 중복 방지, 묶음 복사, 0.3333g와 0.25정 왕복, 서버 v3 강제.
