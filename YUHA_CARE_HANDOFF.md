@@ -1088,3 +1088,13 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - 서버 버전 업데이트 과정에서 기존 **수면 API schemaVersion:3**과 **아내 회복 API schemaVersion:7**은 유지했음을 별도 검증했다.
 - `tests/illness-care.test.js`: 상시 복약 타임라인, 과거 개별 약 기록 합산, 약별 실제 투약량 스냅샷 불변, 삭제 취소→보관→복원, 서버 pending 보존 확인. `tests/illness-api.test.js`: 삭제 메타데이터와 기록의 v4 저장/재조회 및 복원.
 - `index.html` 스크립트와 CSS 캐시를 `20261114-dose-timeline-v4`로 갱신. GitHub Pages 변경만으로 Apps Script는 자동 배포되지 않으므로, 사용자가 현재 시트에 연결된 Code.gs 전체 최신본으로 기존 웹앱 **배포 관리 → 수정 → 새 버전**을 실행해야 한다.
+
+## 55. 2026-11-14 — 질병 기록의 체온·열·복용 히스토리 XML
+
+- 사용자 요청: 질병 기록의 체온 측정·열 그래프에 쓰인 실제 기록과 약 복용/미복용 히스토리를 XML로 추출.
+- illness-care.js 헤더에 XML 기록 추출 버튼 추가. 클릭 시 기존 history-export.js의 팝업을 활용해 전체/특정 월/기간 지정·프리셋으로 다운로드하며 기존 저장 원본은 불변.
+- history-export.js에 illness 카테고리 및 전용 buildIllnessXml 추가. 기존 getIllnessCases API를 서버에서 단 1회 조회하고 기기 cases/pending/conflicts를 별도 복사. 새 Apps Script 함수는 추가하지 않았다.
+- XML 스키마: yuhaCareHistory category=illness, episodeDetails 및 hospitalVisits, temperatureHistory(시간·℃·부위·메모), dailyTemperatureSummary(날짜별 최고·최저·횟수·화면용 구간), medicationGroups(현재 처방 약별량, 실제 투약·미복용 이력과 당시 용량, deletedAt), legacyMedications(이전 개별 처방 실제 투약) 포함.
+- 날짜 필터는 질병 발생일과 관계없이 실제 체온·투약·방문 시점. 서버·기기·동기화 대기·충돌 원본은 별도 version으로 출력하므로 중복 계산에 유의. 서버 실패 시 완전 XML 자동 추출 금지, 명시적 부분 다운로드만 허용.
+- tests/history-export.test.js에 실제 소수 g·정 단위, 범위, 원본 비교와 미복용·삭제 이력 및 열 최고값 테스트 추가. tests/history-export-ui.test.js에서 서버 1회 조회와 부분 다운로드 검증. tests/illness-care.test.js에서 UI 버튼 및 로컬 원본 불변 확인. CI Python ElementTree 실제 XML 파싱 추가.
+- index.html에서 illness-care.js와 history-export.js 캐시 버전을 20261114-illness-xml-v1로 갱신. 운영 Apps Script 질병 API v4가 배포되지 않았다면 기기 기록의 부분 XML만 생성할 수 있다.
