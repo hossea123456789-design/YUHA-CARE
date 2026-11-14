@@ -278,3 +278,42 @@
   .ill-manager>summary,.ill-utilities>summary{padding:12px}
   .ill-heat{min-height:48px}
 }
+
+/* ILLNESS V7 QUICK-ACTIONS-FIRST. One prominent task area, histories below. */
+.ill-quick-card{background:#f7fbfc;border-color:#c4dde7;padding:15px}
+.ill-quick-card>h3{margin-bottom:4px;color:#1e5770}
+.ill-quick-subtitle{font-size:11.5px!important;color:#5d7a8b;margin:4px 0 13px!important}
+.ill-quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px}
+.ill-quick-unit{background:#fff;border:1px solid #dce8ee;border-radius:12px;min-width:0;padding:13px;box-shadow:0 1px 2px rgba(22,69,86,.025)}
+.ill-quick-unit h4{font-size:13px;font-weight:800;margin:0 0 10px;color:#245c70}
+.ill-quick-unit .ill-temp-quick{margin:0;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.ill-quick-unit .ill-temp-quick>label input{height:43px;min-height:43px}
+.ill-quick-unit .ill-temp-quick>button{height:43px;align-self:end}
+.ill-quick-unit .ill-dose-quick{border:0;background:transparent;border-radius:0;display:flex;flex-direction:column;gap:9px;padding:0;margin:0}
+.ill-quick-unit .ill-dose-quick>label{font-size:11px}
+.ill-quick-unit .ill-dose-quick>label select{min-height:43px}
+.ill-dose-selection{background:#eff7fa;border:1px solid #deebf1;border-radius:9px;color:#345e72;
+ font-size:11.5px!important;font-weight:650;line-height:1.6;margin:0!important;padding:8px 10px;overflow-wrap:anywhere}
+.ill-quick-dose-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:8px}
+.ill-quick-dose-grid label{display:flex;flex-direction:column;gap:5px;min-width:0;color:#496e81;font-size:11px;font-weight:730}
+.ill-quick-dose-grid input,.ill-quick-dose-grid select{min-width:0;width:100%;min-height:43px;border:1px solid #d2e1e8;border-radius:9px;background:white;padding:8px;color:#294759;font-size:12px}
+.ill-quick-unit .ill-dose-quick>button{width:100%;min-height:43px}
+.ill-quick-unit .ill-dose-note,.ill-quick-unit .ill-temp-details{margin-top:2px;border-top:1px solid #e6eef2;padding-top:6px;grid-column:1/-1}
+.ill-quick-unit .ill-dose-note summary,.ill-quick-unit .ill-temp-details summary{color:#547b90;font-size:11px;font-weight:680;cursor:pointer}
+.ill-quick-unit .ill-dose-note label{margin-top:8px}
+.ill-quick-foot{margin:10px 0 0!important}
+.ill-entry-feedback{border:1px solid #bfe0d1;background:#effaf4;color:#256b56;
+ border-radius:9px;padding:9px 11px;margin:10px 0 0!important;font-size:12px!important;font-weight:720}
+.ill-manager-body>.ill-card{background:transparent;border-color:#e4edf1;box-shadow:none}
+.ill-manager-body>.ill-card h3{font-size:13px}
+@media(max-width:860px){
+ .ill-quick-grid{grid-template-columns:minmax(0,1fr)}
+ .ill-quick-unit{padding:12px}
+}
+@media(max-width:390px){
+ .ill-quick-card{padding:12px}
+ .ill-quick-unit{padding:10px}
+ .ill-quick-dose-grid{grid-template-columns:minmax(0,1fr)}
+ .ill-quick-unit .ill-temp-quick>label input{font-size:20px}
+ .ill-quick-unit .ill-temp-quick>button{padding:7px 10px}
+}
