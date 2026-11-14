@@ -772,9 +772,12 @@ function currentPrescriptionPanel(c){
 }
 function prescriptionEntryPanel(c){
  if(!c||c.status!=="active")return "";
- return card("처방 등록 · JSON / 직접 입력",
-  prescriptionJsonForm(c)+
-  '<div class="ill-prescription-manual">'+medicationGroupForm(c)+'</div>',
+ return card("약 묶음 등록",
+  '<p class="ill-muted ill-prescription-method-intro">JSON 붙여넣기 또는 수동 입력 중 편한 방법으로 등록하세요. 두 입력 모두 바로 사용할 수 있습니다.</p>'+
+  '<div class="ill-prescription-methods">'+
+  '<div class="ill-prescription-method ill-json-method">'+prescriptionJsonForm(c)+'</div>'+
+  '<div class="ill-prescription-method ill-prescription-manual">'+medicationGroupForm(c)+'</div>'+
+  '</div>',
   "ill-prescription-entry");
 }
 function registeredMedicinePanel(c){
@@ -813,7 +816,7 @@ function doseEditForm(c,entries){
   '<div class="ill-record-actions"><button type="submit" class="ill-primary">복용 기록 수정 저장</button>'+
   '<button type="button" class="ill-secondary" data-act="cancel-edit-dose">취소</button></div></form>';
 }
-function medicationTimeline(c){
+function medicationTimeline(c,feedback=""){
  const day=temperatureDay||dayKey(nowIso()),entries=dailyMedicationEvents(c,day);
  const totalTaken=entries.filter(e=>e.status==="taken").length;
  const skipped=entries.filter(e=>e.status==="skipped").length;
@@ -851,7 +854,10 @@ function medicationTimeline(c){
  const archivedNotice=deletedWithEvents.length?
   '<p class="ill-muted">삭제 보관된 묶음 '+deletedWithEvents.length+'개의 복약 이력은 아래 ‘삭제한 묶음’에서 복원할 때 다시 표시됩니다.</p>':'';
  return card("복용 내역 · 시간별 서머리",
-  controls+summary+history+doseEditForm(c,entries)+archivedNotice,
+  controls+summary+
+  (c.status==="active"?'<div class="ill-inline-entry ill-dose-inline-entry"><h4>약 복용 저장</h4>'+
+   feedback+quickMedicineForm(c)+'</div>':"")+
+  history+doseEditForm(c,entries)+archivedNotice,
   "ill-dose-summary");
 }
 function legacyPanel(c){
@@ -947,7 +953,7 @@ function temperatureEditForm(c){
   '<div class="ill-record-actions"><button class="ill-primary" type="submit">체온 수정 저장</button>'+
   '<button type="button" class="ill-secondary" data-act="cancel-edit-temp">취소</button></div></form>';
 }
-function temperatureTrend(c){
+function temperatureTrend(c,feedback=""){
  const date=temperatureDay,readings=dailyTemperatureReadings(c.temperatures,date);
  const today=dayKey(nowIso()),selectedToday=date===today;
  const label=(Number(date.slice(5,7))||0)+"월 "+(Number(date.slice(8,10))||0)+"일";
@@ -1004,10 +1010,13 @@ function temperatureTrend(c){
  return '<section class="ill-day-trend"><div class="ill-day-trend-head"><h4>'+label+
    (selectedToday?' · 오늘':'')+' 체온 변화</h4>'+
    (!selectedToday?'<button type="button" data-act="temp-today" class="ill-secondary">오늘 보기</button>':'')+
-  '</div>'+stats+chart+history+temperatureEditForm(c)+
+  '</div>'+stats+chart+
+  (c.status==="active"?'<div class="ill-inline-entry ill-temperature-inline-entry"><h4>체온 저장</h4>'+
+   feedback+quickTemperatureForm(c)+'</div>':"")+
+  history+temperatureEditForm(c)+
   '<p class="ill-muted">실제로 측정한 시점만 연결했습니다. 측정 사이 시간의 체온은 확인할 수 없습니다.</p></section>';
 }
-function feverHeat(c){
+function feverHeat(c,feedback=""){
  const [y,m]=month.split("-").map(Number);
  const days=new Date(y,m,0).getDate(),first=(new Date(y,m-1,1).getDay()+6)%7;
  const bands=dailyMax(c.temperatures);
@@ -1035,7 +1044,7 @@ function feverHeat(c){
     c.visits.filter(v=>dayKey(v.at)===temperatureDay).sort((a,b)=>at(a.at)-at(b.at)).map(v=>
      '<p>'+E(displayTime(v.at))+' · '+E(v.hospital)+(v.diagnosis?' · '+E(v.diagnosis):'')+'</p>').join("")+
    '</div>':'')+
-  temperatureTrend(c)+
+  temperatureTrend(c,feedback)+
   '<p class="ill-muted">달력에서 날짜를 누르면 해당 날짜의 체온 그래프와 측정 이력을 볼 수 있습니다. 색상은 그날의 최고 실측 체온입니다.</p>');
 }
 function closure(c){
@@ -1088,13 +1097,10 @@ function render(){
   '<p>체온 · 복용 · 처방 · 질병 경과</p></div>'+
   illnessSelect()+
   (c?recordHeading(c)+
-    // User-directed strict section order: 1 heatmap, 2 temperature entry,
-    // 3 medication history, 4 medication entry, 5 JSON + manual,
-    // 6 registered meds, 7 disease management, 8 everything else.
-    feverHeat(c)+
-    (c.status==="active"?card("체온 입력",feedback+quickTemperatureForm(c),"ill-temp-entry"):"")+
-    medicationTimeline(c)+
-    (c.status==="active"?card("약 복용 입력",feedback+quickMedicineForm(c),"ill-medicine-entry"):"")+
+    // Record where the data is reviewed: temperature immediately below its
+    // graph; medication immediately before actual administration history.
+    feverHeat(c,lastActionFeedback.startsWith("체온")?feedback:"")+
+    medicationTimeline(c,lastActionFeedback&&!lastActionFeedback.startsWith("체온")?feedback:"")+
     prescriptionEntryPanel(c)+
     registeredMedicinePanel(c)+
     diseaseManagementPanel(c)+
