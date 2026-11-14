@@ -62,7 +62,7 @@ function entry(){
  const e=setup();
  assert.equal(e.tabs.has('ILLNESS_LOG'),false,'empty journal does not exist before first read');
  const first=e.fn('getIllnessCases')();
- assert.equal(first.schemaVersion,3);assert.equal(Object.keys(first.cases).length,0);
+ assert.equal(first.schemaVersion,4);assert.equal(Object.keys(first.cases).length,0);
  const original=entry();
  const saved=e.fn('syncIllnessCase')({episode:original,expectedRevision:''});
  assert.equal(saved.ok,true);
@@ -167,7 +167,7 @@ function entry(){
  const created=e.fn("syncIllnessCase")({episode:raw,expectedRevision:""});
  assert.equal(created.ok,true);
  const recovered=e.fn("getIllnessCases")();
- assert.equal(recovered.schemaVersion,3);
+ assert.equal(recovered.schemaVersion,4);
  const g=recovered.cases[raw.id].medicationGroups[0];
  assert.equal(g.intervalHours,null,"timesPerDay must not become inferred 8h");
  assert.equal(g.timesPerDay,3);
