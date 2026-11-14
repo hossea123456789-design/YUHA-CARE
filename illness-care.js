@@ -161,7 +161,7 @@ function heatBand(v){
 }
 const model={cases:{},pending:{},conflicts:{},snapshots:[]};
 let loaded=false,selected="",month=isoMonth(nowIso()),temperatureDay=dayKey(nowIso()),connected=false,initialFetchStarted=false,busy=false;
-let active=false,syncEpoch=0;
+let active=false,syncEpoch=0,lastActionFeedback="";
 let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",editVisit="",editTemperatureId="",editDoseId="",editDoseGroupId="",editDoseLegacy=false,copyDraft=null,pendingPrescription=null,timer=null,root=null;
 function persist(){
  try{
@@ -189,7 +189,7 @@ function recordSnapshot(why,content){
  model.snapshots.push({reason:why,at:nowIso(),content:clone(content)});
  while(model.snapshots.length>12||JSON.stringify(model.snapshots).length>400000)model.snapshots.shift();
 }
-function changeCase(id,modifier){
+function changeCase(id,modifier,feedback=""){
  const before=model.cases[id];if(!before)return;
  recordSnapshot("before-edit",before);
  const value=clone(before);modifier(value);
@@ -198,13 +198,14 @@ function changeCase(id,modifier){
  model.pending[id]={episode:clone(next),
   expectedRevision:old?.expectedRevision??before.revision??"",
   ...(old?.resolution?{resolution:old.resolution}:{})};
- const saved=persist();if(connected&&saved)void pushPending();render();
+ const saved=persist();if(saved&&feedback)lastActionFeedback=feedback;
+ if(connected&&saved)void pushPending();render();
 }
 function newEpisode(title,onset,symptoms,note){
  const id=newId();
  model.cases[id]=normalize({id,title,onsetAt:onset,symptoms,note});
  model.pending[id]={episode:clone(model.cases[id]),expectedRevision:""};
- selected=id;notice="질병 기록이 기기에 저장됐습니다";const saved=persist();render();if(connected&&saved)void pushPending();
+ selected=id;lastActionFeedback="";notice="질병 기록이 기기에 저장됐습니다";const saved=persist();render();if(connected&&saved)void pushPending();
 }
 function current(){return model.cases[selected]||null;}
 function exportIllnessHistoryXml(){
@@ -890,23 +891,32 @@ function quickEntryPanel(c){
   '<div class="ill-quick-unit"><h4>🌡️ 체온 측정</h4>'+quickTemperatureForm(c)+'</div>'+
   '<div class="ill-quick-unit"><h4>💊 약 복용</h4>'+quickMedicineForm(c)+'</div>'+
   '</div>'+
+  (lastActionFeedback?'<p class="ill-entry-feedback" role="status">'+E(lastActionFeedback)+'</p>':'')+
   '<p class="ill-muted ill-quick-foot">복약 지시가 우선입니다. 처방 간격을 입력하지 않은 약에는 지연 시각을 추정하지 않습니다.</p>',
   "ill-quick-card");
 }
 function quickMedicineForm(c){
  const activeGroups=c.medicationGroups.filter(g=>!g.deletedAt&&g.active);
- if(!activeGroups.length)return '<p class="ill-muted">현재 복용할 약 묶음이 없습니다. 처방을 등록하면 여기에서 바로 기록할 수 있습니다.</p>'+
-  '<button type="button" class="ill-secondary" data-act="manage-prescription">처방 등록하기</button>';
- const options=activeGroups.map(g=>{
+ const legacyActive=c.medications.filter(m=>m.active);
+ if(!activeGroups.length&&!legacyActive.length)
+  return '<p class="ill-muted">현재 복용할 약이 없습니다. 처방을 등록한 뒤 이곳에서 복용 기록을 남길 수 있습니다.</p>'+
+   '<button type="button" class="ill-secondary" data-act="manage-prescription">처방 등록하기</button>';
+ const groupOptions=activeGroups.map(g=>{
   const details=(g.items||[]).map(i=>i.name+" "+doseLabel(i.amount,i.unit)).join(" · ");
   return '<option value="'+attr(g.id)+'" data-drugs="'+attr(details)+'">'+
    E(groupMedicineLabel(g,true))+(g.timesPerDay?' · 하루 '+E(g.timesPerDay)+'회':'')+'</option>';
  }).join("");
+ const legacyOptions=legacyActive.map(m=>{
+  const details=m.name+" "+doseLabel(m.doseMl,"mL");
+  return '<option value="legacy:'+attr(m.id)+'" data-drugs="'+attr(details)+'">'+
+   E(details)+' · 기존 개별 처방</option>';
+ }).join("");
  const first=activeGroups[0];
+ const firstPreview=first?(first.items||[]).map(i=>i.name+" "+doseLabel(i.amount,i.unit)).join(" · "):
+  legacyActive[0].name+" "+doseLabel(legacyActive[0].doseMl,"mL");
  return '<form data-form="group-dose" class="ill-dose-quick">'+
-  '<label>복용할 약 묶음<select name="groupId">'+options+'</select></label>'+
-  '<p class="ill-dose-selection" data-group-preview aria-live="polite">'+
-  E((first.items||[]).map(i=>i.name+" "+doseLabel(i.amount,i.unit)).join(" · "))+'</p>'+
+  '<label>복용할 약 선택<select name="groupId">'+groupOptions+legacyOptions+'</select></label>'+
+  '<p class="ill-dose-selection" data-group-preview aria-live="polite">'+E(firstPreview)+'</p>'+
   '<div class="ill-quick-dose-grid">'+
   '<label>실제 복용 시각<input type="datetime-local" name="at" required value="'+localInput(nowIso())+'"></label>'+
   '<label>복용 여부<select name="status"><option value="taken">복용 완료</option>'+
@@ -1205,18 +1215,32 @@ function onSubmit(e){
    return;
   }
   if(type==="group-dose"){
-   const id=get(form,"groupId"),g=c.medicationGroups.find(g=>g.id===id&&g.active&&!g.deletedAt);
-   need(g,"활성 복용 묶음을 선택해 주세요");
-   const status=get(form,"status")==="skipped"?"skipped":"taken";
-   need(status!=="skipped"||(g.mode==="scheduled"&&g.events.some(d=>d.status==="taken")),
-    "정기 복용의 첫 실제 복용 이후에만 미복용을 기록할 수 있습니다");
-   const time=inputTime(get(form,"at"));
-   const next=groupGuidance(g,new Date(time));
+   const id=get(form,"groupId"),status=get(form,"status")==="skipped"?"skipped":"taken";
+   const time=inputTime(get(form,"at")),note=get(form,"note");
    temperatureDay=dayKey(time);month=temperatureDay.slice(0,7);
-   const evt={id:newId(),at:time,status,note:get(form,"note"),
+   if(id.startsWith("legacy:")){
+    const medId=id.slice("legacy:".length);
+    const med=c.medications.find(m=>m.id===medId&&m.active);
+    need(med,"복용 중인 개별 약을 선택해 주세요");
+    if(status==="taken")need(validAmount(med.doseMl,"mL"),"실제 복용량을 확인해 주세요");
+    const next=guidance(med,new Date(time));
+    const event={id:newId(),at:time,status,
+     amountMl:status==="taken"?med.doseMl:null,note,
+     scheduledFor:status==="skipped"&&next.dueAt?next.dueAt:""};
+    changeCase(c.id,r=>r.medications.find(m=>m.id===medId).doses.push(event),
+     "개별 약 복용 기록을 기기에 저장했습니다.");
+    return;
+   }
+   const group=c.medicationGroups.find(g=>g.id===id&&g.active&&!g.deletedAt);
+   need(group,"복용 중인 약 묶음을 선택해 주세요");
+   need(status!=="skipped"||(group.mode==="scheduled"&&group.events.some(d=>d.status==="taken")),
+    "정기 복용의 첫 실제 복용 이후에만 미복용을 기록할 수 있습니다");
+   const next=groupGuidance(group,new Date(time));
+   const event={id:newId(),at:time,status,note,
     scheduledFor:status==="skipped"&&next.dueAt?next.dueAt:"",
-    items:status==="taken"?clone(g.items):[]};
-   changeCase(c.id,r=>r.medicationGroups.find(x=>x.id===id).events.push(evt));
+    items:status==="taken"?clone(group.items):[]};
+   changeCase(c.id,r=>r.medicationGroups.find(g=>g.id===id).events.push(event),
+    status==="skipped"?"미복용 기록을 기기에 저장했습니다.":"약 "+group.items.length+"종의 복용 시각을 기기에 저장했습니다.");
    return;
   }
   if(type==="medicine"){
@@ -1305,7 +1329,8 @@ function onSubmit(e){
    // Returning to the recorded date makes backdated measurements visible immediately.
    temperatureDay=dayKey(row.at);
    month=temperatureDay.slice(0,7);
-   changeCase(c.id,r=>r.temperatures.push(row));return;
+   changeCase(c.id,r=>r.temperatures.push(row),
+    "체온 "+n.toFixed(1)+"℃를 기기에 저장했습니다.");return;
   }
   if(type==="close"){
    need(c.status==="active","이미 종료된 질병입니다");
@@ -1325,7 +1350,7 @@ function onClick(e){
  const action=btn.dataset.act,id=btn.dataset.id,c=current();
  if(action==="export-illness-xml"){exportIllnessHistoryXml();return;}
  if(action==="select"){
-  selected=id;editMedication="";editGroup="";editVisit="";editTemperatureId="";editDoseId="";editDoseGroupId="";editDoseLegacy=false;copyDraft=null;pendingPrescription=null;
+  selected=id;lastActionFeedback="";editMedication="";editGroup="";editVisit="";editTemperatureId="";editDoseId="";editDoseGroupId="";editDoseLegacy=false;copyDraft=null;pendingPrescription=null;
   const c=current();
   temperatureDay=c?.status==="closed"&&c.temperatures.length?
    dayKey([...c.temperatures].sort((a,b)=>at(b.at)-at(a.at))[0].at):dayKey(nowIso());
