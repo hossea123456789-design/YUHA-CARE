@@ -854,11 +854,10 @@ function medicationTimeline(c,feedback=""){
  const archivedNotice=deletedWithEvents.length?
   '<p class="ill-muted">삭제 보관된 묶음 '+deletedWithEvents.length+'개의 복약 이력은 아래 ‘삭제한 묶음’에서 복원할 때 다시 표시됩니다.</p>':'';
  return card("복용 내역 · 시간별 서머리",
-  controls+summary+
-  (c.status==="active"?'<div class="ill-inline-entry ill-dose-inline-entry"><h4>약 복용 저장</h4>'+
+  controls+summary+history+doseEditForm(c,entries)+
+  (c.status==="active"?'<div class="ill-inline-entry ill-dose-inline-entry"><h4>약 복용 입력</h4>'+
    feedback+quickMedicineForm(c)+'</div>':"")+
-  history+doseEditForm(c,entries)+archivedNotice,
-  "ill-dose-summary");
+  archivedNotice,"ill-dose-summary");
 }
 function legacyPanel(c){
  if(!c.medications.length)return "";
