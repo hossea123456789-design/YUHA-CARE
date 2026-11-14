@@ -105,7 +105,7 @@ function intake(at,status='taken',extra={}){
  const e2=setup();
  e2.window.YuhaIllness.render();
  assert.equal(e2.model.cases[id].title,'발열·콧물');
- for(const label of ['새 질병 시작','병원 방문','처방약','복용 기록','체온 · 열 히트맵','질병 종료'])assert(e2.root.innerHTML.includes(label),label);
+ for(const label of ['새 질병 등록','병원 방문','처방 등록','복용 내역','체온 · 열 히트맵','질병 관리'])assert(e2.root.innerHTML.includes(label),label);
  assert(e2.root.innerHTML.includes('가상병원'));
  assert(e2.root.innerHTML.includes('38.2'));
  assert(!e2.root.innerHTML.includes('실제 처방 용량을 자동 제안하지 않습니다.')); // wording can change
@@ -667,17 +667,19 @@ function intake(at,status='taken',extra={}){
   "visit marker must be present on fever calendar cell");
  assert(html.includes("🏥"),"clinic marker must render");
  assert(html.includes("복용 내역 · 시간별 서머리"));
- const feverPos=html.indexOf("체온 · 열 히트맵"),
-  dosingPos=html.indexOf("복용 내역 · 시간별 서머리"),
-  rxPos=html.indexOf("현재 처방 한눈에");
- assert(feverPos>=0&&dosingPos>feverPos&&rxPos>dosingPos,
-  "daily fever recording and medication history must come BEFORE the reference prescription summary");
+ const f=html.indexOf("체온 · 열 히트맵"),t=html.indexOf("체온 입력"),
+  h=html.indexOf("복용 내역 · 시간별 서머리"),d=html.indexOf("약 복용 입력"),
+  j=html.indexOf("처방 등록 · JSON / 직접 입력"),l=html.indexOf("등록한 약 리스트"),
+  m=html.indexOf("질병 관리");
+ assert(f>=0&&f<t&&t<h&&h<d&&d<j&&j<l&&l<m,
+  "strict user-specified block order");
  assert(html.includes("항생제 A 3mL · 씨투스 0.3333g"),
   "dose selector must display medicine names and exact quantities, not only a frequency label");
  assert(!html.includes('data-act="take-group"'),
   "group details must no longer have duplicate one-touch dose button");
- assert(html.includes('<details class="ill-manager">'),
-  "full medication manager must be collapsed by default");
+ assert(html.includes('name="prescriptionJson"'));
+ assert(!html.includes('class="ill-import-details"'),"JSON textarea must always be exposed");
+ assert(html.includes('data-form="group"'),"manual entry is visible in same prescription card");
  assert(html.includes('data-act="edit-temp"'));
  assert(html.includes('data-act="edit-dose"'));
  assert(html.includes('data-act="edit-visit"'));
@@ -820,10 +822,15 @@ function intake(at,status='taken',extra={}){
  const e=setup(),get=()=>e.model.cases[id];
  e.window.YuhaIllness.render();
  let html=e.root.innerHTML;
- const quick=html.indexOf("바로 기록하기"),fever=html.indexOf("체온 · 열 히트맵"),
-  timeline=html.indexOf("복용 내역 · 시간별 서머리"),reference=html.indexOf("현재 처방 한눈에");
- assert(quick>=0&&fever>quick&&timeline>fever&&reference>timeline,
-  "Two quick-entry actions precede long graphs and the reference-only prescription");
+ const f=html.indexOf("체온 · 열 히트맵"),t=html.indexOf("체온 입력"),
+  h=html.indexOf("복용 내역 · 시간별 서머리"),d=html.indexOf("약 복용 입력"),
+  j=html.indexOf("처방 등록 · JSON / 직접 입력"),l=html.indexOf("등록한 약 리스트"),
+  m=html.indexOf("질병 관리");
+ assert(f>=0&&f<t&&t<h&&h<d&&d<j&&j<l&&l<m,
+  "heatmap, fever input, dosing history, dosing input, JSON/manual, medicines, disease");
+ assert(html.includes('name="prescriptionJson"'));
+ assert(!html.includes('class="ill-import-details"'));
+ assert(html.includes('data-form="group"'));
  assert.equal((html.match(/data-form="temp"/g)||[]).length,1,"one single fever entry form");
  assert.equal((html.match(/data-form="group-dose"/g)||[]).length,1,"one single medication entry form");
  assert.equal((html.match(/data-form="dose"/g)||[]).length,0,
@@ -873,39 +880,30 @@ function intake(at,status='taken',extra={}){
  assert.equal(get().medicationGroups[0].events.length,1);
  console.log("PASS illness UX: single top quick-entry, inline dose preview, legacy medicine and visible local-save confirmation");
 })();
-(function testManagerStaysOpenAndClosedPrescriptionHistoryBrowsable(){
+(function testCureReversalAndRegisteredMedList(){
  storage.clear();
- const id="imanager_persistence",c={
+ const id="imanager_persistence",episode={
   id,title:"열",status:"active",onsetAt:"2026-11-14T07:00:00.000Z",
   visits:[],temperatures:[],medications:[],medicationGroups:[{id:"igroup_demo",
    name:"이전 묶음",active:true,mode:"scheduled",intervalHours:8,
    items:[{id:"id_1",name:"해열 시럽",amount:2,unit:"mL"}],events:[]}]
  };
- storage.set("yuha_illness_records_v1",JSON.stringify({[id]:c}));
+ storage.set("yuha_illness_records_v1",JSON.stringify({[id]:episode}));
  const e=setup();e.window.YuhaIllness.render();
- assert(e.root.innerHTML.includes('<details class="ill-manager">'));
- // Mimic an expanded HTMLDetailsElement before a rerender.
- e.root.querySelector=selector=>selector===".ill-manager"?{open:true}:null;
- e.window.YuhaIllness.render();
- assert(e.root.innerHTML.includes('<details class="ill-manager" open>'),
-  "an expanded prescription manager must stay open after a data save");
- const button={dataset:{act:"manage-prescription"},closest(){return this}};
+ assert(e.root.innerHTML.includes("처방 등록 · JSON / 직접 입력"));
+ assert(e.root.innerHTML.includes("등록한 약 리스트"));
+ assert(e.root.innerHTML.includes("질병 관리"));
  e.model.cases[id].status="closed";
  e.model.cases[id].medicationGroups[0].active=false;
- let opened=false;
- e.root.querySelector=selector=>selector===".ill-manager"?{
-  set open(value){opened=value},get open(){return opened},
-  scrollIntoView(){}
- }:null;
  e.window.YuhaIllness.render();
- assert(e.root.innerHTML.includes("지난 처방 내역"));
- assert(e.root.innerHTML.includes("지난 처방 열람"),
-  "completed illness should label its medicine management as read-only");
- assert(e.root.innerHTML.includes("해열 시럽 2mL"),
-  "completed illnesses must retain a readable prescription summary");
+ assert(e.root.innerHTML.includes("해열 시럽 2mL"));
+ assert(e.root.innerHTML.includes('data-act="reopen"'));
  assert(!e.root.innerHTML.includes('data-form="temp"'));
  assert(!e.root.innerHTML.includes('data-form="group-dose"'));
- e.root.handlers.click({target:{closest:()=>button}});
- assert(opened,"closed illness still allows opening read-only archived medication manager");
- console.log("PASS illness UX: prescription manager preserves expansion and completed illnesses can browse historic drugs");
+ assert(!e.root.innerHTML.includes('data-form="group"'));
+ const btn={dataset:{act:"reopen"},closest(){return this}};
+ e.root.handlers.click({target:{closest:()=>btn}});
+ assert.equal(e.model.cases[id].status,"active");
+ assert.equal(e.model.cases[id].medicationGroups[0].active,false);
+ console.log("PASS illness UX: disease manager handles cure reversal and retains prescriptions");
 })();
