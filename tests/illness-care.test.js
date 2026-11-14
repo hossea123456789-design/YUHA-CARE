@@ -804,3 +804,90 @@ function intake(at,status='taken',extra={}){
   "closed illness must not present unclickable bundle-management actions");
  console.log("PASS illness: tidy two-row medicine actions and no dead controls on closed illnesses");
 })();
+
+(function testQuickActionFirstAndLegacyMedicineWorkflow(){
+ storage.clear();
+ const id="iquick_action_uxtest",groupId="igroup_quick_uxtest";
+ const c={id,title:"감기",status:"active",onsetAt:"2026-11-14T07:00:00.000Z",
+  visits:[],temperatures:[],
+  medications:[{id:"imed_legacy_quick",name:"기존 개별 시럽",doseMl:2.25,mode:"scheduled",
+   intervalHours:8,active:true,doses:[]}],
+  medicationGroups:[{id:groupId,name:"하루 3회 · 4일",mode:"scheduled",active:true,
+   intervalHours:8,timesPerDay:3,days:4,
+   items:[{id:"im1",name:"시럽 A",amount:3.25,unit:"mL"},
+    {id:"im2",name:"가루 B",amount:0.3333,unit:"g"}],events:[]}]};
+ storage.set("yuha_illness_records_v1",JSON.stringify({[id]:c}));
+ const e=setup(),get=()=>e.model.cases[id];
+ e.window.YuhaIllness.render();
+ let html=e.root.innerHTML;
+ const quick=html.indexOf("바로 기록하기"),fever=html.indexOf("체온 · 열 히트맵"),
+  timeline=html.indexOf("복용 내역 · 시간별 서머리"),reference=html.indexOf("현재 처방 한눈에");
+ assert(quick>=0&&fever>quick&&timeline>fever&&reference>timeline,
+  "Two quick-entry actions precede long graphs and the reference-only prescription");
+ assert.equal((html.match(/data-form="temp"/g)||[]).length,1,"one single fever entry form");
+ assert.equal((html.match(/data-form="group-dose"/g)||[]).length,1,"one single medication entry form");
+ assert(html.includes('data-drugs="시럽 A 3.25mL · 가루 B 0.3333g"'),
+  "full selected regimen is available even if option label is shortened");
+ assert(html.includes('value="legacy:imed_legacy_quick"'),
+  "previously saved individual medicines can be recorded from the primary form");
+ assert(html.indexOf("XML 기록 추출")>html.indexOf("복용 내역 · 시간별 서머리"),
+  "infrequently used XML control belongs in utilities, not above daily actions");
+ const preview={textContent:""};
+ const select={name:"groupId",selectedOptions:[{dataset:{drugs:"기존 개별 시럽 2.25mL"}}],
+  closest(){return {querySelector:()=>preview}}};
+ e.root.handlers.change({target:select});
+ assert.equal(preview.textContent,"기존 개별 시럽 2.25mL");
+ const submit=(type,values)=>{
+  const form={dataset:{form:type},values};
+  e.root.handlers.submit({preventDefault(){},target:{closest:()=>form}});
+ };
+ submit("temp",{at:"2026-11-14T11:20",celsius:"385",site:"ear",note:"기록"});
+ assert.equal(get().temperatures[0].celsius,38.5);
+ assert(e.root.innerHTML.includes("체온 38.5℃를 기기에 저장했습니다."),
+  "successful local recording must show immediate feedback outside collapsed tools");
+ submit("group-dose",{groupId,at:"2026-11-14T11:30",status:"taken",note:"약 두 종류"});
+ assert.equal(get().medicationGroups[0].events.length,1);
+ assert.equal(get().medicationGroups[0].events[0].items[1].amount,0.3333);
+ assert(e.root.innerHTML.includes("약 2종의 복용 시각을 기기에 저장했습니다."));
+ submit("group-dose",{groupId:"legacy:imed_legacy_quick",at:"2026-11-14T12:00",
+  status:"taken",note:"옛 처방"});
+ assert.equal(get().medications[0].doses.length,1);
+ assert.equal(get().medications[0].doses[0].amountMl,2.25);
+ assert(e.root.innerHTML.includes("개별 약 복용 기록을 기기에 저장했습니다."));
+ assert.equal(get().medicationGroups[0].events.length,1);
+ console.log("PASS illness UX: single top quick-entry, inline dose preview, legacy medicine and visible local-save confirmation");
+})();
+(function testManagerStaysOpenAndClosedPrescriptionHistoryBrowsable(){
+ storage.clear();
+ const id="imanager_persistence",c={
+  id,title:"열",status:"active",onsetAt:"2026-11-14T07:00:00.000Z",
+  visits:[],temperatures:[],medications:[],medicationGroups:[{id:"igroup_demo",
+   name:"이전 묶음",active:true,mode:"scheduled",intervalHours:8,
+   items:[{id:"id_1",name:"해열 시럽",amount:2,unit:"mL"}],events:[]}]
+ };
+ storage.set("yuha_illness_records_v1",JSON.stringify({[id]:c}));
+ const e=setup();e.window.YuhaIllness.render();
+ assert(e.root.innerHTML.includes('<details class="ill-manager">'));
+ // Mimic an expanded HTMLDetailsElement before a rerender.
+ e.root.querySelector=selector=>selector===".ill-manager"?{open:true}:null;
+ e.window.YuhaIllness.render();
+ assert(e.root.innerHTML.includes('<details class="ill-manager" open>'),
+  "an expanded prescription manager must stay open after a data save");
+ const button={dataset:{act:"manage-prescription"},closest(){return this}};
+ e.model.cases[id].status="closed";
+ e.model.cases[id].medicationGroups[0].active=false;
+ let opened=false;
+ e.root.querySelector=selector=>selector===".ill-manager"?{
+  set open(value){opened=value},get open(){return opened},
+  scrollIntoView(){}
+ }:null;
+ e.window.YuhaIllness.render();
+ assert(e.root.innerHTML.includes("지난 처방 내역"));
+ assert(e.root.innerHTML.includes("해열 시럽 2mL"),
+  "completed illnesses must retain a readable prescription summary");
+ assert(!e.root.innerHTML.includes('data-form="temp"'));
+ assert(!e.root.innerHTML.includes('data-form="group-dose"'));
+ e.root.handlers.click({target:{closest:()=>button}});
+ assert(opened,"closed illness still allows opening read-only archived medication manager");
+ console.log("PASS illness UX: prescription manager preserves expansion and completed illnesses can browse historic drugs");
+})();
