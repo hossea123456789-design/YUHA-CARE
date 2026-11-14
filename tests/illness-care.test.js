@@ -488,3 +488,36 @@ function intake(at,status='taken',extra={}){
  assert.equal(e.model.cases[id].medicationGroups.length,existing);
  console.log("PASS illness JSON UI: preview, confirmed import, editable copy, fresh IDs/no dose history, dedupe");
 })();
+
+(function testCopyableCrossChatPrescriptionRequest(){
+ storage.clear();
+ const e=setup(),t=e.test,example=t.prescriptionExample();
+ assert.equal(example.schema,"yuha-prescription-import/v1");
+ const groups=t.parsePrescriptionJson(JSON.stringify(example)).groups;
+ assert.equal(groups.length,2);
+ assert(groups.some(g=>g.items.some(i=>i.unit==="g"&&i.amount===0.3333)));
+ const prompt=t.prescriptionChatRequest();
+ for(const phrase of ["첨부한","약봉투","JSON","timesPerDay","days","0.3333g","반올림","복용","확인 필요"])
+  assert(prompt.includes(phrase),"missing in request: "+phrase);
+ assert(prompt.includes(String.fromCharCode(96).repeat(3)+"json")&&prompt.includes("yuha-prescription-import/v1"),
+  "prompt contains fenced valid example");
+ let copied="";
+ e.window.navigator={clipboard:{writeText:async(value)=>{copied=value}}};
+ const episode={id:"iprompt_case1",title:"발열",onsetAt:"2026-11-14T00:00:00.000Z",
+  status:"active",visits:[],medications:[],medicationGroups:[],temperatures:[]};
+ storage.set("yuha_illness_records_v1",JSON.stringify({[episode.id]:episode}));
+ e.window.YuhaIllness.render();
+ assert(e.root.innerHTML.includes("다른 채팅용 요청문 복사"));
+ assert(e.root.innerHTML.includes("예시 JSON 복사"));
+ const click=act=>{
+  const button={dataset:{act},closest(){return this}};
+  e.root.handlers.click({target:{closest:()=>button}});
+ };
+ click("copy-prescription-request");
+ assert(copied.includes("첨부한")&&copied.includes("bundleTemplates"));
+ click("copy-prescription-example");
+ assert.deepEqual(JSON.parse(copied),example);
+ assert.equal(e.model.cases[episode.id].medicationGroups.length,0,
+  "copying must not mutate existing illness records");
+ console.log("PASS illness: cross-chat prompt and example JSON copy with no data modifications");
+})();
