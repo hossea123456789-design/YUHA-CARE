@@ -326,9 +326,9 @@
     .tabs .tab-btn{flex:0 0 auto;white-space:nowrap;min-width:90px;padding:10px 12px}
     @media(max-width:470px){.tabs .tab-btn{min-width:86px;padding:9px 10px}}
 </style>
-  <link rel="stylesheet" href="design.css?v=20261111-sleep-timeline-v1" />
-  <link rel="stylesheet" href="mental.css?v=20261112-single-score1">
-  <link rel="stylesheet" href="illness-care.css?v=20261115-header-xml-v10">
+  <link rel="stylesheet" href="design.css?v=20261115-common-tabs-v1" />
+  <link rel="stylesheet" href="mental.css?v=20261115-common-tabs-v1">
+  <link rel="stylesheet" href="illness-care.css?v=20261115-common-tabs-v1">
 </head>
 
 <body>
@@ -450,7 +450,7 @@
           '" disabled>' + escape(labels[k] || d[k]?.label || k) + '</button>').join('');
         const sections = d.daycare.sections || [];
         document.getElementById('main').innerHTML =
-          '<div class="panel-head"><div><h2 class="panel-title">' +
+          '<div class="panel-head tab-panel-head"><div class="tab-panel-heading"><h2 class="panel-title">' +
           escape(d.daycare.title || '얼집 준비물') +
           '</h2><span class="count">기기에 저장된 목록</span></div></div>' +
           sections.map(section =>
@@ -469,8 +469,8 @@
   <script src="config.js?v=20261020-shared1"></script>
   <script src="bridge-client.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
-  <script src="mental.js?v=20261115-mental-xml-header-v2"></script>
-  <script src="illness-care.js?v=20261115-header-xml-v10"></script>
+  <script src="mental.js?v=20261115-common-tabs-v1"></script>
+  <script src="illness-care.js?v=20261115-common-tabs-v1"></script>
   <script src="sleep-monthly.js?v=20261111-sleep-observations-v1"></script>
   <script src="history-export.js?v=20261114-illness-xml-v1"></script>
   <script>
@@ -1025,8 +1025,8 @@
       const total = allItems.length;
 
       main.innerHTML = `
-        <div class="panel-head">
-          <div>
+        <div class="panel-head tab-panel-head">
+          <div class="tab-panel-heading">
             <h2 class="panel-title">${escapeHtml(tabData.title)}</h2>
             <span class="count">${checked} / ${total}</span>
           </div>
@@ -1311,8 +1311,8 @@
       const main = document.getElementById("main");
 
       main.innerHTML = `
-        <div class="panel-head">
-          <div>
+        <div class="panel-head tab-panel-head">
+          <div class="tab-panel-heading">
             <h2 class="panel-title">설정</h2>
             <span class="count">작은 제목 관리</span>
           </div>
@@ -2871,19 +2871,20 @@
       const weekTitle=`${wm}/${wd} ~ ${em}/${ed}`;
       const main=document.getElementById("main");
       main.innerHTML=`
-        <div class="panel-head sleep-heading"><div><h2 class="panel-title">수면 기록</h2>
+        <div class="panel-head tab-panel-head sleep-heading"><div class="tab-panel-heading"><h2 class="panel-title">수면 기록</h2>
           <span class="count">유하 · ${ageLabel(ageAtSleepDate(localDateKey(new Date())))}</span></div>
           <button type="button" class="history-export-trigger" id="sleepHistoryExport">XML 기록 추출</button></div>
+        <div class="tab-utility-bar" role="group" aria-label="수면 기록 보호 도구">
+          <button type="button" id="sleepDeviceRecovery">기기 원본 백업</button>
+          <button type="button" id="sleepRecoveryRefresh">서버 기록 다시 조회</button>
+        </div>
         <section class="sleep-recovery-tools" aria-label="기존 수면 기록 보호 및 서버 점검">
           <strong>기존 기록 보호·조회 상태</strong>
           <p id="sleepRecoveryNotice" class="sleep-recovery-notice" role="status" aria-live="polite">서버 기록 확인 전입니다.</p>
-          <div class="sleep-recovery-actions">
-            <button type="button" id="sleepRecoveryRefresh">서버 기록 다시 조회</button>
-            <button type="button" id="sleepDeviceRecovery">기기 원본 백업(JSON)</button>
-          </div>
+
         </section>
         <div class="sleep-card sleep-map-card">
-          <div class="sleep-card-title"><span>${y}년 ${m}월</span>
+          <div class="sleep-card-title tab-period-head"><span>${y}년 ${m}월</span>
             <div class="sleep-map-nav"><button type="button" id="sleepPrev" aria-label="이전 달">〈</button>
             <button type="button" class="sleep-go-today" id="sleepToday">오늘</button>
             <button type="button" id="sleepNext" aria-label="다음 달">〉</button></div></div>
