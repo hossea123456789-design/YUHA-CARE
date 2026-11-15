@@ -40,6 +40,12 @@ const script=fs.readFileSync("history-export.js","utf8");
  assert(illness.includes("ill-month-heading tab-period-head"));
  assert(illness.includes('data-act="dose-day-today"')&&illness.includes('data-act="temp-today"'));
  assert(mental.includes("비공개 기록 · 잠금 상태"));
+ assert(mental.indexOf('cloudPanel()+',mental.indexOf("function view()")) <
+  mental.indexOf('<div class="mental-intro">',mental.indexOf("function view()")),
+  "Recovery sync/privacy panel appears in the same top tools area");
+ const illnessRender=illness.slice(illness.indexOf("function render(){"));
+ assert(illnessRender.indexOf('syncPanel()+') < illnessRender.indexOf('illnessSelect()+'),
+  "Illness sync details must follow top tools, before record content");
  assert(!mental.slice(mental.indexOf("function lockMarkup()"),mental.indexOf("function bindLock()")).includes('id="mentalHistoryExport"'),"PIN lock must not render XML export");
  assert(page.includes("design.css?v=20261115-common-tabs-v1"));
  assert(page.includes("illness-care.js?v=20261115-common-tabs-v1"));
