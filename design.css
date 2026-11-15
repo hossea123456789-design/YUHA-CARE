@@ -1416,3 +1416,25 @@ header .header-status-group .app-progress[data-source="mental"][data-state="load
  .sleep-observation-stage-num{flex-basis:25px;width:25px;height:25px}
  .sleep-observation-stage .sleep-observation-grid{padding-left:0}
 }
+
+
+/* 2026-11-15: shared positions for headings, exports, backup tools and period navigation. */
+.tab-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;margin:0 0 13px}
+.tab-panel-head>.tab-panel-heading{flex:1 1 auto;min-width:0}
+.tab-panel-head .panel-title{margin:0;font-size:21px;font-weight:810;line-height:1.24;letter-spacing:-.75px;color:#1b312b}
+.tab-panel-head .count{display:inline-block;max-width:100%;margin-top:7px;font-size:11px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+.tab-panel-head>.history-export-trigger{flex:0 0 auto;align-self:center;margin-left:auto}
+.tab-utility-bar{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:7px;margin:-2px 0 13px}
+.tab-utility-bar>button{flex:0 0 auto;min-height:35px;padding:7px 10px;border-radius:9px;border:1px solid #cbded6;background:#fff;color:#376b59;font-size:11px;font-weight:760;cursor:pointer}
+.tab-utility-bar>button:hover{background:#eff7f2;border-color:#a8d0bd}
+.tab-utility-bar>button:focus-visible{outline:2px solid #3a9c8c;outline-offset:2px}
+.tab-period-head{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
+.tab-period-head .sleep-map-nav{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+.tab-period-head .sleep-map-nav button{min-width:30px;min-height:31px;border-radius:8px;padding:5px 7px;font-size:13px}
+.tab-period-head .sleep-map-nav .sleep-go-today{font-size:11px}
+@media(max-width:360px){
+ .tab-panel-head{gap:6px}
+ .tab-panel-head .panel-title{font-size:19px}
+ .tab-panel-head>.history-export-trigger{font-size:10px;padding:6px 7px}
+ .tab-utility-bar>button{font-size:10.5px;padding:7px 8px}
+}
