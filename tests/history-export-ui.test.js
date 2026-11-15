@@ -7,7 +7,7 @@ const script=fs.readFileSync("history-export.js","utf8");
 {
  const mental=fs.readFileSync("mental.js","utf8");
  const page=fs.readFileSync("index.html","utf8");
- const header=mental.indexOf('<div class="panel-head"><div><h2 class="panel-title">아내 회복</h2>');
+ const header=mental.indexOf('<div class="panel-head tab-panel-head"><div class="tab-panel-heading"><h2 class="panel-title">아내 회복</h2>');
  const exportButton=mental.indexOf('class="history-export-trigger" id="mentalHistoryExport"');
  const intro=mental.indexOf('<div class="mental-intro">',header);
  const actions=mental.indexOf('<div class="mental-actions-row">',header);
@@ -17,9 +17,32 @@ const script=fs.readFileSync("history-export.js","utf8");
   "The wife recovery XML export button must appear exactly once");
  assert(mental.includes('screen.querySelector("#mentalHistoryExport")?.addEventListener("click",openMentalHistoryExport)'),
   "Existing PIN-gated XML export handler must remain attached");
- assert(page.includes('mental.js?v=20261115-mental-xml-header-v2'),
+ assert(page.includes('mental.js?v=20261115-common-tabs-v1'),
   "Cache key must refresh mental.js on mobile");
- console.log("PASS wife recovery XML export button is placed in shared panel header");
+ const illness=fs.readFileSync("illness-care.js","utf8");
+ const css=fs.readFileSync("design.css","utf8");
+ for(const cls of ["tab-panel-head","tab-utility-bar","tab-period-head"])
+  assert(css.includes("."+cls),"Missing common class "+cls);
+ for(const source of [page,mental,illness])
+  assert(source.includes("tab-panel-head"),"Missing shared header");
+ assert(page.includes("tab-panel-head sleep-heading"));
+ assert(illness.includes("ill-heading panel-head tab-panel-head"));
+ assert(page.includes('id="sleepHistoryExport"')&&illness.includes('data-act="export-illness-xml"'));
+ for(const source of [page,mental,illness])
+  assert(source.includes("tab-utility-bar"),"Missing shared tools row");
+ assert.equal((page.match(/id="sleepDeviceRecovery"/g)||[]).length,1);
+ assert.equal((page.match(/id="sleepRecoveryRefresh"/g)||[]).length,1);
+ assert.equal((mental.match(/id="mentalExportBackup"/g)||[]).length,1);
+ assert.equal((illness.match(/data-act="backup"/g)||[]).length,1);
+ assert.equal((illness.match(/data-act="refresh"/g)||[]).length,1);
+ assert(page.includes("sleep-card-title tab-period-head"));
+ assert(mental.includes("mental-section-head tab-period-head"));
+ assert(illness.includes("ill-month-heading tab-period-head"));
+ assert(illness.includes('data-act="dose-day-today"')&&illness.includes('data-act="temp-today"'));
+ assert(mental.includes("비공개 기록 · 잠금 상태"));
+ assert(page.includes("design.css?v=20261115-common-tabs-v1"));
+ assert(page.includes("illness-care.js?v=20261115-common-tabs-v1"));
+ console.log("PASS all tab header/export, backup and date navigation control positions");
 }
 
 function fixture(){
