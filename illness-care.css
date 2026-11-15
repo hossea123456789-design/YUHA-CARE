@@ -401,3 +401,21 @@
 .ill-prescription-method .ill-group-editor{display:block}
 @media(max-width:900px){.ill-prescription-methods{grid-template-columns:1fr}}
 @media(max-width:420px){.ill-inline-entry,.ill-prescription-method{padding:10px}}
+
+
+/* Same title/actions pattern as the sleep and recovery tabs. */
+.ill-heading.tab-panel-head{margin:0;min-width:0}
+.ill-heading .panel-title{margin:0;line-height:1.24}
+.ill-heading .count{display:inline-block;max-width:100%;white-space:normal}
+.ill-root>.tab-utility-bar{margin:0}
+.ill-month-heading{gap:8px;margin-bottom:13px;min-width:0}
+.ill-month-heading h3{margin:0;font-size:14px;flex:0 1 auto}
+.ill-month-heading .tab-period-actions{display:flex;align-items:center;gap:7px;justify-content:flex-end;flex-wrap:wrap}
+.ill-month-heading .tab-period-label{font-size:11px;font-weight:750;color:#527e83;white-space:nowrap}
+.ill-dose-nav.tab-period-head{justify-content:space-between;flex-wrap:wrap;gap:7px}
+.ill-dose-nav.tab-period-head>strong{min-width:0;text-align:left;font-size:13px}
+.ill-dose-nav.tab-period-head .sleep-map-nav{margin-left:auto}
+@media(max-width:390px){
+ .ill-month-heading{flex-wrap:wrap}
+ .ill-month-heading .tab-period-actions{margin-left:auto}
+}
