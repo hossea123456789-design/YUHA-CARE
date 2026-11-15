@@ -1,7 +1,7 @@
 # YUHA-CARE 전체 구현·운영·작업 인수인계서
 
 > **중요: 다음 작업 세션을 위한 시작 문서 (Single Source of Handoff)**  
-> 문서 기준일: **2026-11-14 (KST)** — 질병 기록 자동 동기화(추가 암호 없음)·복약 안내  
+> 문서 기준일: **2026-11-15 (KST)** — 아내 회복 XML 추출 버튼의 탭 공통 헤더 배치  
 > 정본 코드: GitHub 저장소 `hossea123456789-design/YUHA-CARE`, `main` 브랜치  
 > 정본 화면: https://hossea123456789-design.github.io/YUHA-CARE/  
 > 목적: 이전 대화를 보지 못하는 개발자/ChatGPT 세션도 현재 구현, 판단 배경, 배포 방법, 미해결 이슈를 이해하고 **기존 데이터를 보존하며 동일 프로젝트를 이어서 개발**하도록 한다.
@@ -1148,3 +1148,13 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - illness-care.js에서 별도 최상위 체온/약 복용 입력 카드를 없애고, temperatureTrend(c,feedback)의 stats+chart 뒤/체온 기록 목록 앞에 quickTemperatureForm(c)를 렌더한다. medicationTimeline(c,feedback)의 날짜/통계 뒤/복용 이력 앞에 quickMedicineForm(c)를 렌더한다. 입력 폼 개수는 각 1개, 실제 events/temperatures 데이터 구조와 수정 액션은 유지. 저장 피드백은 기록 종류에 맞는 영역으로 전달한다.
 - prescriptionEntryPanel은 하나의 ill-prescription-entry 카드 안에서 JSON textarea·복사 버튼·분석 버튼과 직접 묶음 등록 폼을 모두 펼쳐 제공. 데스크톱 두 열, 모바일 한 열이며 hidden details로 JSON을 감추지 않는다. 병원 visitForm과 등록한 약 리스트/질병 관리의 순서는 변경하지 않았다.
 - CSS와 index.html의 JS/CSS 캐시를 갱신. tests/illness-care.test.js는 그래프→체온 입력→이력 및 통계→복용 입력→이력의 실제 DOM 순서, JSON·수동 동시 노출 및 병원 배치 보존을 검증한다. 서버 API v4·Google Sheets 구조·백업 XML은 변경하지 않음.
+
+
+## 59. 2026-11-15 — 아내 회복 XML 추출 버튼 위치를 수면·질병 탭과 통일
+
+- **요청·원인:** 수면 기록 및 질병 기록에서는 'XML 기록 추출' 버튼이 제목 오른쪽의 `panel-head`에 있지만, 아내 회복은 종합점수 아래 `mental-actions-row`에 있어 탭별 위치가 달랐다.
+- **화면 변경:** `mental.js`의 `view()` 헤더 오른쪽에 기존 `id="mentalHistoryExport"` 버튼을 단 한 번 렌더하고 공통 `history-export-trigger` 클래스를 적용. 요약 아래 작업줄의 중복 버튼만 제거하고 '오늘 기록' 및 '기기 원본 백업'은 유지. 다른 탭의 상단 버튼 구조는 변경하지 않음.
+- **기능·보호:** 기존 `bind()`의 클릭 처리와 `openMentalHistoryExport()`는 그대로 사용한다. 회복 화면이 PIN으로 잠겨 있을 때는 버튼을 노출하지 않고, 해제된 경우에만 다운로드 팝업에 접근한다. 데이터 로딩/병합, XML 기간 선택·내용·파일명·미동기화 보호는 미변경.
+- **배포·캐시:** `index.html`의 `mental.js` 버전을 `20261115-mental-xml-header-v2`로 갱신. `tests/history-export-ui.test.js`에 헤더 내 버튼 1개, 기존 클릭 이벤트 유지, 캐시 키 회귀 검사를 추가. `main` 직접 커밋 후 Pages 자동 배포 대상.
+- **데이터/API:** 프런트엔드 위치 수정뿐이다. Google Apps Script `Code.gs`, Google Sheets 스키마·실기록, PIN, 로컬 저장소·pending, 기타 탭 데이터는 수정하지 않았다. 이번 작업을 위한 Apps Script 재배포는 불필요하다.
+- **검증 구분:** 코드 문자열 기반 구조/이벤트/캐시 회귀 테스트는 CI에 포함. 실 삼성 모바일의 시각적 정렬과 다운로드 동작은 운영 기기에서 별도 확인 대상이며, 이를 완료로 간주하지 않는다. 최종 GitHub Actions Pages 실행 성공 여부는 실제 run의 결론을 기준으로 판정한다.
