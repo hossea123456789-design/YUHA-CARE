@@ -862,7 +862,7 @@ function intake(at,status='taken',extra={}){
   "illness XML download is in the top-right header, matching the sleep record tab");
  assert.equal((html.match(/data-act="export-illness-xml"/g)||[]).length,1,
   "XML button is only at the top, not duplicated under backup and sync");
- assert(html.includes('class="ill-heading panel-head"'),
+ assert(html.includes('class="ill-heading panel-head tab-panel-head"'),
   "illness title uses the same panel-head layout as the sleep tab");
  const preview={textContent:""};
  const select={name:"groupId",selectedOptions:[{dataset:{drugs:"기존 개별 시럽 2.25mL"}}],
