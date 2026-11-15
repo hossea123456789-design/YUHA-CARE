@@ -374,7 +374,7 @@
     </header>
 
     <main id="main">
-      <div class="loading">스프레드시트에서 체크리스트를 불러오는 중입니다.</div>
+      <div class="loading">앱 화면을 불러오는 중입니다.</div>
     </main>
 
     <div class="bottom-actions" id="bottomActions">
@@ -423,46 +423,65 @@
 
   <div class="drag-toast" id="dragToast">이동 중 · 원하는 위치에서 손을 떼세요</div>
 
-  <!-- 서버 스크립트 다운로드 전에 기기 캐시를 먼저 표시합니다. -->
+  <!-- 데이터 동기화 이전에 기기별 마지막 탭을 찾아 해당 화면의 초기 상태를 표시합니다. -->
   <script>
     (function () {
       try {
+        const allowed = ['daycare','sleep','mental','illness','outing','daily','weekly','settings'];
+        const checklist = ['daycare','outing','daily','weekly'];
+        const stored = localStorage.getItem('yuha_care_last_tab_device_v1');
+        const initialTab = allowed.includes(stored) ? stored : 'daycare';
         const snapshot = JSON.parse(localStorage.getItem('yuha_shared_checklist_client_cache_v1') || 'null');
-        if (!snapshot || !snapshot.data || !snapshot.data.daycare) return;
-        const d = snapshot.data;
+        const d = snapshot && snapshot.data && snapshot.data.daycare ? snapshot.data : null;
         const escape = v => String(v == null ? '' : v).replace(/[&<>"']/g,
           c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const cachedTab=d.daycare;
-        const items=(cachedTab.sections || []).flatMap(section => section.items || []);
-        const done=items.filter(item => item.checked).length;
-        const pct=items.length ? Math.round(done/items.length*100) : 0;
-        document.getElementById('summary').textContent =
-          (cachedTab.label || '얼집')+' · '+done+'/'+items.length+'개 체크';
-        document.getElementById('progressPercent').textContent=pct+'%';
-        document.getElementById('overallMeterBar').style.width=pct+'%';
-        document.getElementById('overallMeter').setAttribute('aria-valuenow',String(pct));
-        document.getElementById('overallMeter').setAttribute('aria-valuetext',done+'개 / '+items.length+'개 완료');
-        document.getElementById('overallMeter').dataset.complete=pct===100&&items.length>0?'true':'false';
-        const choices = ['daycare','sleep','outing','daily','weekly','settings'];
-        const labels = {'sleep':'수면 기록','settings':'설정'};
-        document.getElementById('tabs').innerHTML = choices.map((k,i) =>
-          '<button type="button" class="tab-btn' + (i===0?' active':'') +
-          '" disabled>' + escape(labels[k] || d[k]?.label || k) + '</button>').join('');
-        const sections = d.daycare.sections || [];
-        document.getElementById('main').innerHTML =
-          '<div class="panel-head tab-panel-head"><div class="tab-panel-heading"><h2 class="panel-title">' +
-          escape(d.daycare.title || '얼집 준비물') +
-          '</h2><span class="count">기기에 저장된 목록</span></div></div>' +
-          sections.map(section =>
-            '<section class="section"><div class="section-title-row"><span class="section-title">• ' +
-              escape(section.title) + '</span></div><div class="check-list">' +
-            (section.items || []).map(item =>
-              '<div class="item' + (item.checked?' checked':'') + '">' +
-              '<input class="item-check" type="checkbox" disabled' + (item.checked?' checked':'') + '>' +
-              '<span class="item-text">' + escape(item.text) + '</span></div>'
-            ).join('') + '</div></section>'
-          ).join('');
-        document.getElementById('saveStatus').textContent = '기기 캐시를 먼저 표시했습니다';
+        const names = {daycare:'얼집 준비물',sleep:'수면 기록',mental:'아내 회복',
+          illness:'유하 질병 기록',outing:'외출',daily:'매일 청소',weekly:'주말 청소',settings:'설정'};
+        const title = checklist.includes(initialTab) && d && d[initialTab]
+          ? d[initialTab].title || names[initialTab] : names[initialTab];
+        const label = k => checklist.includes(k) && d && d[k]
+          ? d[k].label || names[k] : names[k];
+        const isChecklist = checklist.includes(initialTab);
+        document.querySelector('header').classList.toggle('no-checklist-progress', !isChecklist);
+        if (d || initialTab !== 'daycare') {
+          document.getElementById('tabs').innerHTML = allowed.map(k =>
+            '<button type="button" class="tab-btn'+(k===initialTab?' active':'')+
+            '" disabled>'+escape(label(k))+'</button>').join('');
+        }
+        if (isChecklist && d && d[initialTab]) {
+          const selected = d[initialTab];
+          const sections = selected.sections || [];
+          const items = sections.flatMap(section => section.items || []);
+          const done = items.filter(item => item.checked).length;
+          const pct = items.length ? Math.round(done/items.length*100) : 0;
+          document.getElementById('summary').textContent =
+            label(initialTab)+' · '+done+'/'+items.length+'개 체크';
+          document.getElementById('progressPercent').textContent=pct+'%';
+          document.getElementById('overallMeterBar').style.width=pct+'%';
+          document.getElementById('overallMeter').setAttribute('aria-valuenow',String(pct));
+          document.getElementById('overallMeter').setAttribute('aria-valuetext',done+'개 / '+items.length+'개 완료');
+          document.getElementById('overallMeter').dataset.complete=pct===100&&items.length>0?'true':'false';
+          document.getElementById('main').innerHTML =
+            '<div class="panel-head tab-panel-head"><div class="tab-panel-heading"><h2 class="panel-title">'+
+            escape(title)+'</h2><span class="count">기기에 저장된 목록</span></div></div>'+
+            sections.map(section =>
+              '<section class="section"><div class="section-title-row"><span class="section-title">• '+
+                escape(section.title)+'</span></div><div class="check-list">'+
+              (section.items||[]).map(item =>
+                '<div class="item'+(item.checked?' checked':'')+'">'+
+                '<input class="item-check" type="checkbox" disabled'+(item.checked?' checked':'')+'>'+
+                '<span class="item-text">'+escape(item.text)+'</span></div>'
+              ).join('')+'</div></section>'
+            ).join('');
+          document.getElementById('saveStatus').textContent='기기 캐시를 먼저 표시했습니다';
+        } else if (initialTab !== 'daycare') {
+          // 기록 탭에는 초기 미리보기로 개인 데이터나 다른 탭 체크리스트를 노출하지 않습니다.
+          document.getElementById('summary').textContent = label(initialTab)+' · 이전 탭 복원 중';
+          document.getElementById('main').innerHTML =
+            '<div class="panel-head tab-panel-head"><div class="tab-panel-heading"><h2 class="panel-title">'+
+            escape(title)+'</h2><span class="count">화면을 준비하고 있습니다</span></div></div>'+
+            '<div class="loading">마지막으로 사용한 탭을 불러오는 중입니다.</div>';
+        }
       } catch (_) {}
     })();
   </script>
@@ -475,10 +494,23 @@
   <script src="history-export.js?v=20261114-illness-xml-v1"></script>
   <script>
     const CLIENT_CACHE_KEY = "yuha_shared_checklist_client_cache_v1";
+    // 마지막으로 열었던 탭은 Google Sheets가 아니라 현재 브라우저/기기의 로컬 저장소에만 보관합니다.
+    const LAST_VISITED_TAB_KEY = "yuha_care_last_tab_device_v1";
     const tabOrder = ["daycare", "sleep", "mental", "illness", "outing", "daily", "weekly", "settings"];
+    function readLastVisitedTab() {
+      try {
+        const saved = localStorage.getItem(LAST_VISITED_TAB_KEY);
+        return tabOrder.includes(saved) ? saved : "daycare";
+      } catch (_) { return "daycare"; }
+    }
+    function rememberLastVisitedTab(tabKey) {
+      if (!tabOrder.includes(tabKey)) return;
+      try { localStorage.setItem(LAST_VISITED_TAB_KEY,tabKey); }
+      catch (_) { /* 저장이 제한된 브라우저에서도 탭 전환은 계속 작동합니다. */ }
+    }
 
     let data = null;
-    let currentTab = "daycare";
+    let currentTab = readLastVisitedTab();
     let editing = { type: null, sectionId: null, itemId: null };
     let longPressTimer = null;
     let dragState = null;
@@ -962,6 +994,15 @@
       weekly:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5 2 2 5-5"/>',
       settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/>'
     };
+    function activateTab(tabKey) {
+      if (!tabOrder.includes(tabKey) || currentTab === tabKey) return false;
+      if (currentTab === "mental" && tabKey !== "mental") window.YuhaMental?.lock();
+      if (currentTab === "illness" && tabKey !== "illness") window.YuhaIllness?.stop();
+      currentTab = tabKey;
+      rememberLastVisitedTab(tabKey);
+      render();
+      return true;
+    }
     function renderTabs() {
       const tabs = document.getElementById("tabs");
       // When the tab strip overflows on desktop, convert mouse-wheel
@@ -990,11 +1031,7 @@
         button.querySelector(".tab-label").textContent = label;
         if (tabKey === currentTab) button.setAttribute("aria-current","page");
         button.addEventListener("click", () => {
-          if (currentTab === tabKey) return;
-          if(currentTab==="mental" && tabKey!=="mental")window.YuhaMental?.lock();
-          if(currentTab==="illness" && tabKey!=="illness")window.YuhaIllness?.stop();
-          currentTab = tabKey;
-          render();
+          if (!activateTab(tabKey)) return;
           const active = tabs.querySelector(".tab-btn.active");
           if (active) {
             // scrollIntoView는 상단 고정 헤더까지 세로로 이동시킬 수 있어 사용하지 않습니다.
@@ -1354,8 +1391,7 @@
       });
 
       document.getElementById("focusSelectedTabBtn").addEventListener("click", () => {
-        currentTab = document.getElementById("sectionTabSelect").value;
-        render();
+        activateTab(document.getElementById("sectionTabSelect").value);
       });
 
       document.getElementById("sleepBirthSaveSettings").addEventListener("click",()=>{
