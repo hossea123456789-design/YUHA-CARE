@@ -3,6 +3,25 @@ const fs=require("node:fs");
 const vm=require("node:vm");
 const assert=require("node:assert/strict");
 const script=fs.readFileSync("history-export.js","utf8");
+
+{
+ const mental=fs.readFileSync("mental.js","utf8");
+ const page=fs.readFileSync("index.html","utf8");
+ const header=mental.indexOf('<div class="panel-head"><div><h2 class="panel-title">아내 회복</h2>');
+ const exportButton=mental.indexOf('class="history-export-trigger" id="mentalHistoryExport"');
+ const intro=mental.indexOf('<div class="mental-intro">',header);
+ const actions=mental.indexOf('<div class="mental-actions-row">',header);
+ assert(header>=0&&exportButton>header&&exportButton<intro&&intro<actions,
+  "Wife recovery XML export must be in the title header, matching sleep and illness tabs");
+ assert.equal((mental.match(/id="mentalHistoryExport"/g)||[]).length,1,
+  "The wife recovery XML export button must appear exactly once");
+ assert(mental.includes('screen.querySelector("#mentalHistoryExport")?.addEventListener("click",openMentalHistoryExport)'),
+  "Existing PIN-gated XML export handler must remain attached");
+ assert(page.includes('mental.js?v=20261115-mental-xml-header-v2'),
+  "Cache key must refresh mental.js on mobile");
+ console.log("PASS wife recovery XML export button is placed in shared panel header");
+}
+
 function fixture(){
  const elements={};
  function el(){
