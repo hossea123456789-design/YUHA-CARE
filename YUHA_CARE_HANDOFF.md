@@ -1169,5 +1169,5 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - **상태 안내 위치:** 백업/재조회 도구 바로 아래를 기록 보호·동기화 상태 안내 자리로 통일했다. 수면의 상시 기록 보호/조회 카드, 회복의 접힌 개인정보·자동 동기화 패널, 질병의 접힌 기록 저장·동기화 상태를 이 위치에 둔다. 회복 입력/편지/진단 정보와 질병 원본 충돌 해결 UI는 기존 기능을 보존하며 필요한 경우 아래에서 확인한다.
 - **기간 선택:** 수면 월간·주간 입력표 및 회복 월간·주간 히트맵 및 회복 월간 히트맵은 기존 `이전/오늘/다음`을 `tab-period-head` 패턴으로 통일. 질병 월간 체온 히트맵은 카드 헤더 왼쪽에 제목, 우측에 월과 이전/오늘/다음 버튼을 배치. 질병 복약 날짜 이동도 왼쪽에 날짜, 오른쪽에 이전/오늘/다음. 질병의 오늘 버튼은 기존 `temp-today`·`dose-day-today` 이벤트를 재사용하며 새 날짜/기록 저장 로직은 추가하지 않는다.
 - **기능 보존:** 체크리스트 4개 탭 하단 체크 해제 버튼, 설정 관리 동작, 수면 시간표·회복 입력/편지·질병 체온과 복약·처방의 기존 순서 유지. 기기·서버 원본, pending, PIN, Google Sheets와 `apps-script/Code.gs`, API 주소 변경 없음. Apps Script 재배포 불필요.
-- **수정 파일:** `index.html`, `design.css`, `mental.js`, `mental.css`, `illness-care.js`, `illness-care.css`, `tests/history-export-ui.test.js`, 본 MD. CSS/JS 캐시는 `20261115-common-tabs-v1`로 갱신.
+- **수정 파일:** `index.html`, `design.css`, `mental.js`, `mental.css`, `illness-care.js`, `illness-care.css`, `tests/history-export-ui.test.js`, 본 MD. CSS/JS 캐시는 최종 `20261115-common-tabs-v2`로 갱신.
 - **QA 및 배포:** 동적 화면의 공통 클래스/위치, 각 버튼 단일 인스턴스, 원래 이벤트 연결, XML 잠금 노출, 날짜 이동 제어를 `tests/history-export-ui.test.js`로 회귀 검사. GitHub `main` 자동 배포는 후속 최종 커밋의 Actions 결과를 기준으로 별도 확인. 실제 사용자 휴대폰 시각·동작 검증과 운영 Apps Script 상태를 GitHub CI와 혼동하지 않는다.
