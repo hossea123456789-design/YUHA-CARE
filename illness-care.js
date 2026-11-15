@@ -821,12 +821,11 @@ function medicationTimeline(c,feedback=""){
  const totalTaken=entries.filter(e=>e.status==="taken").length;
  const skipped=entries.filter(e=>e.status==="skipped").length;
  const dateTitle=day===dayKey(nowIso())?"오늘 복용 기록":"복용 기록 · "+day;
- const controls='<div class="ill-dose-nav">'+
-  '<button type="button" data-act="dose-day-prev" aria-label="전날 복용 기록">‹</button>'+
+ const controls='<div class="ill-dose-nav tab-period-head">'+
   '<strong>'+E(dateTitle)+'</strong>'+
-  '<button type="button" data-act="dose-day-next" aria-label="다음날 복용 기록">›</button>'+
-  (day!==dayKey(nowIso())?'<button type="button" data-act="dose-day-today" class="ill-secondary">오늘</button>':'')+
-  '</div>';
+  '<div class="sleep-map-nav"><button type="button" data-act="dose-day-prev" aria-label="전날 복용 기록">‹</button>'+
+  '<button type="button" class="sleep-go-today" data-act="dose-day-today">오늘</button>'+
+  '<button type="button" data-act="dose-day-next" aria-label="다음날 복용 기록">›</button></div></div>';
  const summary='<div class="ill-dose-stats"><div>복용 완료<strong>'+totalTaken+'회</strong></div>'+
   '<div>미복용 기록<strong>'+skipped+'회</strong></div>'+
   '<div>실제 기록<strong>'+entries.length+'건</strong></div></div>';
@@ -1034,9 +1033,12 @@ function feverHeat(c,feedback=""){
    (visitDays[date]?'<span class="ill-hospital-pin" aria-hidden="true">🏥</span>':'')+
    '<strong>'+(v===undefined?"·":v.toFixed(1))+'</strong></button>';
  }
- return card("체온 · 열 히트맵",
-  '<div class="ill-heat-head"><button type="button" data-act="month-prev" aria-label="이전 달">‹</button><strong>'+y+'년 '+m+'월</strong>'+
-   '<button type="button" data-act="month-next" aria-label="다음 달">›</button></div>'+
+ return '<section class="ill-card ill-month-card">'+
+  '<div class="ill-month-heading tab-period-head"><h3>체온 · 열 히트맵</h3>'+
+  '<div class="tab-period-actions"><span class="tab-period-label">'+y+'년 '+m+'월</span>'+
+  '<div class="sleep-map-nav"><button type="button" data-act="month-prev" aria-label="이전 달">‹</button>'+
+  '<button type="button" class="sleep-go-today" data-act="temp-today">오늘</button>'+
+  '<button type="button" data-act="month-next" aria-label="다음 달">›</button></div></div></div>'+
   '<div class="ill-heat-grid">'+cells+'</div>'+
   '<div class="ill-temp-legend"><span>미측정</span><span>37.5 미만</span><span>37.5~37.9</span><span>38~38.9</span><span>39 이상</span><span class="ill-hospital-legend">🏥 병원 방문</span></div>'+
   (visitDays[temperatureDay]?'<div class="ill-visit-on-day"><strong>🏥 선택 날짜 진료 '+visitDays[temperatureDay]+'건</strong>'+
@@ -1044,7 +1046,7 @@ function feverHeat(c,feedback=""){
      '<p>'+E(displayTime(v.at))+' · '+E(v.hospital)+(v.diagnosis?' · '+E(v.diagnosis):'')+'</p>').join("")+
    '</div>':'')+
   temperatureTrend(c,feedback)+
-  '<p class="ill-muted">달력에서 날짜를 누르면 해당 날짜의 체온 그래프와 측정 이력을 볼 수 있습니다. 색상은 그날의 최고 실측 체온입니다.</p>');
+  '<p class="ill-muted">달력에서 날짜를 누르면 해당 날짜의 체온 그래프와 측정 이력을 볼 수 있습니다. 색상은 그날의 최고 실측 체온입니다.</p></section>';
 }
 function closure(c){
  if(!c||c.status==="closed")return "";
@@ -1073,12 +1075,11 @@ function syncPanel(){
  const conflicts=Object.keys(model.conflicts).length;
  const label=connected?"서버 연결됨":"서버 확인 필요";
  return '<details class="ill-utilities"'+(noticeError||conflicts?' open':'')+'>'+
-  '<summary><strong>기록 백업·동기화</strong><small>'+E(label)+' · 대기 '+count+'건'+
+  '<summary><strong>기록 저장·동기화 상태</strong><small>'+E(label)+' · 대기 '+count+'건'+
   (conflicts?' · 충돌 '+conflicts+'건':'')+'</small></summary>'+
   '<div class="ill-utilities-body"><p class="'+(noticeError?'ill-alert':'ill-muted')+'" role="status">'+E(notice)+'</p>'+
   '<p class="ill-muted">기기에 우선 저장하고 기존 Google Sheets와 동기화합니다.</p>'+
-  '<div class="ill-row-actions"><button type="button" data-act="backup">기기 JSON 백업</button>'+
-  '<button type="button" data-act="refresh">서버 재조회</button></div></div></details>';
+  '</div></details>';
 }
 function conflictsView(){
  const ids=Object.keys(model.conflicts);if(!ids.length)return "";
@@ -1091,10 +1092,13 @@ function render(){
  hydrate();active=true;root=document.getElementById("main");if(!root)return;
  const c=current(),feedback=lastActionFeedback?
   '<p class="ill-entry-feedback" role="status">'+E(lastActionFeedback)+'</p>':"";
- root.innerHTML='<div class="ill-root"><div class="ill-heading panel-head">'+
-  '<div class="ill-heading-copy"><h2>유하 질병 기록</h2>'+
-  '<p>체온 · 복용 · 처방 · 질병 경과</p></div>'+
+ root.innerHTML='<div class="ill-root"><div class="ill-heading panel-head tab-panel-head">'+
+  '<div class="ill-heading-copy tab-panel-heading"><h2 class="panel-title">유하 질병 기록</h2>'+
+  '<span class="count">체온 · 복용 · 처방 · 질병 경과</span></div>'+
   '<button type="button" class="history-export-trigger" data-act="export-illness-xml">XML 기록 추출</button></div>'+
+  '<div class="tab-utility-bar" role="group" aria-label="질병 기록 보호 도구">'+
+  '<button type="button" data-act="backup">기기 원본 백업</button>'+
+  '<button type="button" data-act="refresh">서버 기록 다시 조회</button></div>'+
   illnessSelect()+
   (c?recordHeading(c)+
     // Record where the data is reviewed: temperature immediately below its
