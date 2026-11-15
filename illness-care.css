@@ -2,6 +2,15 @@
 .ill-root{display:flex;flex-direction:column;gap:13px;color:#243544}
 .ill-heading h2{font-size:20px;line-height:1.25;margin:0 0 5px;letter-spacing:-.4px}
 .ill-heading p{font-size:12px;color:#64788b;margin:0}
+/* Match the XML export placement used by the sleep tab's panel-head. */
+.ill-heading.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;margin-bottom:3px}
+.ill-heading-copy{min-width:0;flex:1 1 auto}
+.ill-heading .history-export-trigger{flex:0 0 auto;align-self:center;margin-left:auto}
+@media(max-width:340px){
+ .ill-heading.panel-head{gap:6px}
+ .ill-heading h2{font-size:18px}
+ .ill-heading .history-export-trigger{padding:7px 8px;font-size:10px}
+}
 .ill-card{background:#fff;border:1px solid #dae5ef;border-radius:16px;padding:15px 13px;min-width:0}
 .ill-card h3{font-size:15px;font-weight:800;margin:0 0 12px;color:#29546b}
 .ill-card h4{font-size:13px;margin:8px 0 0}
