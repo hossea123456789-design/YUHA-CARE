@@ -176,6 +176,8 @@ function lock(){
 function lockMarkup(){
  const keys=["1","2","3","4","5","6","7","8","9","지우기","0","⌫"];
  return '<div class="mental-root mental-locked">'+
+   '<div class="panel-head tab-panel-head"><div class="tab-panel-heading"><h2 class="panel-title">아내 회복</h2>'+
+   '<span class="count">비공개 기록 · 잠금 상태</span></div></div>'+
    '<section class="sleep-card mental-lock-card">'+
      '<div class="mental-lock-icon" aria-hidden="true">✳</div>'+
      '<h2>아내 회복 · 비공개 기록</h2>'+
@@ -1375,9 +1377,11 @@ function view(){
  const [y,m]=month.split("-").map(Number),s=summary();
  const warning=s.t.delta===null?"이번 주와 지난주에 각각 4일 이상 기록되면 비교합니다.":
  (s.t.delta>=0?"지난주보다 "+fixed(s.t.delta*10)+"점 높습니다.":"지난주보다 "+fixed(Math.abs(s.t.delta)*10)+"점 낮습니다.");
- return '<div class="mental-root"><div class="panel-head"><div><h2 class="panel-title">아내 회복</h2>'+
+ return '<div class="mental-root"><div class="panel-head tab-panel-head"><div class="tab-panel-heading"><h2 class="panel-title">아내 회복</h2>'+
   '<span class="count">Wife Mental Recovery · 개인 기록</span></div>'+
   '<button type="button" class="history-export-trigger" id="mentalHistoryExport">XML 기록 추출</button></div>'+
+  '<div class="tab-utility-bar" role="group" aria-label="회복 기록 보호 도구">'+
+  '<button type="button" id="mentalExportBackup">기기 원본 백업</button></div>'+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
   identityNoticeHTML()+
@@ -1386,9 +1390,8 @@ function view(){
   husbandLetterHTML()+
   mainSummary()+
   '<div class="mental-actions-row"><a href="#mentalToday" class="mental-primary-action" id="mentalJumpToday">오늘 기록</a>'+
-  '<button type="button" class="mental-primary-action" id="mentalExportBackup">기기 원본 백업</button>'+
   '<span>'+E(warning)+'</span></div>'+
-  '<section class="sleep-card mental-month-card"><div class="mental-section-head"><h3>'+y+'년 '+m+'월 · 상태 히트맵</h3>'+
+  '<section class="sleep-card mental-month-card"><div class="mental-section-head tab-period-head"><h3>'+y+'년 '+m+'월 · 상태 히트맵</h3>'+
     '<div class="sleep-map-nav"><button type="button" data-month-step="-1" aria-label="이전 달">‹</button>'+
     '<button type="button" data-month-step="0" class="sleep-go-today">오늘</button>'+
     '<button type="button" data-month-step="1" aria-label="다음 달">›</button></div></div>'+
