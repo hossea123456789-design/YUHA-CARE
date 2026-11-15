@@ -857,8 +857,13 @@ function intake(at,status='taken',extra={}){
   "a stale prefilled timestamp can be refreshed with one tap");
  assert(html.includes('value="legacy:imed_legacy_quick"'),
   "previously saved individual medicines can be recorded from the primary form");
- assert(html.indexOf("XML 기록 추출")>html.indexOf("복용 내역 · 시간별 서머리"),
-  "infrequently used XML control belongs in utilities, not above daily actions");
+ const xmlPosition=html.indexOf('class="history-export-trigger" data-act="export-illness-xml"');
+ assert(xmlPosition>=0&&xmlPosition<html.indexOf("체온 · 열 히트맵"),
+  "illness XML download is in the top-right header, matching the sleep record tab");
+ assert.equal((html.match(/data-act="export-illness-xml"/g)||[]).length,1,
+  "XML button is only at the top, not duplicated under backup and sync");
+ assert(html.includes('class="ill-heading panel-head"'),
+  "illness title uses the same panel-head layout as the sleep tab");
  const preview={textContent:""};
  const select={name:"groupId",selectedOptions:[{dataset:{drugs:"기존 개별 시럽 2.25mL"}}],
   closest(){return {querySelector:()=>preview}}};
