@@ -132,3 +132,24 @@ jobs:
           grep -q 'window.YuhaMentalDiagnostics' "$diagtmp" || { echo "Missing published device diagnostics"; exit 1; }
           echo "PASS published device diagnostic script ($(wc -c < "$diagtmp") bytes)"
           rm -f "$diagtmp"
+
+          # Confirm the actual publicly served HTML contains last-tab restore logic,
+          # not merely that deployment was accepted or static assets were uploaded.
+          pageurl="${base%/}/index.html?deploy=${GITHUB_SHA}"
+          pagetmp="$(mktemp)"
+          page_ok=0
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --location --connect-timeout 12 --max-time 20 --output "$pagetmp" "$pageurl" \
+                && grep -q 'yuha_care_last_tab_device_v1' "$pagetmp" \
+                && grep -q 'function readLastVisitedTab()' "$pagetmp"; then
+              page_ok=1
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$page_ok" != 1 ]]; then
+            echo "Published index.html does not yet contain last-tab restore code: $pageurl" >&2
+            exit 1
+          fi
+          echo "PASS deployed index.html contains device-local last-tab restoration"
+          rm -f "$pagetmp"
