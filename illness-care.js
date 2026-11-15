@@ -1078,7 +1078,6 @@ function syncPanel(){
   '<div class="ill-utilities-body"><p class="'+(noticeError?'ill-alert':'ill-muted')+'" role="status">'+E(notice)+'</p>'+
   '<p class="ill-muted">기기에 우선 저장하고 기존 Google Sheets와 동기화합니다.</p>'+
   '<div class="ill-row-actions"><button type="button" data-act="backup">기기 JSON 백업</button>'+
-  '<button type="button" data-act="export-illness-xml">XML 기록 추출</button>'+
   '<button type="button" data-act="refresh">서버 재조회</button></div></div></details>';
 }
 function conflictsView(){
@@ -1092,8 +1091,10 @@ function render(){
  hydrate();active=true;root=document.getElementById("main");if(!root)return;
  const c=current(),feedback=lastActionFeedback?
   '<p class="ill-entry-feedback" role="status">'+E(lastActionFeedback)+'</p>':"";
- root.innerHTML='<div class="ill-root"><div class="ill-heading"><h2>유하 질병 기록</h2>'+
+ root.innerHTML='<div class="ill-root"><div class="ill-heading panel-head">'+
+  '<div class="ill-heading-copy"><h2>유하 질병 기록</h2>'+
   '<p>체온 · 복용 · 처방 · 질병 경과</p></div>'+
+  '<button type="button" class="history-export-trigger" data-act="export-illness-xml">XML 기록 추출</button></div>'+
   illnessSelect()+
   (c?recordHeading(c)+
     // Record where the data is reviewed: temperature immediately below its
