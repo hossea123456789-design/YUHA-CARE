@@ -1400,7 +1400,7 @@ function view(){
   '<div class="mental-legend">'+[["critical","0~2.9"],["low","3~4.4"],["watch","4.5~5.9"],["stable","6~7.4"],["good","7.5~10"],["empty","미기록"]].map(([l,t])=>
     '<span><i class="mental-legend-dot mental-'+l+'"></i>'+t+'</span>').join('')+'</div>'+
   '<p class="mental-muted">빈 날은 감점하지 않습니다. 달력 중앙 숫자는 100점 환산 점수입니다.</p></section>'+
-  '<section class="sleep-card mental-matrix-card"><div class="mental-section-head"><h3>지표별 주간 히트맵</h3>'+
+  '<section class="sleep-card mental-matrix-card"><div class="mental-section-head tab-period-head"><h3>지표별 주간 히트맵</h3>'+
    '<div class="sleep-map-nav"><button type="button" data-week-step="-1" aria-label="이전 주">‹</button>'+
    '<button type="button" data-week-step="0" class="sleep-go-today">이번 주</button>'+
    '<button type="button" data-week-step="1" aria-label="다음 주">›</button></div></div>'+
