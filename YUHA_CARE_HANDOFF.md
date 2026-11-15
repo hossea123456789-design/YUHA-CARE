@@ -1183,3 +1183,11 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - **기기별 분리:** 키는 브라우저의 동일 출처 localStorage에만 있고 `CLIENT_CACHE_KEY`, Google Sheets `CHECKLIST_DB`, Apps Script 데이터, 서버 동기화 값으로 전송하거나 합치지 않는다. 동일 기기에서도 브라우저 프로필 또는 앱 데이터 저장 공간이 다르면 별개이며, 사이트 데이터 삭제/시크릿 세션에서는 첫 탭으로 복귀할 수 있음.
 - **변경 파일:** `index.html`, `README.md`, `tests/last-visited-tab.test.js`, `.github/workflows/pages.yml`, 본 MD. 새 회귀 테스트는 기기 2개 분리, 새로고침 복원, 최초/잘못된 탭·스토리지 실패 폴백, PIN 잠금 및 질병 타이머 정리, 설정 '탭 보기', 체크리스트/회복 등 캐시 프리뷰와 잘못된 탭 플래시 방지를 검증한다.
 - **배포/검증 경계:** 기존 GitHub Pages `main` 자동 배포 대상의 프런트엔드 변경. 이 기능으로 Apps Script 웹앱 새 버전 배포, DB 컬럼 변경, 과거 기록 복구 작업은 필요하지 않다. JS/DOM 합성 회귀 테스트 및 CI 실행, 실제 GitHub Actions `conclusion=success`, 삼성 모바일의 실제 열람은 서로 별도 판정하고, 확인하지 않은 단계는 성공이라고 기록하지 않는다.
+
+
+## 62. 2026-11-15 — 마지막 탭 기능의 실제 배포 실패 원인 수정
+
+- **재현:** 사용자 기기에서 마지막 탭 복원이 적용되지 않고 항상 첫 체크리스트 화면으로 진입. 최신 `main` 커밋 `5ab712ae91fdcf9f6dc988e80ba481213b69f5fa`의 실제 GitHub Actions push run `43669134303`은 `conclusion=failure`이며 Pages 배포 단계까지 도달하지 못함. 단순 GitHub 코드 반영을 배포 성공으로 간주하면 안 된다는 사례.
+- **실패 원인 확인:** `Verify artwork paths and integrity before publishing` 단계의 `node tests/illness-care.test.js`가 `TypeError: tabs.querySelector is not a function`으로 실패. §61에서 추가한 `renderTabs()` 초기 선택 탭 가시성 정렬이 실제 브라우저 DOM의 `querySelector`를 사용하는 것은 정상이나, 기존 데스크톱 휠 회귀 테스트의 `tabs` 모의 객체에 해당 메서드가 누락되어 있었음. 실제 화면 오류가 아니라 **테스트 모의 DOM 불일치 → CI 배포 중단**이 직접 원인.
+- **최소 수정:** `tests/illness-care.test.js`의 `testPcWheelNavigationHasOverflowGuard`에서 모의 tabs에 `querySelector('.tab-btn.active')`를 제공하고 해당 테스트는 `tabOrder: []`이므로 null 반환. 운영 `index.html`의 탭 기억·렌더·PIN·기록 로직 및 Apps Script/Google Sheets는 변경하지 않음.
+- **검증 원칙:** 해당 테스트 수정의 최종 `main` 푸시 run에서 전체 CI 테스트와 GitHub Pages 배포, 사후 smoke test의 `conclusion=success`를 확인해야 실제 서비스 반영을 판정할 수 있다. 이후 동일 기기/브라우저에서 다른 탭을 선택→닫기→같은 주소로 다시 열어 복원 확인. 이 절 추가 시점에 실제 모바일 사용자 QA는 미완료.
