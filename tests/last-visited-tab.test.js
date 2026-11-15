@@ -71,6 +71,8 @@ function browser(store,opts={}){
 }
 assert(/activateTab\(document\.getElementById\("sectionTabSelect"\)\.value\)/.test(html),
  "Settings Tab View must save last tab using the same navigation path");
+assert(html.includes('tabs.dataset.initialTabAligned="true"'),
+ "Restored right-hand tab must be brought into view in mobile horizontal navigation");
 assert(/if \(!activateTab\(tabKey\)\) return;/.test(html),
  "Normal tab buttons must use shared persisted navigation");
 
