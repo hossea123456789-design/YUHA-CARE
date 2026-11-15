@@ -331,3 +331,10 @@
 .mental-score-trend b{color:#355f4b;font-variant-numeric:tabular-nums}
 .mental-score-row[data-score-row="ease"]{border-color:#adddc0;background:#f4faf6}
 .mental-formula-note{margin:10px 1px 0;line-height:1.6}
+
+
+/* Shared tab heading sits at top even when the recovery PIN screen is locked. */
+.mental-locked{justify-content:flex-start}
+.mental-locked>.tab-panel-head{width:100%}
+.mental-root>.tab-panel-head{margin:0}
+.mental-root>.tab-utility-bar{margin:0}
