@@ -7,7 +7,7 @@ const script=fs.readFileSync("history-export.js","utf8");
 {
  const mental=fs.readFileSync("mental.js","utf8");
  const page=fs.readFileSync("index.html","utf8");
- const header=mental.indexOf('<div class="panel-head tab-panel-head"><div class="tab-panel-heading"><h2 class="panel-title">아내 회복</h2>');
+ const header=mental.indexOf('<div class="panel-head tab-panel-head"><div class="tab-panel-heading"><h2 class="panel-title">아내 회복</h2>',mental.indexOf('function view()'));
  const exportButton=mental.indexOf('class="history-export-trigger" id="mentalHistoryExport"');
  const intro=mental.indexOf('<div class="mental-intro">',header);
  const actions=mental.indexOf('<div class="mental-actions-row">',header);
@@ -40,6 +40,7 @@ const script=fs.readFileSync("history-export.js","utf8");
  assert(illness.includes("ill-month-heading tab-period-head"));
  assert(illness.includes('data-act="dose-day-today"')&&illness.includes('data-act="temp-today"'));
  assert(mental.includes("비공개 기록 · 잠금 상태"));
+ assert(!mental.slice(mental.indexOf("function lockMarkup()"),mental.indexOf("function bindLock()")).includes('id="mentalHistoryExport"'),"PIN lock must not render XML export");
  assert(page.includes("design.css?v=20261115-common-tabs-v1"));
  assert(page.includes("illness-care.js?v=20261115-common-tabs-v1"));
  console.log("PASS all tab header/export, backup and date navigation control positions");
