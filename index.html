@@ -1046,6 +1046,17 @@
         tabs.appendChild(button);
       });
       tabs.scrollLeft=previousScrollLeft;
+      // 새로고침으로 우측 탭을 복원해도 상단 메뉴에서 선택 탭이 보이도록 1회 정렬합니다.
+      if (!tabs.dataset.initialTabAligned) {
+        const active=tabs.querySelector(".tab-btn.active");
+        if (active) {
+          const item=active.getBoundingClientRect(),menu=tabs.getBoundingClientRect();
+          if (item.left<menu.left || item.right>menu.right) {
+            tabs.scrollLeft+=item.left+item.width/2-menu.left-menu.width/2;
+          }
+        }
+        tabs.dataset.initialTabAligned="true";
+      }
     }
 
     function getAllItems(tabKey) {
