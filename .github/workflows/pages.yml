@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 concurrency:
@@ -89,6 +90,26 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public-site
+      - name: Wait for uploaded Pages artifact to become discoverable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 15); do
+            artifact_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" \\
+              --jq '.artifacts[] | select(.name == "github-pages") | .id' 2>/dev/null || true)"
+            if [[ "$artifact_id" =~ ^[0-9]+$ ]]; then
+              echo "Pages artifact indexed: $artifact_id"
+              # Give Pages deployment metadata a moment to converge after upload.
+              sleep 3
+              break
+            fi
+            if [[ "$attempt" == 15 ]]; then
+              echo "Pages artifact not indexed after repeated checks" >&2
+              exit 1
+            fi
+            sleep 5
+          done
       - id: deployment
         uses: actions/deploy-pages@v4
       - name: Smoke test published envelope artwork
