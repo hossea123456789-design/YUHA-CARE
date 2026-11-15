@@ -1,7 +1,7 @@
 # YUHA-CARE 전체 구현·운영·작업 인수인계서
 
 > **중요: 다음 작업 세션을 위한 시작 문서 (Single Source of Handoff)**  
-> 문서 기준일: **2026-11-15 (KST)** — 전체 탭 공통 제목·도구·날짜 이동 UI 배치 통일  
+> 문서 기준일: **2026-11-15 (KST)** — 기기별 마지막 열람 탭 자동 복원  
 > 정본 코드: GitHub 저장소 `hossea123456789-design/YUHA-CARE`, `main` 브랜치  
 > 정본 화면: https://hossea123456789-design.github.io/YUHA-CARE/  
 > 목적: 이전 대화를 보지 못하는 개발자/ChatGPT 세션도 현재 구현, 판단 배경, 배포 방법, 미해결 이슈를 이해하고 **기존 데이터를 보존하며 동일 프로젝트를 이어서 개발**하도록 한다.
@@ -1171,3 +1171,15 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - **기능 보존:** 체크리스트 4개 탭 하단 체크 해제 버튼, 설정 관리 동작, 수면 시간표·회복 입력/편지·질병 체온과 복약·처방의 기존 순서 유지. 기기·서버 원본, pending, PIN, Google Sheets와 `apps-script/Code.gs`, API 주소 변경 없음. Apps Script 재배포 불필요.
 - **수정 파일:** `index.html`, `design.css`, `mental.js`, `mental.css`, `illness-care.js`, `illness-care.css`, `tests/history-export-ui.test.js`, 본 MD. CSS/JS 캐시는 최종 `20261115-common-tabs-v2`로 갱신.
 - **QA 및 배포:** 동적 화면의 공통 클래스/위치, 각 버튼 단일 인스턴스, 원래 이벤트 연결, XML 잠금 노출, 날짜 이동 제어를 `tests/history-export-ui.test.js`로 회귀 검사. GitHub `main` 자동 배포는 후속 최종 커밋의 Actions 결과를 기준으로 별도 확인. 실제 사용자 휴대폰 시각·동작 검증과 운영 Apps Script 상태를 GitHub CI와 혼동하지 않는다.
+
+
+## 61. 2026-11-15 — 기기·브라우저별 마지막으로 열었던 탭 복원
+
+- **사용자 불편:** 앱을 새로 열 때마다 `daycare`(유하 체크리스트)부터 표시되어 매번 수면·회복·질병 등의 마지막 사용 탭을 다시 선택해야 함. 사용자 의도는 각 기기에서 **마지막으로 실제 열어 둔 탭을 다시 열기**이며 Google Sheets를 통한 모든 기기의 탭 선택 동기화가 아님.
+- **원인:** `index.html`의 `currentTab = "daycare"` 하드코딩 및 캐시 스냅샷의 `daycare`만 먼저 그리는 초기 렌더. 앱 재실행·새로고침 시 마지막 탭을 읽거나 저장하는 코드는 없었음.
+- **설계·구현:** `index.html`의 독립 기기 로컬 키 `yuha_care_last_tab_device_v1`에 유효한 탭 키 한 개만 `localStorage`로 기록. 지원 값 `daycare,sleep,mental,illness,outing,daily,weekly,settings`만 허용. `readLastVisitedTab()`이 최초 로드에서 저장값을 읽고, 없거나 알 수 없는 탭이면 `daycare`로 복귀. `rememberLastVisitedTab()`은 유효한 탭으로 **사용자가 실제 이동했을 때만** 쓰며, 렌더·서버 응답·체크리스트 저장 과정에서는 덮어쓰지 않음. 저장 공간 거부/예외 시에도 탭 탐색은 유지.
+- **탭 전환 일원화:** 공통 `activateTab()`이 탭 클릭과 설정 탭의 '탭 보기' 이동을 모두 처리해 로컬 선호를 기록. 기존 회복→다른 탭 이동 시 `YuhaMental.lock()`, 질병→다른 탭 이동 시 `YuhaIllness.stop()` 생명주기 유지. 기존 수면·회복·질병 데이터/서버 API 불변.
+- **첫 화면의 잘못된 미리보기 방지:** Apps Script 연결 이전 실행되는 기기 캐시 프리뷰도 같은 마지막 탭 로컬 키를 먼저 읽도록 수정. 체크리스트 4개 탭은 선택 탭의 저장 캐시를 즉시 보여주고, 수면·아내 회복·질병·설정은 유하 체크리스트가 잠깐 나타나는 현상을 막기 위해 해당 탭 제목+로딩 안내만 보여준 뒤 기존 실제 `render()` 경로에서 로컬 기록·PIN 화면을 그린다. 체크리스트 캐시가 없더라도 저장된 탭에 맞는 초기 로딩 제목을 노출. 회복 기록은 PIN 잠금을 해제하지 않으며 초기 프리뷰에 민감 기록을 직접 삽입하지 않음.
+- **기기별 분리:** 키는 브라우저의 동일 출처 localStorage에만 있고 `CLIENT_CACHE_KEY`, Google Sheets `CHECKLIST_DB`, Apps Script 데이터, 서버 동기화 값으로 전송하거나 합치지 않는다. 동일 기기에서도 브라우저 프로필 또는 앱 데이터 저장 공간이 다르면 별개이며, 사이트 데이터 삭제/시크릿 세션에서는 첫 탭으로 복귀할 수 있음.
+- **변경 파일:** `index.html`, `README.md`, `tests/last-visited-tab.test.js`, `.github/workflows/pages.yml`, 본 MD. 새 회귀 테스트는 기기 2개 분리, 새로고침 복원, 최초/잘못된 탭·스토리지 실패 폴백, PIN 잠금 및 질병 타이머 정리, 설정 '탭 보기', 체크리스트/회복 등 캐시 프리뷰와 잘못된 탭 플래시 방지를 검증한다.
+- **배포/검증 경계:** 기존 GitHub Pages `main` 자동 배포 대상의 프런트엔드 변경. 이 기능으로 Apps Script 웹앱 새 버전 배포, DB 컬럼 변경, 과거 기록 복구 작업은 필요하지 않다. JS/DOM 합성 회귀 테스트 및 CI 실행, 실제 GitHub Actions `conclusion=success`, 삼성 모바일의 실제 열람은 서로 별도 판정하고, 확인하지 않은 단계는 성공이라고 기록하지 않는다.
