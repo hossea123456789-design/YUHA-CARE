@@ -1,7 +1,7 @@
 # YUHA-CARE 전체 구현·운영·작업 인수인계서
 
 > **중요: 다음 작업 세션을 위한 시작 문서 (Single Source of Handoff)**  
-> 문서 기준일: **2026-11-15 (KST)** — 아내 회복 XML 추출 버튼의 탭 공통 헤더 배치  
+> 문서 기준일: **2026-11-15 (KST)** — 전체 탭 공통 제목·도구·날짜 이동 UI 배치 통일  
 > 정본 코드: GitHub 저장소 `hossea123456789-design/YUHA-CARE`, `main` 브랜치  
 > 정본 화면: https://hossea123456789-design.github.io/YUHA-CARE/  
 > 목적: 이전 대화를 보지 못하는 개발자/ChatGPT 세션도 현재 구현, 판단 배경, 배포 방법, 미해결 이슈를 이해하고 **기존 데이터를 보존하며 동일 프로젝트를 이어서 개발**하도록 한다.
@@ -1158,3 +1158,15 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - **배포·캐시:** `index.html`의 `mental.js` 버전을 `20261115-mental-xml-header-v2`로 갱신. `tests/history-export-ui.test.js`에 헤더 내 버튼 1개, 기존 클릭 이벤트 유지, 캐시 키 회귀 검사를 추가. `main` 직접 커밋 후 Pages 자동 배포 대상.
 - **데이터/API:** 프런트엔드 위치 수정뿐이다. Google Apps Script `Code.gs`, Google Sheets 스키마·실기록, PIN, 로컬 저장소·pending, 기타 탭 데이터는 수정하지 않았다. 이번 작업을 위한 Apps Script 재배포는 불필요하다.
 - **검증 구분:** 코드 문자열 기반 구조/이벤트/캐시 회귀 테스트는 CI에 포함. 실 삼성 모바일의 시각적 정렬과 다운로드 동작은 운영 기기에서 별도 확인 대상이며, 이를 완료로 간주하지 않는다. 최종 GitHub Actions Pages 실행 성공 여부는 실제 run의 결론을 기준으로 판정한다.
+
+
+## 60. 2026-11-15 — 전체 탭에서 공통 성격 UI의 위치 통일
+
+- **요청 및 범위:** 아내 회복 탭의 XML 추출 버튼뿐 아니라 모든 탭의 제목, 설명, 기록 추출, 백업/서버 재조회, 날짜 이동 UI 위치를 대조해 동일 역할은 동일한 슬롯에 배치한다. 얼집·외출·매일 청소·주말 청소·수면 기록·아내 회복(잠금·해제)·질병 기록·설정 총 8개 탭 검토.
+- **상단 제목:** 모든 탭 렌더에 `panel-head tab-panel-head`, `tab-panel-heading`, `panel-title`, `count`를 재사용. 기존 질병 탭만 별도 `h2/p` 스타일이어서 공통 제목/보조 설명으로 변경. 회복 PIN 잠금 화면에도 상단 제목만 공통 위치에 노출하며, 민감한 XML·백업 버튼은 계속 잠금 해제 뒤에만 표시.
+- **XML 추출:** 수면·회복·질병 모두 제목 오른쪽의 `history-export-trigger`. 회복은 기존 위치 이전 작업(§59) 유지. XML 데이터 생성기, 항목·기한·기기/서버 버전 표기 및 PIN 권한 규칙은 수정하지 않음.
+- **원본 보호 도구:** 수면·회복·질병 탭의 기기 원본 백업을 모두 제목 바로 아래 `tab-utility-bar`로 이동. 수면·질병 서버 재조회도 해당 줄로 이동하여 중복 제거. 아내 회복은 원래 PIN 로그인 시 자동 동기화하므로 임의 서버 갱신 동작 추가 없음. 수면 상단 '기존 기록 보호·조회 상태' 카드와 질병 하단 접힘식 기록 저장·동기화 상태 설명, 회복의 개인정보 설명은 유지.
+- **기간 선택:** 수면 월간 히트맵 및 회복 월간 히트맵은 기존 `이전/오늘/다음`을 `tab-period-head` 패턴으로 통일. 질병 월간 체온 히트맵은 카드 헤더 왼쪽에 제목, 우측에 월과 이전/오늘/다음 버튼을 배치. 질병 복약 날짜 이동도 왼쪽에 날짜, 오른쪽에 이전/오늘/다음. 질병의 오늘 버튼은 기존 `temp-today`·`dose-day-today` 이벤트를 재사용하며 새 날짜/기록 저장 로직은 추가하지 않는다.
+- **기능 보존:** 체크리스트 4개 탭 하단 체크 해제 버튼, 설정 관리 동작, 수면 시간표·회복 입력/편지·질병 체온과 복약·처방의 기존 순서 유지. 기기·서버 원본, pending, PIN, Google Sheets와 `apps-script/Code.gs`, API 주소 변경 없음. Apps Script 재배포 불필요.
+- **수정 파일:** `index.html`, `design.css`, `mental.js`, `mental.css`, `illness-care.js`, `illness-care.css`, `tests/history-export-ui.test.js`, 본 MD. CSS/JS 캐시는 `20261115-common-tabs-v1`로 갱신.
+- **QA 및 배포:** 동적 화면의 공통 클래스/위치, 각 버튼 단일 인스턴스, 원래 이벤트 연결, XML 잠금 노출, 날짜 이동 제어를 `tests/history-export-ui.test.js`로 회귀 검사. GitHub `main` 자동 배포는 후속 최종 커밋의 Actions 결과를 기준으로 별도 확인. 실제 사용자 휴대폰 시각·동작 검증과 운영 Apps Script 상태를 GitHub CI와 혼동하지 않는다.
