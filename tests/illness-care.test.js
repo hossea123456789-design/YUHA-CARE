@@ -755,7 +755,8 @@ function intake(at,status='taken',extra={}){
  const source=html.match(/    function renderTabs\(\) \{[\s\S]*?^    \}/m);
  assert(source,"tab navigation handler should exist");
  const tabs={dataset:{},scrollLeft:0,scrollWidth:800,clientWidth:300,
-  innerHTML:"",listeners:{},addEventListener(name,fn){this.listeners[name]=fn}};
+  innerHTML:"",listeners:{},addEventListener(name,fn){this.listeners[name]=fn},
+  querySelector(selector){assert.equal(selector,".tab-btn.active");return null;}};
  const document={getElementById(id){assert.equal(id,"tabs");return tabs}};
  const fn=vm.runInNewContext("("+source[0].replace("function renderTabs()","function()")+")",
   {document,tabOrder:[],currentTab:"illness",data:{},TAB_ICONS:{},window:{},render(){}});
