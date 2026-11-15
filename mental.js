@@ -1382,6 +1382,7 @@ function view(){
   '<button type="button" class="history-export-trigger" id="mentalHistoryExport">XML 기록 추출</button></div>'+
   '<div class="tab-utility-bar" role="group" aria-label="회복 기록 보호 도구">'+
   '<button type="button" id="mentalExportBackup">기기 원본 백업</button></div>'+
+  cloudPanel()+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
   identityNoticeHTML()+
@@ -1409,7 +1410,6 @@ function view(){
     sparkline("하루 종합 점수",r=>scoresOf(r)?.mental??null,"#527cae")+
    '<p class="mental-muted">하나의 종합 점수만 표시합니다. 이전·신규 계산 방식이 바뀐 날짜는 추세 해석에 주의하세요. 미기록은 0점이 아닙니다.</p></section>'+
   '<section class="sleep-card mental-input-card" id="mentalToday">'+dateEditor()+'</section>'+
-  cloudPanel()+
   '<p class="mental-footer">이 점수는 개인 baseline과 장기 변화 관찰을 위한 참고값입니다. 낮은 점수가 모성애나 양육 능력을 뜻하지 않습니다. 지속적인 어려움이 있다면 의료·상담 전문가의 도움을 고려할 수 있습니다.</p>'+
   '</div>';
 }
