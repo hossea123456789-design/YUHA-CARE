@@ -1099,6 +1099,7 @@ function render(){
   '<div class="tab-utility-bar" role="group" aria-label="질병 기록 보호 도구">'+
   '<button type="button" data-act="backup">기기 원본 백업</button>'+
   '<button type="button" data-act="refresh">서버 기록 다시 조회</button></div>'+
+  syncPanel()+
   illnessSelect()+
   (c?recordHeading(c)+
     // Record where the data is reviewed: temperature immediately below its
@@ -1111,7 +1112,6 @@ function render(){
     visitForm(c):
     card("기록이 없습니다",'<p class="ill-muted">아래 질병 관리에서 신규 질병을 등록하세요.</p>')+
     diseaseManagementPanel(null))+
-  syncPanel()+
   conflictsView()+'</div>';
  root.dataset.illnessEpisode=selected||"";
  if(!root.dataset.illnessBound){root.dataset.illnessBound="true";
