@@ -180,7 +180,7 @@ function lockMarkup(){
    '<span class="count">비공개 기록 · 잠금 상태</span></div></div>'+
    '<section class="sleep-card mental-lock-card">'+
      '<div class="mental-lock-icon" aria-hidden="true">✳</div>'+
-     '<h2>아내 회복 · 비공개 기록</h2>'+
+     '<h3>비공개 기록 잠금 해제</h3>'+
      '<p>숫자 4자리를 입력하면 자동으로 잠금이 해제됩니다.</p>'+
      '<form id="mentalUnlockForm" autocomplete="off">'+
        '<label for="mentalPinInput">잠금 비밀번호</label>'+
