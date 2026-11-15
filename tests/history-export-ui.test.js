@@ -36,7 +36,11 @@ const script=fs.readFileSync("history-export.js","utf8");
  assert.equal((illness.match(/data-act="backup"/g)||[]).length,1);
  assert.equal((illness.match(/data-act="refresh"/g)||[]).length,1);
  assert(page.includes("sleep-card-title tab-period-head"));
+ assert(page.includes('tab-period-head"><span>${weekTitle} 수면 입력</span>'),
+  "Sleep week navigation belongs in shared period header");
  assert(mental.includes("mental-section-head tab-period-head"));
+ assert(mental.includes('mental-section-head tab-period-head"><h3>지표별 주간 히트맵</h3>'),
+  "Recovery week navigation shares common placement");
  assert(illness.includes("ill-month-heading tab-period-head"));
  assert(illness.includes('data-act="dose-day-today"')&&illness.includes('data-act="temp-today"'));
  assert(mental.includes("비공개 기록 · 잠금 상태"));
