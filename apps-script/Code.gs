@@ -16,11 +16,11 @@ function doGet(e) {
   ).setTitle(APP_TITLE + ' · DB API');
 }
 
-function getAppData() {
+function getAppData(forceFresh) {
   const cache = CacheService.getScriptCache();
   const cachedPayload = cache.get(CACHE_KEY);
 
-  if (cachedPayload) {
+  if (cachedPayload && forceFresh !== true) {
     try {
       const parsed = JSON.parse(cachedPayload);
       return {
@@ -72,7 +72,8 @@ function getAppData() {
     return {
       ok: true,
       data: parsedData,
-      updatedAt: updatedAt
+      updatedAt: updatedAt,
+      schemaVersion: CHECKLIST_SYNC_SCHEMA_
     };
   } catch (error) {
     // A malformed or truncated JSON value is NOT an empty database.
