@@ -1993,7 +1993,7 @@
       const baseline=typeof sleepServerMonths!=="undefined"&&sleepServerMonths[key]?
         cleanSleepSnapshot(sleepServerMonths[key],key):{};
       const queue=typeof sleepPending!=="undefined"?sleepPending:[];
-      const pendingKeys=new Set(queue.filter(op=>op.date!=="@profile").map(op=>sleepOpId(op)));
+      const pendingKeys=new Set(queue.filter(op=>op.date!=="@profile").map(op=>op.date+"|"+op.field));
       const combined={},mismatches=[];let refreshed=0;
       for(const day of new Set([...Object.keys(server),...Object.keys(device)])){
         const incoming=server[day]||{},stored=device[day]||{};
