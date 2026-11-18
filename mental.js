@@ -109,7 +109,7 @@ let month=viewing.slice(0,7),cloudCode="",cloudBusy=false,cloudReady=false,cloud
 let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsOpen=false,cloudOpen=false;
 let screen=null,unlocked=false,unlockBusy=false;
 let letterEditing=false,letterEditDate="",letterDraft="",letterBackendSupported=false,mentalEaseBackendSupported=false;
-let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0;
+let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0,lastCloudRefreshAt=0;
 const loadedMentalMonths=new Set(),loadingMentalMonths=new Set(); // per-page throttling; not cryptographic brute-force protection.
 const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
 function sha256Fallback(bytes) {
@@ -322,6 +322,23 @@ function archiveBeforeLongerCloudMemo(date,local,server){
   return false;
  }
 }
+function archiveBeforeOtherDeviceRefresh(date,local,server){
+ try{
+  const history=storageRead(CONFLICT_HISTORY,[]);
+  const arr=Array.isArray(history)?history:[];
+  const signature="remote-revision-"+date+"-"+String(server.revision||"");
+  if(!arr.some(x=>x.signature===signature)){
+   arr.push({signature,date,reason:"other_device_revision_updated",
+    createdAt:new Date().toISOString(),local:normalize(date,local),server:normalize(date,server)});
+   localStorage.setItem(CONFLICT_HISTORY,JSON.stringify(arr.slice(-35)));
+  }
+  return true;
+ }catch(err){
+  storageOkay=false;
+  traceMental("CLOUD_PROMOTION_BACKUP_FAILED",{date,reason:"remote_revision_backup"});
+  return false;
+ }
+}
 function mergeCloudMonth(incoming){
  archiveMental("before-cloud-read");
  for(const [date,value] of Object.entries(incoming||{})){
@@ -352,6 +369,21 @@ function mergeCloudMonth(incoming){
      locallyProtectedDates.add(date);
      protectedServerRows[date]=server;
     }
+    continue;
+   }
+   // A row carrying an earlier verified server revision, with no queued
+   // device edits, is a stale copy after another phone's successful save.
+   // Archive before replacing so an unknown legacy local-only edit can be recovered.
+   if(local&&local.revision&&server.revision&&local.revision!==server.revision){
+    if(archiveBeforeOtherDeviceRefresh(date,local,server)){
+     records[date]=server;
+     locallyProtectedDates.delete(date);
+     delete protectedServerRows[date];
+     traceMental("CLOUD_NEWER_REMOTE_APPLIED",{date,revision:server.revision});
+     continue;
+    }
+    locallyProtectedDates.add(date);
+    protectedServerRows[date]=server;
     continue;
    }
    if(localIsRicher(records[date],server)){
@@ -540,6 +572,7 @@ function cloudCall(method,args,onSuccess,onFail){
 }
 function activate(pass){
  if(!pass)return;
+ lastCloudRefreshAt=Date.now();
  mentalEaseBackendSupported=false;
  traceMental('CLOUD_SESSION_START',{localCount:Object.keys(records).length,pendingCount:Object.keys(pending).length});
  letterBackendSupported=false;
@@ -743,7 +776,19 @@ function syncNext(){
   },()=>retry('readback_failed'));
  },()=>retry('save_rpc_failed'));
 }
-window.addEventListener("online",()=>{if(cloudReady)scheduleCloud(300);});
+function refreshCloudRecords(force=false){
+ if(!unlocked||!cloudCode||cloudBusy||cloudSaving)return false;
+ if(!force && Date.now()-lastCloudRefreshAt<15000)return false;
+ activate(cloudCode);
+ return true;
+}
+window.addEventListener("online",()=>{
+ if(cloudReady){scheduleCloud(300);refreshCloudRecords(true);}
+});
+document.addEventListener?.("visibilitychange",()=>{
+ if(document.visibilityState==="visible")refreshCloudRecords();
+});
+window.addEventListener("focus",()=>{refreshCloudRecords();});
 window.addEventListener("pagehide",()=>{
  traceMental('APP_PAGEHIDE',{pendingCount:Object.keys(pending).length,localCount:Object.keys(records).length});
  if(unlocked)saveLocal();
@@ -1381,7 +1426,8 @@ function view(){
   '<span class="count">Wife Mental Recovery · 개인 기록</span></div>'+
   '<button type="button" class="history-export-trigger" id="mentalHistoryExport">XML 기록 추출</button></div>'+
   '<div class="tab-utility-bar" role="group" aria-label="회복 기록 보호 도구">'+
-  '<button type="button" id="mentalExportBackup">기기 원본 백업</button></div>'+
+  '<button type="button" id="mentalExportBackup">기기 원본 백업</button>'+
+  '<button type="button" id="mentalRefreshServer">서버 기록 다시 조회</button></div>'+
   cloudPanel()+
   '<div class="mental-intro"><strong>삶의 여유가 돌아오고 있는지 살펴봅니다.</strong>'+
   '<p>본인이 직접 느낀 회복 상태를 기록하는 공간입니다. 점수로 사람을 평가하거나 심리질환을 진단하지 않습니다.</p></div>'+
@@ -1510,6 +1556,7 @@ function bind(){
  bindSyncSafety();
  bindDiagnostics();
  screen.querySelector("#mentalExportBackup")?.addEventListener("click",exportMentalBackup);
+ screen.querySelector("#mentalRefreshServer")?.addEventListener("click",()=>refreshCloudRecords(true));
  screen.querySelector("#mentalHistoryExport")?.addEventListener("click",openMentalHistoryExport);
  screen.querySelectorAll("[data-month-step]").forEach(b=>b.addEventListener("click",()=>{
   const step=Number(b.dataset.monthStep);
