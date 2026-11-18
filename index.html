@@ -2201,7 +2201,11 @@
         // The change is already saved in the local model. Do not rebuild
         // the observation editor during focus/selection on mobile.
         const mainRoot=document.getElementById("main");
-        if(window.YuhaFormGuard?.isEditing(mainRoot,"sleep")){
+        const wasEditing=window.YuhaFormGuard?.isEditing(mainRoot,"sleep");
+        // Automatically saved observation inputs are no longer unsaved drafts;
+        // however the still-focused control must keep its native DOM node.
+        window.YuhaFormGuard?.finish(mainRoot,"sleep");
+        if(wasEditing){
           updateSleepSummaries();
           updateSleepRecoveryNotice();
         }else renderSleepTab();
