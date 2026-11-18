@@ -154,6 +154,69 @@ const record=(revision,value)=>({
   "the two phones must converge on the same verified server record");
  console.log("PASS illness: simulated husband/wife concurrent edits converge to one result");
 })();
+(function testLegacyPhoneConflictAutomaticallyResolvesAndPurgesDeletedGroups(){
+ const episodeId="ifever_shared";
+ const base=record("2026-11-18T03:00:00.000Z-base",38.2);
+ const remote=record("2026-11-18T06:00:00.000Z-new",38.7);
+ remote.medicationGroups=[
+  {id:"iold_hidden",name:"이전 삭제 묶음",mode:"scheduled",
+   intervalHours:null,timesPerDay:2,days:3,deletedAt:"2026-11-18T03:20:00.000Z",
+   items:[{id:"id_old",name:"삭제한 약",amount:2,unit:"mL"}],events:[]},
+  {id:"inew_drug",name:"실제 최근 처방",mode:"scheduled",
+   intervalHours:null,timesPerDay:2,days:3,deletedAt:"",
+   items:[{id:"id_new",name:"새 약",amount:4,unit:"mL"}],events:[]}
+ ];
+ const local=record("2026-11-18T03:00:00.000Z-base",38.3);
+ local.temperatures.push({id:"iunique_local_temp",at:"2026-11-18T05:30:00.000Z",celsius:36.6,site:"ear"});
+ local.medicationGroups=[
+  {id:"iold_deleted_before",name:"옛날 처방",mode:"scheduled",
+   intervalHours:null,timesPerDay:3,days:3,deletedAt:"",
+   items:[{id:"id_ancient",name:"옛날 약",amount:3,unit:"mL"}],events:[]}
+ ];
+ const oldPending={episode:local,expectedRevision:base.revision};
+ const conflict={local,server:base};
+ const phone=device({
+  yuha_illness_records_v1:JSON.stringify({[episodeId]:local}),
+  yuha_illness_pending_v1:JSON.stringify({[episodeId]:oldPending}),
+  yuha_illness_conflicts_v1:JSON.stringify({[episodeId]:conflict})
+  // No baseline (actual old-client conflict); it previously stayed locked forever.
+ });
+ phone.api.absorbServer({[episodeId]:remote});
+ const merged=phone.model.cases[episodeId],out=phone.model.pending[episodeId];
+ assert.equal(Object.keys(phone.model.conflicts).length,0,"persisted conflict flag must clear");
+ assert(out,"merged unsent readings need a new outbound pending job");
+ assert.equal(out.expectedRevision,remote.revision,"retry must use current cloud revision");
+ assert.equal(merged.temperatures.length,2,"unique unsent reading must survive");
+ assert.equal(merged.temperatures[0].celsius,38.7,"untracked duplicate uses verified latest cloud");
+ assert(merged.temperatures.some(v=>v.id==="iunique_local_temp"));
+ assert.deepEqual(Array.from(merged.medicationGroups.map(g=>g.id)),["inew_drug"],
+  "deleted archived groups and local stale groups may not reappear");
+ assert.equal(JSON.parse(phone.store.get("yuha_illness_pending_v1"))[episodeId].expectedRevision,
+  remote.revision,"legacy reconciliation must persist new queue before sync");
+ const phone2=device();
+ phone2.api.absorbServer({[episodeId]:{...merged,revision:"2026-11-18T06:01:00.000Z-written"}});
+ phone.api.absorbServer({[episodeId]:{...merged,revision:"2026-11-18T06:01:00.000Z-written"}});
+ assert.equal(Object.keys(phone.model.pending).length,0,"write acknowledgement clears old local queue");
+ assert.equal(Object.keys(phone.model.conflicts).length,0);
+ assert.equal(JSON.stringify(phone.model.cases[episodeId]),
+  JSON.stringify(phone2.model.cases[episodeId]),
+  "both phones must show exactly the same server-verified result");
+ console.log("PASS illness: screenshot-style old pending/conflict auto-recovers, purges old groups and converges both devices");
+})();
+(function testAutoPurgeServerTombstonesWithNoExistingPhoneConflict(){
+ const remote=record("2026-11-18T06:00:00.000Z-new",37.5);
+ remote.medicationGroups=[{id:"iold_group",name:"삭제한 묶음",mode:"scheduled",
+  intervalHours:null,timesPerDay:2,days:3,deletedAt:"2026-11-18T01:30:00.000Z",
+  items:[{id:"i_old",name:"예전 약",amount:2,unit:"mL"}],events:[]}];
+ const phone=device();
+ phone.api.absorbServer({[remote.id]:remote});
+ assert.equal(phone.model.cases[remote.id].medicationGroups.length,0,
+  "never show deleted prescription as current list");
+ assert.equal(phone.model.pending[remote.id].expectedRevision,remote.revision,
+  "automatic server cleanup must queue a write with latest revision");
+ assert.equal(phone.model.pending[remote.id].episode.medicationGroups.length,0);
+ console.log("PASS illness: old archived prescriptions automatically cleaned from shared server");
+})();
 (function testMentalRefreshAndStateVisibility(){
  assert(mental.includes("function refreshCloudRecords(force=false)"));
  assert(mental.includes('document.addEventListener?.("visibilitychange"'));
