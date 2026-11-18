@@ -275,6 +275,73 @@ function setConflict(id,server){
  model.conflicts[id]={local,server:normalize(server)};
  persist();
 }
+// Reconcile only changes that do not touch the same field or record.
+// Base is the last verified server copy; no blind two-way/last-write-wins merge.
+function mergeEpisodeSafe(base,local,remote){
+ if(!base||!local||!remote||base.id!==local.id||local.id!==remote.id)return null;
+ const b=normalize(base),l=normalize(local),r=normalize(remote);
+ b.revision="";l.revision="";r.revision="";
+ const equal=(a,c)=>JSON.stringify(a)===JSON.stringify(c);
+ const copy=v=>v===undefined?undefined:clone(v);
+ const isObject=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
+ function resolve(before,ours,theirs){
+  if(equal(ours,before))return copy(theirs);
+  if(equal(theirs,before))return copy(ours);
+  if(equal(ours,theirs))return copy(ours);
+  if(Array.isArray(before)&&Array.isArray(ours)&&Array.isArray(theirs)){
+   const byId=arr=>{
+    if(!arr.every(row=>isObject(row)&&typeof row.id==="string"&&row.id))
+     throw Error("레코드 식별자 누락");
+    const map=new Map(arr.map(row=>[row.id,row]));
+    if(map.size!==arr.length)throw Error("레코드 식별자 중복");
+    return map;
+   };
+   const old=byId(before),a=byId(ours),b=byId(theirs),ids=new Set([...old.keys(),...a.keys(),...b.keys()]);
+   const out=[];
+   for(const id of ids){
+    const next=resolve(old.get(id),a.get(id),b.get(id));
+    if(next!==undefined)out.push(next);
+   }
+   return out;
+  }
+  if(isObject(before)&&isObject(ours)&&isObject(theirs)){
+   const out={},keys=new Set([...Object.keys(before),...Object.keys(ours),...Object.keys(theirs)]);
+   for(const key of keys){
+    const next=resolve(before[key],ours[key],theirs[key]);
+    if(next!==undefined)out[key]=next;
+   }
+   return out;
+  }
+  throw Error("동일 항목의 서로 다른 수정");
+ }
+ try{
+  const value=resolve(b,l,r);
+  if(!value)return null;
+  value.revision=remote.revision;
+  return normalize(value);
+ }catch{return null;}
+}
+// Keep pending edits and the remote copy intact unless both can be merged.
+function mergePendingOnRemote(id,remote){
+ const job=model.pending[id],local=model.cases[id],baseline=model.serverBaseline[id];
+ if(!job||!local||!baseline||!baseline.revision||
+    String(job.expectedRevision||"")!==String(baseline.revision||""))return false;
+ const merged=mergeEpisodeSafe(baseline,local,remote);
+ if(!merged)return false;
+ const prev={record:local,pending:job,baseline,conflict:model.conflicts[id]};
+ recordSnapshot("verified-three-way-merge",{baseline,local,remote});
+ model.cases[id]=merged;
+ model.pending[id]={episode:clone(merged),expectedRevision:remote.revision};
+ model.serverBaseline[id]=clone(remote);
+ delete model.conflicts[id];
+ if(!persist()){
+  model.cases[id]=prev.record;model.pending[id]=prev.pending;
+  model.serverBaseline[id]=prev.baseline;
+  if(prev.conflict)model.conflicts[id]=prev.conflict;
+  return false;
+ }
+ return true;
+}
 function absorbServer(incoming){
  let refreshed=0;
  for(const [id,raw] of Object.entries(incoming||{})){
@@ -288,17 +355,21 @@ function absorbServer(incoming){
    if(sameData(pending.episode,remote)){
     model.cases[id]={...normalize(model.cases[id]),revision:remote.revision};
     delete model.pending[id];delete model.conflicts[id];
-   }else if(String(pending.expectedRevision||"")!==String(remote.revision||""))setConflict(id,remote);
-   model.serverBaseline[id]=clone(remote);
+    model.serverBaseline[id]=clone(remote);
+   }else if(String(pending.expectedRevision||"")!==String(remote.revision||"")){
+    if(mergePendingOnRemote(id,remote))refreshed++;
+    else setConflict(id,remote);
+    // Preserve the merge base when unresolved. Replacing it with remote
+    // would make it impossible to compare what both phones changed.
+   }else model.serverBaseline[id]=clone(remote);
    continue;
   }
   if(sameData(local,remote)){
    model.cases[id]=remote;delete model.conflicts[id];
    model.serverBaseline[id]=clone(remote);continue;
   }
-  const knownClean=baseline?(
-   String(local.revision||"")===String(baseline.revision||"")&&sameData(local,baseline)
-  ):Boolean(local.revision);
+  const knownClean=!!baseline&&
+   String(local.revision||"")===String(baseline.revision||"")&&sameData(local,baseline);
   if(knownClean){
    // A previously synchronized, unedited device copy is stale. Adopt the
    // newer cloud version and archive its former contents before replacing it.
@@ -341,9 +412,10 @@ async function connect(){
  }
  if(epoch===syncEpoch&&connected)await pushPending();
 }
-async function pushPending(){
+async function pushPending(retries=0){
  if(!connected||busy)return;
  busy=true;
+ let retryMerged=false;
  for(const id of Object.keys(model.pending)){
   if(model.conflicts[id]&&!model.pending[id]?.resolution)continue;
   const job=model.pending[id];if(!job?.episode)continue;
@@ -354,8 +426,13 @@ async function pushPending(){
     ...(job.resolution?{resolution:job.resolution}:{})
    }]);
    if(response?.conflict){
-    if(response.serverEntry)setConflict(id,response.serverEntry);
-    notice="서버·기기 기록 충돌 · 양쪽 원본을 보존했습니다";noticeError=true;continue;
+    if(response.serverEntry&&mergePendingOnRemote(id,normalize(response.serverEntry))){
+     retryMerged=true;notice="양쪽 기기의 겹치지 않는 수정 사항을 합쳤습니다 · 서버 저장 재시도";noticeError=false;
+    }else{
+     if(response.serverEntry)setConflict(id,response.serverEntry);
+     notice="서버·기기 기록 충돌 · 양쪽 원본을 보존했습니다";noticeError=true;
+    }
+    continue;
    }
    if(!response?.ok)throw Error("서버가 저장을 승인하지 않았습니다");
    if(job.resolution&&!response.conflictArchived)throw Error("양쪽 원본 보관 미확인");
@@ -375,6 +452,7 @@ async function pushPending(){
   }catch(e){notice="원본 보존 중 · 서버 저장 확인 필요: "+String(e?.message||e);noticeError=true;break;}
  }
  busy=false;if(active)render();
+ if(retryMerged&&connected&&active&&retries<2)void pushPending(retries+1);
 }
 function chooseConflict(id,choice){
  const c=model.conflicts[id];if(!c)return;
@@ -1699,5 +1777,5 @@ document.addEventListener?.("visibilitychange",()=>{
 });
 window.addEventListener("focus",refreshIllnessOnReturn);
 window.YuhaIllness={render,stop,model,
- _test:{normalize,guidance,groupGuidance,dailyMedicationEvents,medicationTimeline,parsePrescriptionJson,prescriptionExample,prescriptionChatRequest,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
+ _test:{normalize,guidance,groupGuidance,dailyMedicationEvents,medicationTimeline,parsePrescriptionJson,prescriptionExample,prescriptionChatRequest,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,mergeEpisodeSafe,mergePendingOnRemote,absorbServer,connect,pushPending}};
 })();
