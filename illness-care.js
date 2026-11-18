@@ -195,14 +195,32 @@ function recordSnapshot(why,content){
  model.snapshots.push({reason:why,at:nowIso(),content:clone(content)});
  while(model.snapshots.length>12||JSON.stringify(model.snapshots).length>400000)model.snapshots.shift();
 }
+// Record the time of each local field change in the durable pending queue.
+function changedFields(before,after,oldClocks={},time=nowIso()){
+ const clocks={...oldClocks},equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+ function walk(a,b,path){
+  if(equal(a,b))return;
+  if(Array.isArray(a)&&Array.isArray(b)&&[...a,...b].every(v=>v&&typeof v==="object"&&typeof v.id==="string")){
+   const old=new Map(a.map(v=>[v.id,v])),newer=new Map(b.map(v=>[v.id,v]));
+   for(const id of new Set([...old.keys(),...newer.keys()]))walk(old.get(id),newer.get(id),path+"/"+id);
+  }else if(a&&b&&typeof a==="object"&&typeof b==="object"&&!Array.isArray(a)&&!Array.isArray(b)){
+   for(const key of new Set([...Object.keys(a),...Object.keys(b)])){
+    if(key!=="revision")walk(a[key],b[key],path+"/"+key);
+   }
+  }else clocks[path]=time;
+ }
+ walk(before,after,"");
+ return clocks;
+}
 function changeCase(id,modifier,feedback=""){
  const before=model.cases[id];if(!before)return;
  recordSnapshot("before-edit",before);
  const value=clone(before);modifier(value);
- const next=normalize(value),old=model.pending[id];
+ const next=normalize(value),old=model.pending[id],editedAt=nowIso();
  model.cases[id]=next;
  model.pending[id]={episode:clone(next),
   expectedRevision:old?.expectedRevision??before.revision??"",
+  editedAt,editedFields:changedFields(before,next,old?.editedFields||{},editedAt),
   ...(old?.resolution?{resolution:old.resolution}:{})};
  const saved=persist();if(saved){
   if(feedback)lastActionFeedback=feedback;
