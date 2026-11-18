@@ -518,6 +518,7 @@
     let serverUpdatedAt = "";
     let checklistDirty = false;
     let checklistGuardSupported = false;
+    let lastChecklistReadAt = 0;
     let checklistVersion = 0;
     let checklistSaving = false;
     let checklistSaveQueued = false;
@@ -832,6 +833,7 @@
           }
           showAppProgress("checklist-read","목록 업데이트 완료","done");
           checklistGuardSupported=Number(result.schemaVersion)>=2;
+          lastChecklistReadAt=Date.now();
           const incomingAt = result.updatedAt || "";
           if (checklistDirty) {
             if(!checklistGuardSupported){
@@ -1068,6 +1070,9 @@
       currentTab = tabKey;
       rememberLastVisitedTab(tabKey);
       render();
+      if(tabKey==="sleep"&&data&&Date.now()-sleepLastVisibleRefreshAt>12000)fetchSleepMonth(true);
+      if(["daycare","outing","daily","weekly","settings"].includes(tabKey)&&
+        data&&Date.now()-lastChecklistReadAt>12000&&!checklistLoading)loadFromServer();
       return true;
     }
     function renderTabs() {
@@ -1893,6 +1898,7 @@
     let sleepPending = readSleepPending();
     let sleepConflicts = [];
     let sleepAutoSyncScheduled = false;
+    let sleepLastVisibleRefreshAt = 0;
     let sleepSyncTimer = null;
     let sleepSessionOnline = false;
     let sleepServerNap2Ready = false;
@@ -2146,6 +2152,7 @@
         .getSleepMonth(year,month);
     }
     function fetchSleepMonth(force=false) {
+      sleepLastVisibleRefreshAt=Date.now();
       const visible=new Set([sleepMonthKey(sleepViewYear,sleepViewMonth)]);
       const prev=shiftSleepDate(`${sleepViewYear}-${String(sleepViewMonth).padStart(2,"0")}-01`,-1);
       visible.add(sleepMonthOfDate(prev));
@@ -3506,13 +3513,22 @@
         loadFromServer();
       }
     });
+    function refreshSharedTabsAfterReturn(){
+      if(!navigator.onLine||!data)return;
+      if(!checklistLoading&&Date.now()-lastChecklistReadAt>15000)loadFromServer();
+      if(currentTab==="sleep"&&Date.now()-sleepLastVisibleRefreshAt>15000)
+        fetchSleepMonth(true);
+    }
     document.addEventListener("visibilitychange",()=>{
       if(document.visibilityState==="hidden"){
         if(checklistDirty)saveClientCache();
-      }else if(checklistDirty && navigator.onLine){
-        queueChecklistSave(Math.max(0,CHECKLIST_SAVE_IDLE_MS-(Date.now()-Math.max(checklistLastChangeAt,checklistLastInteractionAt))));
+      }else{
+        if(checklistDirty && navigator.onLine)
+          queueChecklistSave(Math.max(0,CHECKLIST_SAVE_IDLE_MS-(Date.now()-Math.max(checklistLastChangeAt,checklistLastInteractionAt))));
+        refreshSharedTabsAfterReturn();
       }
     });
+    window.addEventListener("focus",refreshSharedTabsAfterReturn);
     window.addEventListener("pagehide",()=>{
       if(checklistDirty)saveClientCache();
     });
