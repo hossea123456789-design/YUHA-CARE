@@ -25,7 +25,8 @@ function browser(store,opts={}){
  const sandbox={localStorage,window:{
   YuhaMental:{lock(){calls.locks++;}},
   YuhaIllness:{stop(){calls.stops++;}}
- }};
+ },sleepLastVisibleRefreshAt:0,lastChecklistReadAt:Date.now(),
+ checklistLoading:false,data:null,fetchSleepMonth(){},loadFromServer(){}};
  const api=vm.runInNewContext(
   'function render(){window.__renders=(window.__renders||0)+1;}\n'+
   init+'\n'+activate+
