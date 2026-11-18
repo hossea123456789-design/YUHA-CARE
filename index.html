@@ -521,6 +521,7 @@
     // Persist the last verified server payload, not just its revision. This
     // is the common ancestor for non-destructive three-way reconciliation.
     let checklistServerBaseline = null;
+    let checklistCheckedEditTimes = {};
     let checklistRefreshAfterSave = false;
     let checklistDirty = false;
     let checklistGuardSupported = false;
@@ -720,6 +721,8 @@
         data = normalizeData(parsed.data);
         serverUpdatedAt = parsed.updatedAt || "";
         checklistServerBaseline = parsed.serverBaseData || null;
+        checklistCheckedEditTimes = parsed.checkedEditTimes&&typeof parsed.checkedEditTimes==="object"?
+          parsed.checkedEditTimes:{};
         checklistDirty = parsed.dirty === true;
         if(checklistDirty&&parsed.lastChangeAt)
           checklistLastChangeAt = Number(parsed.lastChangeAt)||Date.parse(parsed.cachedAt||"")||0;
@@ -737,6 +740,7 @@
         localStorage.setItem(CLIENT_CACHE_KEY,JSON.stringify({
           data,updatedAt:serverUpdatedAt||"",dirty:checklistDirty,
           serverBaseData:checklistServerBaseline,
+          checkedEditTimes:checklistCheckedEditTimes,
           lastChangeAt:checklistLastChangeAt,
           cachedAt:new Date().toISOString()
         }));
@@ -866,6 +870,7 @@
             // Cloud content equality confirms the pending device copy.
             checklistDirty=false;
             checklistSaveQueued=false;
+            checklistCheckedEditTimes={};
             serverUpdatedAt=incomingAt;
             checklistServerBaseline=JSON.parse(JSON.stringify(remote));
             checklistServerChecked=true;
@@ -886,7 +891,8 @@
               const reconciled=window.YuhaChecklistReconcile.reconcile(
                 checklistServerBaseline,data,remote,{
                   localEditAt:checklistLastChangeAt?new Date(checklistLastChangeAt).toISOString():"",
-                  serverRevision:incomingAt
+                  serverRevision:incomingAt,
+                  checkedEdits:checklistCheckedEditTimes
                 });
               if(reconciled.changedLocal){
                 data=normalizeData(reconciled.data);
@@ -960,6 +966,14 @@
         else loadFromServer();
       },delay);
     }
+    function markChecklistCheckedEdit(itemId) {
+      if(!itemId)return;
+      checklistCheckedEditTimes[itemId]=Date.now();
+      // Keep the short dirty history bounded, even after old migrations.
+      const ordered=Object.entries(checklistCheckedEditTimes)
+        .sort((a,b)=>Number(b[1])-Number(a[1]));
+      if(ordered.length>256)checklistCheckedEditTimes=Object.fromEntries(ordered.slice(0,256));
+    }
     function scheduleSave() {
       // Checkbox/checklist mutations are committed to the device immediately.
       // Keep focused inputs intact, but release stale draft locks after blur.
@@ -994,6 +1008,7 @@
       clearChecklistRetry();
       const savingVersion=checklistVersion;
       const snapshot=JSON.parse(JSON.stringify(data));
+      const sentCheckedEdits={...checklistCheckedEditTimes};
       setSaveStatus("서버에 자동 저장 중","saving");
       showAppProgress("checklist-save","체크리스트 저장 중","busy");
       const failed = (message)=>{
@@ -1041,6 +1056,10 @@
             checklistServerBaseline=JSON.parse(JSON.stringify(snapshot));
             checklistServerChecked=true;
             checklistRetryCount=0;
+            // Clear only the edits included in this verified server write.
+            // A new click during flight has a different timestamp and survives.
+            for(const [id,stamp] of Object.entries(sentCheckedEdits))
+              if(checklistCheckedEditTimes[id]===stamp)delete checklistCheckedEditTimes[id];
             clearChecklistRetry();
             if(checklistVersion!==savingVersion || checklistSaveQueued){
               checklistDirty=true;
@@ -1299,6 +1318,7 @@
         if (!found) return;
         found.item.checked = checkbox.checked;
         updateChecklistCheckUI(row,sectionId,found.item.checked);
+        markChecklistCheckedEdit(item.id);
         scheduleSave();
       });
 
@@ -1311,6 +1331,7 @@
         if (!found) return;
         found.item.checked = !found.item.checked;
         updateChecklistCheckUI(row,sectionId,found.item.checked);
+        markChecklistCheckedEdit(item.id);
         scheduleSave();
       });
 
