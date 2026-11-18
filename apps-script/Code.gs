@@ -4,6 +4,7 @@ const README_SHEET_NAME = 'README';
 const DATA_KEY = 'checklist';
 const CACHE_KEY = 'checklist_payload_v1';
 const CACHE_TTL_SECONDS = 21600;
+const CHECKLIST_SYNC_SCHEMA_ = 2; // Locked compare-and-swap; fail closed on stale clients.
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.bridge === '1') return serveYuhaBridge_(e);
@@ -26,7 +27,8 @@ function getAppData() {
         ok: true,
         data: parsed.data,
         updatedAt: parsed.updatedAt || '',
-        fromCache: true
+        fromCache: true,
+        schemaVersion: CHECKLIST_SYNC_SCHEMA_
       };
     } catch (error) {
       cache.remove(CACHE_KEY);
@@ -58,7 +60,8 @@ function getAppData() {
     return {
       ok: true,
       data: defaultData,
-      updatedAt: now
+      updatedAt: now,
+      schemaVersion: CHECKLIST_SYNC_SCHEMA_
     };
   }
 
@@ -72,41 +75,38 @@ function getAppData() {
       updatedAt: updatedAt
     };
   } catch (error) {
-    const defaultData = getDefaultData_();
-    const now = new Date().toISOString();
-    saveRawData_(defaultData, now);
-    cache.put(CACHE_KEY, JSON.stringify({ data: defaultData, updatedAt: now }), CACHE_TTL_SECONDS);
-
-    return {
-      ok: true,
-      data: defaultData,
-      updatedAt: now,
-      recovered: true
-    };
+    // A malformed or truncated JSON value is NOT an empty database.
+    // Never replace the user's checklist with defaults during a read.
+    throw new Error('CHECKLIST_DB의 JSON을 읽을 수 없습니다. 원본을 유지하고 백업을 확인하세요.');
   }
 }
 
 function saveAppData(payload) {
   setupSpreadsheet_();
-
-  if (!payload || !payload.data) {
-    throw new Error('저장할 데이터가 없습니다.');
+  if (!payload || !payload.data || !Object.prototype.hasOwnProperty.call(payload,'updatedAt')) {
+    throw new Error('체크리스트 서버 저장 안전버전(v2)이 필요합니다. 원본은 변경하지 않았습니다.');
   }
-
-  const now = new Date().toISOString();
-
-  saveRawData_(payload.data, now);
-
-  CacheService.getScriptCache().put(
-    CACHE_KEY,
-    JSON.stringify({ data: payload.data, updatedAt: now }),
-    CACHE_TTL_SECONDS
-  );
-
-  return {
-    ok: true,
-    updatedAt: now
-  };
+  const expected = String(payload.updatedAt || '');
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(5000))return {ok:false,busy:true,message:'다른 기기가 저장 중입니다. 다시 시도해 주세요.'};
+  try {
+    const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DB_SHEET_NAME);
+    const rows=sheet.getDataRange().getValues();
+    const found=rows.slice(1).find(row=>String(row[0]||'')===DATA_KEY);
+    const currentRevision=found?String(found[2]||''):'';
+    if(currentRevision!==expected){
+      return {ok:true,conflict:true,updatedAt:currentRevision,
+        schemaVersion:CHECKLIST_SYNC_SCHEMA_,revisionGuardApplied:true};
+    }
+    // The server, not a stale browser cache, is the authority for a write.
+    const now=new Date().toISOString()+'-'+Utilities.getUuid().slice(0,8);
+    saveRawData_(payload.data,now);
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().put(
+      CACHE_KEY,JSON.stringify({data:payload.data,updatedAt:now}),CACHE_TTL_SECONDS);
+    return {ok:true,updatedAt:now,
+      schemaVersion:CHECKLIST_SYNC_SCHEMA_,revisionGuardApplied:true};
+  }finally{lock.releaseLock();}
 }
 
 function resetServerData() {
