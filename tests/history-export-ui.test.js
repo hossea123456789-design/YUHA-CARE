@@ -52,7 +52,7 @@ const script=fs.readFileSync("history-export.js","utf8");
   "Illness sync details must follow top tools, before record content");
  assert(!mental.slice(mental.indexOf("function lockMarkup()"),mental.indexOf("function bindLock()")).includes('id="mentalHistoryExport"'),"PIN lock must not render XML export");
  assert(page.includes("design.css?v=20261115-common-tabs-v1"));
- assert(page.includes("illness-care.js?v=20261118-legacy-conflict-recovery-v4"));
+ assert(page.includes("illness-care.js?v=20261118-editor-guard-v5"));
  console.log("PASS all tab header/export, backup and date navigation control positions");
 }
 
