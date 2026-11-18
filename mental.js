@@ -110,6 +110,8 @@ let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsO
 let screen=null,unlocked=false,unlockBusy=false;
 let letterEditing=false,letterEditDate="",letterDraft="",letterBackendSupported=false,mentalEaseBackendSupported=false;
 let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0,lastCloudRefreshAt=0;
+const MENTAL_SERVER_BASELINE="yuha_mental_last_verified_server_v1";
+const mentalServerBaseline=storageRead(MENTAL_SERVER_BASELINE,{});
 const loadedMentalMonths=new Set(),loadingMentalMonths=new Set(); // per-page throttling; not cryptographic brute-force protection.
 const PIN_HASH="d387d8f016a1e8dd471de17fd837ce101676156ab7d2ec1e395a67d46f3472b0";
 function sha256Fallback(bytes) {
@@ -261,6 +263,7 @@ function saveLocal(){
   localStorage.setItem(STORE,JSON.stringify(records));
   localStorage.setItem(PENDING,JSON.stringify(pending));
   localStorage.setItem(CONFLICT_STORE,JSON.stringify(conflicts));
+  localStorage.setItem(MENTAL_SERVER_BASELINE,JSON.stringify(mentalServerBaseline));
   storageOkay=true;return true;
  }catch(e){storageOkay=false;traceMental('LOCAL_STORAGE_FAILURE',{code:e?.name||'unknown'});console.error("[YUHA MENTAL] Local persistence failed",e);return false}
 }
@@ -343,6 +346,8 @@ function mergeCloudMonth(incoming){
  archiveMental("before-cloud-read");
  for(const [date,value] of Object.entries(incoming||{})){
   const server=normalize(date,value);
+  const priorConfirmed=mentalServerBaseline[date];
+  mentalServerBaseline[date]=server;
   // Old Apps Script v6 cannot represent the new ease score. Protect local
   // originals instead of treating a stripped field as a cloud conflict.
   if(!mentalEaseBackendSupported&&validScore(records[date]?.scores?.ease)){
@@ -374,7 +379,9 @@ function mergeCloudMonth(incoming){
    // A row carrying an earlier verified server revision, with no queued
    // device edits, is a stale copy after another phone's successful save.
    // Archive before replacing so an unknown legacy local-only edit can be recovered.
-   if(local&&local.revision&&server.revision&&local.revision!==server.revision){
+   if(local&&priorConfirmed&&local.revision&&server.revision&&
+      String(local.revision)===String(priorConfirmed.revision||"")&&
+      sameRemoteData(local,priorConfirmed,false)&&local.revision!==server.revision){
     if(archiveBeforeOtherDeviceRefresh(date,local,server)){
      records[date]=server;
      locallyProtectedDates.delete(date);
