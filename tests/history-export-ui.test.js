@@ -47,7 +47,7 @@ const script=fs.readFileSync("history-export.js","utf8");
  assert(mental.indexOf('cloudPanel()+',mental.indexOf("function view()")) <
   mental.indexOf('<div class="mental-intro">',mental.indexOf("function view()")),
   "Recovery sync/privacy panel appears in the same top tools area");
- const illnessRender=illness.slice(illness.indexOf("function render(){"));
+ const illnessRender=illness.slice(illness.indexOf("function render(options={}){"));
  assert(illnessRender.indexOf('syncPanel()+') < illnessRender.indexOf('illnessSelect()+'),
   "Illness sync details must follow top tools, before record content");
  assert(!mental.slice(mental.indexOf("function lockMarkup()"),mental.indexOf("function bindLock()")).includes('id="mentalHistoryExport"'),"PIN lock must not render XML export");
