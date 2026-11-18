@@ -510,6 +510,29 @@ function intake(at,status='taken',extra={}){
  console.log("PASS illness JSON UI: preview, confirmed import, editable copy, fresh IDs/no dose history, dedupe");
 })();
 
+(function testFirstClickJsonAnalysisAndErrorRecovery(){
+ storage.clear();
+ const id="ifirst_click_json",episode={id,title:"발열",onsetAt:"2026-11-18T00:00:00.000Z",
+  status:"active",visits:[],medications:[],medicationGroups:[],temperatures:[]};
+ storage.set("yuha_illness_records_v1",JSON.stringify({[id]:episode}));
+ const e=setup();e.window.YuhaIllness.render();
+ const submit=value=>{
+  const form={dataset:{form:"prescription-json"},values:{prescriptionJson:value}};
+  e.root.handlers.submit({preventDefault(){},target:{closest:()=>form}});
+ };
+ submit("{invalid json");
+ assert(e.root.innerHTML.includes("JSON 형식 오류"),"parsing failure appears immediately inline");
+ assert(e.root.innerHTML.includes("{invalid json"),"raw JSON is retained after parsing failure");
+ const example={schema:"yuha-prescription-import/v1",medications:[
+  {name:"확인 약",doseAmount:2.5,doseUnit:"mL",timesPerDay:2,days:3}]};
+ submit(JSON.stringify(example));
+ assert(e.root.innerHTML.includes("저장 전 확인"),"single click renders preview");
+ assert(e.root.innerHTML.includes("확인한 약 묶음 등록"),"single click exposes registration action");
+ e.window.YuhaIllness.render();
+ assert(e.root.innerHTML.includes("확인한 약 묶음 등록"),"server-triggered rerender retains preview");
+ assert.equal(e.model.cases[id].medicationGroups.length,0,"preview itself does not save");
+ console.log("PASS illness JSON: first-click analysis, in-place parse errors, draft retention and stable preview");
+})();
 (function testVerifiedThreeWayMergeAcrossTwoDevices(){
  storage.clear();
  const id="i3way_test",onsetAt="2026-11-14T00:00:00.000Z";
