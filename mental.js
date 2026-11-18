@@ -1472,6 +1472,7 @@ function render(options={}){
  window.YuhaFormGuard?.bind(screen,"mental");
  if(options.background===true&&window.YuhaFormGuard?.isEditing(screen,"mental"))return;
  const editingDraft=window.YuhaFormGuard?.capture(screen,"mental");
+ const draftDate=screen.querySelector?.("#mentalMemo")?.dataset?.mentalMemoDate||"";
  // Keep a focused memo and its caret when asynchronous server data causes rerender.
  const active=document.activeElement;
  const editingMemo=Boolean(unlocked&&active?.id==="mentalMemo"&&active.isConnected);
@@ -1485,7 +1486,11 @@ function render(options={}){
  }
  if(!unlocked){screen.innerHTML=lockMarkup();bindLock();return;}
  screen.innerHTML=view();
- window.YuhaFormGuard?.restore(screen,editingDraft);
+ // Selecting another date intentionally opens another editor. Never replay
+ // yesterday's unsaved control values into today's record.
+ const newEditorDate=screen.querySelector?.("#mentalMemo")?.dataset?.mentalMemoDate||"";
+ if(draftDate&&draftDate===newEditorDate)
+  window.YuhaFormGuard?.restore(screen,editingDraft);
  bind();
  const restoredDetails=screen.querySelector("#mentalMemoFullDetails");
  if(restoredDetails&&fullMemoOpen)restoredDetails.open=true;
