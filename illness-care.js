@@ -606,7 +606,7 @@ function groupItemRow(item){
   '<select aria-label="투약 단위" name="drugUnit">'+MED_UNITS.map(v=>'<option value="'+v+'"'+(unit===v?" selected":"")+'>'+v+'</option>').join("")+'</select>'+
   '<button type="button" class="ill-minor" data-act="remove-drug-line" aria-label="이 약 입력 줄 삭제">×</button>'+
   '<input class="ill-drug-purpose" aria-label="약의 용도 또는 효능 분류 (복약안내에 적힌 원문)" name="drugPurpose" maxlength="160" '+
-  'placeholder="약 용도·효능 분류 (선택 · 복약안내 원문)" value="'+attr(values.purpose||"")'+'"></div>';
+  'placeholder="약 용도·효능 분류 (선택 · 복약안내 원문)" value="'+attr(values.purpose||"")+'"></div>';
 }
 // A portable transcription contract to paste into another chat with a photo.
 // This example is fictitious and contains no real prescription or patient data.
