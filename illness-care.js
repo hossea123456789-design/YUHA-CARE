@@ -1283,7 +1283,7 @@ function onSubmit(e){
     need(validAmount(amount,unit),"1회량은 소수 둘째 자리까지 입력해 주세요. g 처방 원문은 넷째 자리까지 보존합니다.");
     need(MED_UNITS.includes(unit),"복용 단위를 선택해 주세요");
     return {id:old?.items[i]?.id||newId(),name:String(name).trim(),amount,unit,
-     purpose:cleanText(purposes[i]===undefined?(old?.items[i]?.purpose||""):purposes[i],160).trim()};
+     purpose:cleanText(purposes[i]===undefined?(old?.items[i]?.purpose||copyDraft?.items[i]?.purpose||""):purposes[i],160).trim()};
    });
    const mode=get(form,"mode")==="prn"?"prn":"scheduled",interval=num(get(form,"intervalHours"));
    need(mode==="prn"||interval!==null||old?.timesPerDay||copyDraft?.timesPerDay,"정기 복용 묶음은 처방 간격이 필요합니다. 횟수만 있는 가져오기 기록은 미확인으로 보관합니다.");
