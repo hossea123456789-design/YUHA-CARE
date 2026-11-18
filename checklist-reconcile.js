@@ -1,0 +1,68 @@
+/* Shared checklist conflict reconciliation.
+ * The revision timestamp is not an editor identity. A stale revision alone
+ * must never trigger a "different device" dialog.
+ */
+(function(root){
+"use strict";
+const copy=value=>value===undefined?undefined:JSON.parse(JSON.stringify(value));
+function signature(value){
+ if(value===undefined)return "undefined";
+ if(value===null||typeof value!=="object")return JSON.stringify(value);
+ if(Array.isArray(value))return "["+value.map(signature).join(",")+"]";
+ return "{"+Object.keys(value).sort().map(k=>JSON.stringify(k)+":"+signature(value[k])).join(",")+"}";
+}
+const same=(a,b)=>signature(a)===signature(b);
+function newerLocal(localEditAt,serverRevision){
+ const local=Date.parse(String(localEditAt||""));
+ const server=Date.parse(String(serverRevision||"").slice(0,24));
+ // Legacy device caches had no explicit edit clock. Keep their unsent
+ // checked-state input rather than silently throwing it away.
+ if(!Number.isFinite(local))return true;
+ if(!Number.isFinite(server))return true;
+ return local>=server;
+}
+function reconcile(base,local,remote,options={}){
+ const preferLocal=newerLocal(options.localEditAt,options.serverRevision);
+ let duplicateCollisions=0,independentChanges=0;
+ const object=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
+ function resolve(previous,ours,theirs){
+  if(same(ours,theirs))return copy(ours);
+  if(previous!==undefined){
+   if(same(ours,previous))return copy(theirs);
+   if(same(theirs,previous))return copy(ours);
+  }
+  // Stable record IDs preserve independent checkbox toggles, additions
+  // and structural edits in different sections.
+  if(Array.isArray(ours)&&Array.isArray(theirs) &&
+   (!previous||Array.isArray(previous))&&
+   [...(previous||[]),...ours,...theirs].every(x=>object(x)&&typeof x.id==="string"&&x.id)){
+   const before=new Map((previous||[]).map(x=>[x.id,x]));
+   const left=new Map(ours.map(x=>[x.id,x]));
+   const right=new Map(theirs.map(x=>[x.id,x]));
+   if(before.size!==(previous||[]).length||left.size!==ours.length||right.size!==theirs.length)
+    throw Error("중복된 체크리스트 항목 ID");
+   const order=[...new Set([...theirs.map(x=>x.id),...ours.map(x=>x.id),...before.keys()])];
+   return order.map(id=>{
+    const old=before.get(id),l=left.get(id),r=right.get(id);
+    if(!same(l,r)&&(!old||same(old,l)||same(old,r)))independentChanges++;
+    return resolve(old,l,r);
+   }).filter(x=>x!==undefined);
+  }
+  if(object(ours)&&object(theirs)&&(!previous||object(previous))){
+   const out={};
+   for(const key of new Set([...Object.keys(previous||{}),...Object.keys(theirs),...Object.keys(ours)])){
+    const resolved=resolve(previous?.[key],ours[key],theirs[key]);
+    if(resolved!==undefined)out[key]=resolved;
+   }
+   return out;
+  }
+  // A delete versus a concurrent edit to the same ID is also a collision.
+  duplicateCollisions++;
+  return copy(preferLocal?ours:theirs);
+ }
+ const data=resolve(base===null?undefined:base,local,remote);
+ return {data,changedLocal:!same(data,local),changedServer:!same(data,remote),
+  duplicateCollisions,independentChanges,preferred:preferLocal?"local":"server"};
+}
+root.YuhaChecklistReconcile={reconcile,same,signature,newerLocal};
+})(window);
