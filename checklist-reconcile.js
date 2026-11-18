@@ -23,9 +23,11 @@ function newerLocal(localEditAt,serverRevision){
 }
 function reconcile(base,local,remote,options={}){
  const preferLocal=newerLocal(options.localEditAt,options.serverRevision);
+ const confirmedTime=Date.parse(String(options.serverRevision||"").slice(0,24));
+ const checkedEdits=options.checkedEdits||{};
  let duplicateCollisions=0,independentChanges=0;
  const object=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
- function resolve(previous,ours,theirs){
+ function resolve(previous,ours,theirs,path=""){
   if(same(ours,theirs))return copy(ours);
   // With no common ancestor these are independent additions, not deletes.
   // Always retain an item that exists on only one side.
@@ -51,16 +53,35 @@ function reconcile(base,local,remote,options={}){
    return order.map(id=>{
     const old=before.get(id),l=left.get(id),r=right.get(id);
     if(!same(l,r)&&(!old||same(old,l)||same(old,r)))independentChanges++;
-    return resolve(old,l,r);
+    return resolve(old,l,r,path+"/"+id);
    }).filter(x=>x!==undefined);
   }
   if(object(ours)&&object(theirs)&&(!previous||object(previous))){
    const out={};
    for(const key of new Set([...Object.keys(previous||{}),...Object.keys(theirs),...Object.keys(ours)])){
-    const resolved=resolve(previous?.[key],ours[key],theirs[key]);
+    const resolved=resolve(previous?.[key],ours[key],theirs[key],path+"/"+key);
     if(resolved!==undefined)out[key]=resolved;
    }
    return out;
+  }
+  // A newer edit to this exact checkbox takes precedence. A previous
+  // auto-save can advance the cloud revision without changing this item.
+  // A global "last interaction" timestamp is not sufficient to distinguish
+  // an unedited stale checkbox from a recently toggled one.
+  if(path.endsWith("/checked")&&typeof ours==="boolean"&&typeof theirs==="boolean"){
+   const id=path.split("/").at(-2);
+   const stamp=Number(checkedEdits[id]||0);
+   if(stamp&&Number.isFinite(confirmedTime)){
+    duplicateCollisions++;
+    return copy(stamp>=confirmedTime?ours:theirs);
+   }
+   if(previous===undefined){
+    // Migrating a legacy dirty cache with no per-item edit clock: retain
+    // checked progress on either side. Once we have a baseline, unchecks
+    // are tracked precisely just like checks.
+    duplicateCollisions++;
+    return Boolean(ours||theirs);
+   }
   }
   // A delete versus a concurrent edit to the same ID is also a collision.
   duplicateCollisions++;
