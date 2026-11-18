@@ -419,3 +419,10 @@
  .ill-month-heading{flex-wrap:wrap}
  .ill-month-heading .tab-period-actions{margin-left:auto}
 }
+
+/* Prescription leaflet drug indication: supplementary metadata, never a dose rule. */
+.ill-drug-line .ill-drug-purpose{grid-column:1/-1;font-size:12px!important;padding:8px 10px!important;background:#f7fbfd}
+.ill-medicine-purpose{display:block;margin-top:3px;font-size:11px;line-height:1.5;font-weight:500;color:#658295;white-space:normal;overflow-wrap:anywhere}
+.ill-import-group li>span{min-width:0;overflow-wrap:anywhere}
+.ill-import-group li .ill-medicine-purpose{font-size:10px}
+.ill-drug-list li>span{min-width:0;flex:1}
