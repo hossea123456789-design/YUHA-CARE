@@ -29,6 +29,17 @@ function reconcile(base,local,remote,options={}){
  const object=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
  function resolve(previous,ours,theirs,path=""){
   if(same(ours,theirs))return copy(ours);
+  // A deliberate tap can return a checkbox to its original value. A plain
+  // three-way diff cannot distinguish that from an untouched stale field,
+  // so honor the exact item's recorded tap timestamp before base comparison.
+  if(path.endsWith("/checked")&&typeof ours==="boolean"&&typeof theirs==="boolean"){
+   const id=path.split("/").at(-2);
+   const stamp=Number(checkedEdits[id]||0);
+   if(stamp&&Number.isFinite(confirmedTime)){
+    const remoteChanged=previous===undefined||!same(theirs,previous);
+    if(remoteChanged)return copy(stamp>=confirmedTime?ours:theirs);
+   }
+  }
   // With no common ancestor these are independent additions, not deletes.
   // Always retain an item that exists on only one side.
   if(previous===undefined){
