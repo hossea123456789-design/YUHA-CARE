@@ -293,50 +293,58 @@ function setConflict(id,server){
  model.conflicts[id]={local,server:normalize(server)};
  persist();
 }
-// Reconcile only changes that do not touch the same field or record.
-// Base is the last verified server copy; no blind two-way/last-write-wins merge.
-function mergeEpisodeSafe(base,local,remote){
+// Three-way merge by record ID and field. Independent edits combine;
+// for the same field, the later save wins. Clock ties favor confirmed server.
+function mergeEpisodeSafe(base,local,remote,options={}){
  if(!base||!local||!remote||base.id!==local.id||local.id!==remote.id)return null;
- const b=normalize(base),l=normalize(local),r=normalize(remote);
- b.revision="";l.revision="";r.revision="";
- const equal=(a,c)=>JSON.stringify(a)===JSON.stringify(c);
+ const before=normalize(base),ours=normalize(local),theirs=normalize(remote);
+ before.revision="";ours.revision="";theirs.revision="";
+ const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
  const copy=v=>v===undefined?undefined:clone(v);
- const isObject=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
- function resolve(before,ours,theirs){
-  if(equal(ours,before))return copy(theirs);
-  if(equal(theirs,before))return copy(ours);
-  if(equal(ours,theirs))return copy(ours);
-  if(Array.isArray(before)&&Array.isArray(ours)&&Array.isArray(theirs)){
-   const byId=arr=>{
-    if(!arr.every(row=>isObject(row)&&typeof row.id==="string"&&row.id))
-     throw Error("레코드 식별자 누락");
-    const map=new Map(arr.map(row=>[row.id,row]));
-    if(map.size!==arr.length)throw Error("레코드 식별자 중복");
+ const obj=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
+ const editedFields=options.editedFields||{};
+ const revisionTime=String(remote.revision||"").match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z/)?.[0]||"";
+ const serverClock=Date.parse(revisionTime);
+ const newerLocal=path=>{
+  const localClock=Date.parse(editedFields[path]||options.editedAt||"");
+  return Number.isFinite(localClock)&&Number.isFinite(serverClock)&&localClock>serverClock;
+ };
+ function resolve(a,b,c,path=""){
+  if(equal(b,a))return copy(c);
+  if(equal(c,a))return copy(b);
+  if(equal(b,c))return copy(b);
+  // Removal of a prescription takes priority over an outdated edit from
+  // another phone. Do not resurrect a permanently deleted medicine group.
+  if(path.startsWith("/medicationGroups/")&&(b===undefined||c===undefined))return undefined;
+  if(Array.isArray(a)&&Array.isArray(b)&&Array.isArray(c)){
+   const index=arr=>{
+    if(!arr.every(v=>obj(v)&&typeof v.id==="string"&&v.id))throw Error("기록 ID 누락");
+    const map=new Map(arr.map(v=>[v.id,v]));
+    if(map.size!==arr.length)throw Error("기록 ID 중복");
     return map;
    };
-   const old=byId(before),a=byId(ours),b=byId(theirs),ids=new Set([...old.keys(),...a.keys(),...b.keys()]);
-   const out=[];
-   for(const id of ids){
-    const next=resolve(old.get(id),a.get(id),b.get(id));
-    if(next!==undefined)out.push(next);
+   const old=index(a),l=index(b),r=index(c),output=[];
+   for(const id of new Set([...old.keys(),...l.keys(),...r.keys()])){
+    const merged=resolve(old.get(id),l.get(id),r.get(id),path+"/"+id);
+    if(merged!==undefined)output.push(merged);
    }
-   return out;
+   return output;
   }
-  if(isObject(before)&&isObject(ours)&&isObject(theirs)){
-   const out={},keys=new Set([...Object.keys(before),...Object.keys(ours),...Object.keys(theirs)]);
-   for(const key of keys){
-    const next=resolve(before[key],ours[key],theirs[key]);
-    if(next!==undefined)out[key]=next;
+  if(obj(a)&&obj(b)&&obj(c)){
+   const output={};
+   for(const key of new Set([...Object.keys(a),...Object.keys(b),...Object.keys(c)])){
+    const merged=resolve(a[key],b[key],c[key],path+"/"+key);
+    if(merged!==undefined)output[key]=merged;
    }
-   return out;
+   return output;
   }
-  throw Error("동일 항목의 서로 다른 수정");
+  return newerLocal(path)?copy(b):copy(c);
  }
  try{
-  const value=resolve(b,l,r);
-  if(!value)return null;
-  value.revision=remote.revision;
-  return normalize(value);
+  const merged=resolve(before,ours,theirs);
+  if(!merged)return null;
+  merged.revision=remote.revision;
+  return normalize(merged);
  }catch{return null;}
 }
 // Keep pending edits and the remote copy intact unless both can be merged.
@@ -344,12 +352,13 @@ function mergePendingOnRemote(id,remote){
  const job=model.pending[id],local=model.cases[id],baseline=model.serverBaseline[id];
  if(!job||!local||!baseline||!baseline.revision||
     String(job.expectedRevision||"")!==String(baseline.revision||""))return false;
- const merged=mergeEpisodeSafe(baseline,local,remote);
+ const merged=mergeEpisodeSafe(baseline,local,remote,job);
  if(!merged)return false;
  const prev={record:local,pending:job,baseline,conflict:model.conflicts[id]};
  recordSnapshot("verified-three-way-merge",{baseline,local,remote});
  model.cases[id]=merged;
- model.pending[id]={episode:clone(merged),expectedRevision:remote.revision};
+ model.pending[id]={episode:clone(merged),expectedRevision:remote.revision,
+  editedAt:job.editedAt,editedFields:job.editedFields||{}};
  model.serverBaseline[id]=clone(remote);
  delete model.conflicts[id];
  if(!persist()){
@@ -386,8 +395,11 @@ function absorbServer(incoming){
    model.cases[id]=remote;delete model.conflicts[id];
    model.serverBaseline[id]=clone(remote);continue;
   }
-  const knownClean=!!baseline&&
-   String(local.revision||"")===String(baseline.revision||"")&&sameData(local,baseline);
+  const knownClean=(!!baseline&&
+   String(local.revision||"")===String(baseline.revision||"")&&sameData(local,baseline))||
+   (!baseline&&Boolean(local.revision)&&!pending);
+  // A revision-tagged device cache with no pending changes follows the cloud.
+  // Its previous contents remain in the safety snapshot.
   if(knownClean){
    // A previously synchronized, unedited device copy is stale. Adopt the
    // newer cloud version and archive its former contents before replacing it.
