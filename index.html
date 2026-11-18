@@ -964,11 +964,7 @@
       };
       google.script.run
         .withSuccessHandler(result=>{
-          if(!result?.ok || result.revisionGuardApplied!==true){
-            failed("서버 안전 저장 버전을 확인하지 못했습니다 · 기기 변경 보존");
-            return;
-          }
-          if(result.conflict){
+          if(result?.conflict){
             checklistSaving=false;
             checklistDirty=true;
             checklistServerChecked=false;
@@ -976,6 +972,10 @@
             showAppProgress("checklist-save","다른 기기 변경 감지","pending");
             setSaveStatus("서버 기록이 먼저 변경됨 · 양쪽 원본 확인 필요","error");
             loadFromServer();
+            return;
+          }
+          if(!result?.ok || result.revisionGuardApplied!==true){
+            failed("서버 안전 저장 버전을 확인하지 못했습니다 · 기기 변경 보존");
             return;
           }
           // The write ACK alone does not prove the new data is visible to
