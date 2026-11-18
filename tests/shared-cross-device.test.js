@@ -117,6 +117,43 @@ const record=(revision,value)=>({
   "A remote conflicting edit must be flagged, not silently overwritten");
  console.log("PASS illness: new device sees cloud records, stale clean device refreshes, unsynced edits protected");
 })();
+(function testTwoPhonesConvergeAfterConcurrentEdits(){
+ const base=record("2026-11-18T00:00:00.000Z-v0",38.1);
+ const local=JSON.parse(JSON.stringify(base));
+ local.temperatures[0].celsius=38.5;
+ local.temperatures.push({id:"it_husband",at:"2026-11-18T00:08:00.000Z",celsius:38.0,site:"ear"});
+ const wife=JSON.parse(JSON.stringify(base));
+ wife.temperatures[0].celsius=38.3;
+ wife.temperatures.push({id:"it_wife",at:"2026-11-18T00:09:00.000Z",celsius:37.8,site:"ear"});
+ wife.revision="2026-11-18T00:10:00.000Z-v1";
+ const husband=device({
+  yuha_illness_records_v1:JSON.stringify({[base.id]:local}),
+  yuha_illness_last_verified_server_v1:JSON.stringify({[base.id]:base}),
+  yuha_illness_pending_v1:JSON.stringify({[base.id]:{
+   episode:local,expectedRevision:base.revision,
+   editedAt:"2026-11-18T00:11:00.000Z",
+   editedFields:{"/temperatures/it1/celsius":"2026-11-18T00:11:00.000Z"}
+  }})
+ });
+ const wifePhone=device({
+  yuha_illness_records_v1:JSON.stringify({[base.id]:wife}),
+  yuha_illness_last_verified_server_v1:JSON.stringify({[base.id]:wife})
+ });
+ husband.api.absorbServer({[base.id]:wife});
+ const merged=husband.model.cases[base.id];
+ assert.equal(merged.temperatures[0].celsius,38.5,"later husband edit wins same field");
+ assert.equal(merged.temperatures.length,3,"both phones' separate readings must survive");
+ const published={...merged,revision:"2026-11-18T00:12:00.000Z-v2"};
+ husband.api.absorbServer({[base.id]:published});
+ wifePhone.api.absorbServer({[base.id]:published});
+ assert.equal(Object.keys(husband.model.pending).length,0,"husband upload must be acknowledged");
+ assert.equal(Object.keys(husband.model.conflicts).length,0);
+ assert.equal(Object.keys(wifePhone.model.conflicts).length,0);
+ assert.equal(JSON.stringify(husband.api.normalize(husband.model.cases[base.id])),
+  JSON.stringify(wifePhone.api.normalize(wifePhone.model.cases[base.id])),
+  "the two phones must converge on the same verified server record");
+ console.log("PASS illness: simulated husband/wife concurrent edits converge to one result");
+})();
 (function testMentalRefreshAndStateVisibility(){
  assert(mental.includes("function refreshCloudRecords(force=false)"));
  assert(mental.includes('document.addEventListener?.("visibilitychange"'));
