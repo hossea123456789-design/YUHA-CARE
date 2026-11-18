@@ -406,7 +406,7 @@ function intake(at,status='taken',extra={}){
  const t=setup().test;
  const sample={schema:"yuha-prescription-import/v1",dispensedAt:"2026-11-14",medications:[
   {name:"항생제 A",doseAmount:5,doseUnit:"mL",timesPerDay:2,days:4},
-  {name:"기침 시럽",doseAmount:4,doseUnit:"mL",timesPerDay:3,days:4},
+  {name:"기침 시럽",doseAmount:4,doseUnit:"mL",timesPerDay:3,days:4,purpose:"진해거담제, 기침감기약"},
   {name:"건조 시럽",doseAmount:0.3333,doseUnit:"g",timesPerDay:3,days:4},
   {name:"콧물약 정제",doseAmount:0.25,doseUnit:"정",timesPerDay:3,days:4},
   {name:"소염 시럽",doseAmount:4,doseUnit:"mL",timesPerDay:3,days:3}
@@ -423,6 +423,8 @@ function intake(at,status='taken',extra={}){
  assert(result.groups.every(g=>g.intervalHours===null),"do not invent 12h or 8h");
  assert(result.groups.every(g=>g.events.length===0));
  assert(result.groups.some(g=>g.items.some(i=>i.amount===0.3333&&i.unit==="g")));
+ assert.equal(result.groups.flatMap(g=>g.items).find(i=>i.name==="기침 시럽").purpose,"진해거담제, 기침감기약");
+ assert.equal(result.groups.flatMap(g=>g.items).find(i=>i.name==="건조 시럽").purpose,"");
  const noHours=result.groups.find(g=>g.timesPerDay===2);
  assert.equal(noHours.days,4);
  assert.equal(noHours.items[0].amount,5);
@@ -432,6 +434,8 @@ function intake(at,status='taken',extra={}){
  assert.equal(result2.groups.length,3,"unreferenced medicines are included safely");
  assert.equal(result2.groups[0].name,"아침 저녁");
  assert.throws(()=>t.parsePrescriptionJson("invalid json"),/JSON 형식/);
+ assert.throws(()=>t.parsePrescriptionJson(JSON.stringify({...sample,
+  medications:[{...sample.medications[1],purpose:{"bad":"value"}}]})),/약 용도/);
  assert.throws(()=>t.parsePrescriptionJson(JSON.stringify({
   ...sample,bundleTemplates:[{name:"잘못된 묶음",items:[{name:"항생제 A",amount:4,unit:"mL"}]}]
  })),/일치/);
@@ -450,7 +454,7 @@ function intake(at,status='taken',extra={}){
  e.window.YuhaIllness.render();
  const input={schema:"yuha-prescription-import/v1",dispensedAt:"2026-11-14",
   medications:[
-   {name:"약 1",doseAmount:2.5,doseUnit:"mL",timesPerDay:2,days:4},
+   {name:"약 1",doseAmount:2.5,doseUnit:"mL",timesPerDay:2,days:4,purpose:"진해거담제, 기침감기약"},
    {name:"약 2",doseAmount:0.25,doseUnit:"정",timesPerDay:3,days:4}
   ]};
  const fire=(type,values)=>{
@@ -464,9 +468,12 @@ function intake(at,status='taken',extra={}){
  fire("prescription-json",{prescriptionJson:JSON.stringify(input)});
  assert.equal(e.model.cases[id].medicationGroups.length,0,"preview must not save before confirmation");
  assert(preview.innerHTML.includes("저장 전 확인"));
+ assert(preview.innerHTML.includes("진해거담제, 기침감기약"),"printed indication shown in pre-save review");
  click("confirm-json-import");
  assert.equal(e.model.cases[id].medicationGroups.length,2);
  assert(e.model.cases[id].medicationGroups.every(g=>g.events.length===0));
+ assert(e.root.innerHTML.includes("진해거담제, 기침감기약"),"registered prescription displays the purpose");
+ assert.equal(e.model.cases[id].medicationGroups[0].items[0].purpose,"진해거담제, 기침감기약");
  // Copy a preset, edit the medicine list, then save without copying doses.
  const first=e.model.cases[id].medicationGroups[0];
  const originalId=first.id,originalItemId=first.items[0].id;
@@ -480,6 +487,7 @@ function intake(at,status='taken',extra={}){
  assert.notEqual(copied.id,originalId);
  assert.notEqual(copied.items[0].id,originalItemId);
  assert.equal(copied.events.length,0);
+ assert.equal(copied.items[0].purpose,"진해거담제, 기침감기약","copied prescription retains printed purpose");
  assert.equal(copied.timesPerDay,2);
  assert.equal(copied.intervalHours,null);
  // Second identical JSON import should be detected and not duplicate originals.
@@ -488,6 +496,15 @@ function intake(at,status='taken',extra={}){
  fire("prescription-json",{prescriptionJson:JSON.stringify(input)});
  click("confirm-json-import");
  assert.equal(e.model.cases[id].medicationGroups.length,existing);
+ // A new photo can add previously unrecognized purpose without duplicating prescription or touching doses.
+ const supplemented={...input,medications:input.medications.map(m=>m.name==="약 2"?{...m,purpose:"비염 & 콧물약"}:m)};
+ fire("prescription-json",{prescriptionJson:JSON.stringify(supplemented)});
+ assert(preview.innerHTML.includes("비염 &amp; 콧물약"),"untrusted photo labels are HTML escaped");
+ click("confirm-json-import");
+ assert.equal(e.model.cases[id].medicationGroups.length,existing,"metadata-only reimport never duplicates prescribed drugs");
+ assert.equal(e.model.cases[id].medicationGroups[1].items[0].purpose,"비염 & 콧물약");
+ assert.equal(e.model.cases[id].medicationGroups[0].items[0].purpose,"진해거담제, 기침감기약");
+ assert.equal(JSON.parse(storage.get("yuha_illness_records_v1"))[id].medicationGroups[1].items[0].purpose,"비염 & 콧물약");
  console.log("PASS illness JSON UI: preview, confirmed import, editable copy, fresh IDs/no dose history, dedupe");
 })();
 
@@ -499,7 +516,7 @@ function intake(at,status='taken',extra={}){
  assert.equal(groups.length,2);
  assert(groups.some(g=>g.items.some(i=>i.unit==="g"&&i.amount===0.3333)));
  const prompt=t.prescriptionChatRequest();
- for(const phrase of ["첨부한","약봉투","JSON","timesPerDay","days","0.3333g","반올림","복용","확인 필요"])
+ for(const phrase of ["첨부한","약봉투","JSON","timesPerDay","days","0.3333g","반올림","복용","확인 필요","purpose","진해거담제","추측"])
   assert(prompt.includes(phrase),"missing in request: "+phrase);
  assert(prompt.includes(String.fromCharCode(96).repeat(3)+"json")&&prompt.includes("yuha-prescription-import/v1"),
   "prompt contains fenced valid example");
