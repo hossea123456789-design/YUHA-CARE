@@ -27,6 +27,12 @@ function reconcile(base,local,remote,options={}){
  const object=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
  function resolve(previous,ours,theirs){
   if(same(ours,theirs))return copy(ours);
+  // With no common ancestor these are independent additions, not deletes.
+  // Always retain an item that exists on only one side.
+  if(previous===undefined){
+   if(ours===undefined)return copy(theirs);
+   if(theirs===undefined)return copy(ours);
+  }
   if(previous!==undefined){
    if(same(ours,previous))return copy(theirs);
    if(same(theirs,previous))return copy(ours);
