@@ -510,6 +510,65 @@ function intake(at,status='taken',extra={}){
  console.log("PASS illness JSON UI: preview, confirmed import, editable copy, fresh IDs/no dose history, dedupe");
 })();
 
+(function testVerifiedThreeWayMergeAcrossTwoDevices(){
+ storage.clear();
+ const id="i3way_test",onsetAt="2026-11-14T00:00:00.000Z";
+ const t0={id:"itemp_base",at:"2026-11-14T08:00:00.000Z",celsius:37.5,site:"ear",note:""};
+ const base={id,title:"감기",onsetAt,status:"active",revision:"r0",
+  visits:[],medications:[],temperatures:[t0],
+  medicationGroups:[{id:"igroup_base",name:"처방 A",mode:"scheduled",intervalHours:null,
+   timesPerDay:3,days:3,active:true,
+   items:[{id:"idrug_base",name:"시럽",amount:2,unit:"mL"}],events:[]}]};
+ const local=structuredClone(base),remote=structuredClone(base);
+ local.temperatures.push({id:"itemp_local",at:"2026-11-14T09:00:00.000Z",celsius:38.2,site:"ear"});
+ remote.temperatures.push({id:"itemp_remote",at:"2026-11-14T10:00:00.000Z",celsius:37.8,site:"ear"});
+ remote.revision="r1";
+ const e=setup();
+ const combined=e.test.mergeEpisodeSafe(base,local,remote);
+ assert(combined,"independent additions should merge");
+ assert.equal(combined.revision,"r1");
+ assert.deepEqual(Array.from(combined.temperatures.map(v=>v.id)).sort(),
+  ["itemp_base","itemp_local","itemp_remote"]);
+ const conflictingLocal=structuredClone(local),conflictingRemote=structuredClone(remote);
+ conflictingLocal.temperatures[0].celsius=38;
+ conflictingRemote.temperatures[0].celsius=39;
+ assert.equal(e.test.mergeEpisodeSafe(base,conflictingLocal,conflictingRemote),null,
+  "two different edits to the same reading must not merge");
+ const deletingRemote=structuredClone(remote);
+ deletingRemote.medicationGroups=[];
+ const unchangedGroupLocal=structuredClone(local);
+ assert.equal(e.test.mergeEpisodeSafe(base,unchangedGroupLocal,deletingRemote).medicationGroups.length,0,
+  "a server deletion must not be resurrected");
+ const editedGroupLocal=structuredClone(local);
+ editedGroupLocal.medicationGroups[0].items[0].amount=3;
+ assert.equal(e.test.mergeEpisodeSafe(base,editedGroupLocal,deletingRemote),null,
+  "locally modified medicine cannot silently disappear during server purge");
+ storage.set("yuha_illness_records_v1",JSON.stringify({[id]:local}));
+ storage.set("yuha_illness_pending_v1",JSON.stringify({[id]:{
+  episode:local,expectedRevision:"r0"
+ }}));
+ storage.set("yuha_illness_last_verified_server_v1",JSON.stringify({[id]:base}));
+ const linked=setup();linked.window.YuhaIllness.render();
+ linked.test.absorbServer({[id]:remote});
+ assert.equal(linked.model.cases[id].temperatures.length,3);
+ assert.equal(linked.model.pending[id].expectedRevision,"r1");
+ assert.equal(linked.model.conflicts[id],undefined);
+ assert.equal(JSON.parse(storage.get("yuha_illness_pending_v1"))[id].episode.temperatures.length,3,
+  "merged data must remain in durable outbound queue");
+ console.log("PASS illness sync: two-phone independent changes merge, same-field collision blocks, deletion never resurrected");
+})();
+(function testUnverifiedLocalRevisionCannotBeOverwritten(){
+ storage.clear();
+ const id="iunverified",local={id,title:"기기 수정",onsetAt:"2026-11-14T00:00:00.000Z",
+  revision:"old-r",visits:[],medications:[],medicationGroups:[],temperatures:[]};
+ const remote={...local,title:"서버 수정",revision:"new-r"};
+ storage.set("yuha_illness_records_v1",JSON.stringify({[id]:local}));
+ const e=setup();e.window.YuhaIllness.render();e.test.absorbServer({[id]:remote});
+ assert.equal(e.model.cases[id].title,"기기 수정",
+  "without proven baseline, incoming server must not overwrite local revision");
+ assert(e.model.conflicts[id],"preserve both unknown originals for manual reconciliation");
+ console.log("PASS illness sync: unverified local copy never silently overwritten");
+})();
 (function testCopyableCrossChatPrescriptionRequest(){
  storage.clear();
  const e=setup(),t=e.test,example=t.prescriptionExample();
