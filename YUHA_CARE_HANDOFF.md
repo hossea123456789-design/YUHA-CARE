@@ -1194,3 +1194,25 @@ Google Sheets: CHECKLIST_DB / SLEEP_LOG / APP_SETTINGS / MENTAL_LOG / MENTAL_AUD
 - **추가 확인한 실패:** 첫 테스트 모의 DOM 수정 후 run `43671521477`의 `tests/illness-care.test.js`에서 과거 버튼 문구 `서버 재조회`와 현재 UI 문구 `서버 기록 다시 조회`가 불일치하여 실패. 테스트를 실제 공통 작업줄의 `data-act="refresh"` 및 문구에 맞춰 수정. 이후 run `43671586748`에서 **모든 코드/회귀 테스트 통과 및 `github-pages` 아티팩트 업로드 성공**, 다만 `actions/deploy-pages@v4`가 업로드 직후 메타데이터 조회에서 0건을 반환하여 배포 실패. 같은 실행의 GitHub API 아티팩트 목록에는 `github-pages` ID `14143989639`가 정상 존재함을 확인하여 아티팩트 인덱싱 시차로 진단.
 - **배포 경합 보강:** `.github/workflows/pages.yml`에서 `actions: read` 권한을 명시하고, 업로드 다음에 해당 실행의 GitHub Actions artifact 목록을 CLI로 조회하여 `github-pages`가 보일 때까지 제한 횟수 재확인한 후 배포하도록 변경. 실제 배포 및 smoke test 결과는 해당 후속 run으로 판정.
 - **실제 첫 배포 성공:** GitHub Actions push run `43671896217`, 커밋 `2e4f3f6c427bef609d73052a0d00ed91084e52d6`의 `conclusion=success` 확인. 테스트·아티팩트 등록 확인·Pages 실제 배포·공개 정적 파일 스모크 테스트 모두 성공. 중복 큐에 막히는 이전 전역 concurrency group을 branch별 `pages-${{ github.ref }}`로 분리한 후 정상 실행됨. 후속으로 공개 `index.html`에 마지막 탭 코드가 실제 올라왔는지 확인하는 smoke test를 추가함. 실제 삼성 브라우저의 마지막 탭 복원 실측은 아직 사용자 확인 대상.
+
+## 63. 2026-11-18 — 부부 기기 간 데이터 불일치 전 탭 동기화 재점검
+
+### 재현·실제 서버 확인
+- 두 기기에서 서로 다른 유하 질병 기록이 표시되는 문제 제기 후 **질병뿐 아니라 8개 탭 전체**를 재검토했다.
+- 실제 운영 Google Sheets '유하 육아 도구 모음'의 `ILLNESS_LOG` A1:C30을 읽기 전용 확인: 1개의 '발열' 질병 레코드, 체온 16건, 약 복용 묶음 이벤트 15건, 방문 1건이 존재. 이것은 서버 원본의 존재를 뜻할 뿐, 개별 휴대폰의 실제 동기화 상태까지 입증하지 않음. `CHECKLIST_DB`에도 체크리스트 4개 탭의 기존 데이터가 존재했다. **운영 스프레드시트 셀 데이터는 수정·초기화하지 않았다.**
+- 문제의 공통 원인: 로컬 우선 표시 자체는 안전하지만, 이전에 서버와 동기화된 **낡은 기기 사본이 최신 서버 기록보다 우선 표시**되거나, 쓰기 ACK/조회 성공 문구를 실제 서버 반영으로 오해할 여지가 있었음. 체크리스트 기존 `saveAppData`는 전달된 `updatedAt`을 검사하지 않는 무조건 덮어쓰기였고, 구 `getAppData`는 JSON 파손 시 기본값으로 서버를 재설정할 수 있었다.
+
+### 8개 탭별 변경
+1. **얼집·외출·매일 청소·주말 청소:** 동일 `CHECKLIST_DB`의 전체 JSON을 공유하므로 4개 탭은 하나의 원자적 revision CAS(Compare-And-Swap)로 보호한다. `apps-script/Code.gs`의 `saveAppData`가 `LockService` 하에서 기존 revision과 요청 `updatedAt` 일치 검증 → 저장 → 고유 revision 발급. 불일치 시 **`ok:false,conflict:true`** 반환해 구버전 클라이언트도 저장 실패로 인식; 절대로 서버를 덮지 않는다. `getAppData(forceFresh)`의 `schemaVersion:2` 및 신뢰성 있는 강제 조회를 도입. 기존 체크리스트 행의 JSON이 비었거나 파싱 실패하면 **기본값으로 재설정하는 위험한 코드를 제거하고 원본 그대로 유지한 채 오류 반환**.
+2. **체크리스트 클라이언트:** 서버 schemaVersion 2 전에는 변경을 기기 캐시 `dirty`에만 보관, 구 API로 위험한 저장은 하지 않는다. 충돌 원본은 `yuha_checklist_conflict_snapshots_v1`로 양쪽을 저장하고 사용자 선택 이후에만 다음 CAS 저장. 원본 백업 실패 시에도 결정/덮어쓰기 차단. ACK만으로 dirty를 해제하지 않고 **서버 `getAppData(true)` 재조회에서 revision과 실제 전송 JSON을 모두 확인**한 뒤 완료. 저장 도중 새 편집이 생기면 미전송 상태 유지. 앱 복귀/다른 체크리스트 탭 복귀 시 최근 서버 수정 재조회.
+3. **수면:** `SLEEP_LOG` 날짜·칸별 CAS 저장 유지. 기존 verified `sleepServerMonths` 스냅샷과 현재 기기 캐시가 정확히 일치하고 해당 필드에 pending이 **없을 때만** 다른 기기의 더 최신 필드(명시적으로 비워진 값 포함)를 반영. 불명확한 기기 데이터와 전송 대기는 별도 원본·불일치 안내를 유지. 120건 이하 배치. `syncSleepChanges` 후 touched month(s)와 프로필의 서버 `getSleepMonth` 재조회가 전송값과 일치할 때만 pending 제거. 충돌 해결 적용에도 동일. 포그라운드·탭 복귀 시 강제 서버 갱신.
+4. **아내 회복:** 기존 `MENTAL_LOG` PIN/필드별 충돌 비교/원본 보호, 저장 후 원격 재조회 검증을 유지. 새 `yuha_mental_last_verified_server_v1`을 통해 **마지막으로 확인한 클라우드 원본과 정확히 동일한, 미편집 기기 기록**인지 증명할 수 있을 때만 최신 기기 간 값을 원본 아카이브에 보존한 후 반영. 근거 없는 '로컬 기록이 더 풍부함' 덮어쓰기 금지. 앱 복귀/포커스 시 15초 제한 재조회, 상단에 `서버 기록 다시 조회` 버튼 신설. PIN 잠금 유지, 키 원본을 GitHub에 저장하지 않음.
+5. **유하 질병:** `ILLNESS_LOG` 서버만 보유한 질병을 신규 기기에 가져오면 선택된 에피소드가 없어 '기록 없음'으로 표시되던 문제 방지. 정상 서버 revision이 붙은 오래된 기기 원본 또는 검증된 별도 클라우드 baseline과 일치하는 기기 원본은 스냅샷 보관 후 최신 서버로 갱신. 로컬 pending/서버 충돌은 계속 보존하며 화면 상단에 서버 확인 전/미확정/충돌 경고 노출. 서버 저장 후 재조회가 성공하면 verified baseline도 업데이트. 앱 복귀/포커스에서 재조회(중복 호출 15초 제한).
+6. **설정:** 공유 생년월일은 `APP_SETTINGS`의 값(수면 API 조회/저장)을 따르며 설정 화면에서 미저장·서버 확인 여부를 노출. 새로 열거나 앱으로 돌아오면 서버를 갱신한다. 기기별 마지막 열람 탭만 **의도적 로컬 환경설정**이고 절대 Google Sheets에 통합하지 않는다.
+7. **전체 상태 분리:** '기기에 저장됨', '서버 전송 대기', '서버 조회 완료', '서버 저장 및 재조회 검증 완료', '원본 충돌'을 섞어 표시하지 않는다. 실제 서버 접속 없이 표시한 기기 기록은 다른 기기의 값과 같다고 주장하지 않는다.
+
+### 변경 파일·검증·운영 제한
+- 변경 파일: `apps-script/Code.gs`, `index.html`, `illness-care.js`, `mental.js`, `tests/shared-cross-device.test.js`, `tests/last-visited-tab.test.js`, `.github/workflows/pages.yml`, `README.md`, 본 MD. `index.html`의 `illness-care.js` 버전은 `20261118-shared-illness-v1`로 갱신(후속 개선 시 또 갱신 필요). 다른 서버 데이터는 변경 금지.
+- 새 CI는 (a) 체크리스트 서버 CAS에서 낡은/무버전 기기 쓰기 거부, (b) 수면 clean baseline 갱신·pending/미확인 데이터 보호, (c) 질병 신규/낡은/미전송 기기 데이터 분리, (d) 포그라운드 재조회와 UI 상태코드, (e) 기존 질병/수면/회복 보호 테스트를 실행한다. 테스트는 실제 사용자 휴대폰 QA와 구분한다.
+- **필수 운영 단계 미완료:** GitHub Pages에 프런트 코드가 배포되어도 **Google Apps Script 기존 `/exec`의 `Code.gs` 운영 버전은 자동 변경되지 않는다.** 연결된 스프레드시트의 Apps Script 편집기에서 저장소 최신 `apps-script/Code.gs` 전체를 적용하고 **배포 관리 → 기존 웹 앱 배포 수정 → 버전: 새 버전 → 배포**가 필요하다. 이 동작을 수행하지 않았다면 현재 체크리스트 수정이 클라우드에서 차단되어 **기기에만 저장**되도록 의도적으로 보호했다. PIN/URL 및 스프레드시트 실제 데이터 수정 없음.
+- 운영 배포 검증은 **최종 메인 커밋에 대응하는 `Deploy YUHA CARE` push run의 conclusion=success와 `Smoke test published envelope artwork`**를 근거로 보고해야 한다. 수면·질병·회복 API의 실제 Apps Script 운영 버전 및 사용자 양쪽 모바일의 실측 동기화는 별도 단계이며, 확인하지 않았다면 '완료'로 보고하지 않는다.
