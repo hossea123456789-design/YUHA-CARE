@@ -458,7 +458,8 @@ function medicationForm(c){
  return card("3. 처방약 · 복용 간격",'<details '+(m?'open':'')+'><summary>'+(m?'처방 수정 중':'처방약 등록')+'</summary><form data-form="medicine" class="ill-fields">'+
  '<input type="hidden" name="editId" value="'+attr(m?.id||"")+'">'+
   '<label>정확한 약 이름<input required maxlength="120" name="name" value="'+attr(m?.name||"")+'" placeholder="약 봉투의 제품명을 그대로 입력"></label>'+
-   '<label>연결된 병원 방문<select name="visitId">'+chooseVisit+'</select></label>'+
+   '<label>약 용도·효능 분류 (복약안내 원문, 선택)<input name="purpose" maxlength="160" value="'+attr(m?.purpose||"")+'" placeholder="예: 진해거담제, 기침감기약"></label>'+
+  '<label>연결된 병원 방문<select name="visitId">'+chooseVisit+'</select></label>'+
  '<label>복용 방식<select name="mode"><option value="scheduled"'+(m?.mode!=="prn"?' selected':'')+'>정기 복용 (예정·지연 표시)</option>'+
  '<option value="prn"'+(m?.mode==="prn"?' selected':'')+'>필요시 복용 (지연 경고 없음)</option></select></label>'+
  '<div class="ill-two"><label>1회 처방 용량 (mL)<input required type="number" name="doseMl" min="0.1" max="100" step="0.1" inputmode="decimal" value="'+attr(m?.doseMl??"")+'" placeholder="처방된 mL"></label>'+
@@ -474,7 +475,7 @@ function medicines(c){
  const rows=c.medications.map(m=>{
   const g=guidance(m),doses=[...(m.doses||[])].sort((a,b)=>at(b.at)-at(a.at));
   return '<article class="ill-med '+g.state+'"><div class="ill-summary"><b>'+E(m.name)+'</b><span class="ill-tag">'+(m.mode==="prn"?"필요시":m.active?"정기":"복용 종료")+'</span></div>'+
-   '<div class="ill-muted">'+E(CATEGORIES[m.category]||"기타")+(m.ingredient?" · "+E(m.ingredient):"")+'</div>'+
+   '<div class="ill-muted">'+(m.purpose?'복약안내 용도: '+E(m.purpose):E(CATEGORIES[m.category]||"기타"))+(m.ingredient?" · "+E(m.ingredient):"")+'</div>'+
    '<p>처방: '+(m.doseMl===null?"미입력":E(m.doseMl)+"mL")+(m.intervalHours?" / "+E(m.intervalHours)+"시간 간격":"")+'</p>'+
    (m.instructions?'<p>처방 지시: '+E(m.instructions)+'</p>':'')+
    '<p class="ill-guidance" role="status">'+E(g.text)+'</p>'+
@@ -612,8 +613,8 @@ function groupItemRow(item){
 function prescriptionExample(){
  return {schema:"yuha-prescription-import/v1",dispensedAt:"2026-11-14",
   medications:[
-   {name:"약 A",doseAmount:2.5,doseUnit:"mL",timesPerDay:2,days:4},
-   {name:"약 B",doseAmount:0.25,doseUnit:"정",timesPerDay:3,days:4},
+   {name:"약 A",doseAmount:2.5,doseUnit:"mL",timesPerDay:2,days:4,purpose:"진해거담제, 기침감기약"},
+   {name:"약 B",doseAmount:0.25,doseUnit:"정",timesPerDay:3,days:4,purpose:"항히스타민제, 알레르기 치료제"},
    {name:"약 C",doseAmount:0.3333,doseUnit:"g",timesPerDay:3,days:4}
   ],
   bundleTemplates:[
@@ -632,9 +633,11 @@ function prescriptionChatRequest(){
   "2. 판독 불가한 필수 항목은 추측하지 말고, 해당 약은 JSON에 임의로 넣지 말고 JSON 코드 블록 아래 '확인 필요'로 구분하세요.",
   "3. 1일 2회·3회를 12시간·8시간 간격이라고 자동 환산하거나 복용 시각을 지어내지 마세요.",
   "4. 일반 투약량은 소수 둘째 자리까지, 0.3333g처럼 사진에 더 세밀하게 적힌 g 수치는 최대 넷째 자리까지 원문 그대로 보존하세요. 절대로 반올림하지 마세요.",
-  "5. schema는 yuha-prescription-import/v1, medications는 필수 배열이며 각 항목의 name,doseAmount,doseUnit,timesPerDay,days를 채우세요.",
-  "6. bundleTemplates는 선택사항입니다. 같은 일일 복용 횟수와 처방 일수끼리 묶음을 제안하되, 같은 시간에 함께 먹어야 한다고 확인되지 않으면 단정하지 마세요.",
-  "7. 환자명·등록번호 등 불필요한 개인정보는 제외하세요. 먼저 복사 가능한 JSON 코드 블록, 이후 판독 불확실 항목만 간단히 적으세요.",
+  "5. 사진의 약품명 옆 [대괄호] 또는 효능·용도란에 인쇄된 설명(예: 진해거담제, 기침감기약)을 약별 선택 필드 purpose에 원문 표현 그대로 적으세요. 여러 용도는 원문 순서대로 한 문자열에 보존하세요.",
+  "6. purpose가 보이지 않거나 판독 불가하면 해당 필드만 생략하세요. 약 이름으로 추정하거나 일반 의약품 지식으로 용도를 만들어 넣지 마세요. 이때 필수 항목이 확인되는 약은 계속 medications에 넣으세요.",
+  "7. schema는 yuha-prescription-import/v1, medications는 필수 배열이며 각 항목의 name,doseAmount,doseUnit,timesPerDay,days를 채우고, purpose는 사진에 표시된 경우에만 포함하세요.",
+  "8. bundleTemplates는 선택사항입니다. 같은 일일 복용 횟수와 처방 일수끼리 묶음을 제안하되, 같은 시간에 함께 먹어야 한다고 확인되지 않으면 단정하지 마세요.",
+  "9. 환자명·등록번호 등 불필요한 개인정보는 제외하세요. 먼저 복사 가능한 JSON 코드 블록, 이후 판독 불확실 항목만 간단히 적으세요.",
   "",
   "아래는 구조 참고용 가상 예시입니다. 실제 약 종류·용량으로 사용하지 마세요.",
   fence+"json",JSON.stringify(prescriptionExample(),null,2),fence,
@@ -666,7 +669,7 @@ function copyPrescriptionText(value){
 function prescriptionJsonForm(c){
  if(!c||c.status!=="active")return "";
  return '<section class="ill-json-area"><h4>처방 JSON 붙여넣기</h4>'+
-  '<p class="ill-muted">약봉투 사진을 다른 채팅에서 JSON으로 변환한 뒤 바로 붙여넣으세요.</p>'+
+  '<p class="ill-muted">약봉투 사진을 다른 채팅에서 JSON으로 변환한 뒤 바로 붙여넣으세요. 약 용도·효능 분류(purpose)도 사진에 적힌 경우 함께 보관됩니다.</p>'+
   '<div class="ill-row-actions ill-copy-actions">'+
   '<button type="button" class="ill-secondary" data-act="copy-prescription-request">다른 채팅용 요청문 복사</button>'+
   '<button type="button" class="ill-secondary" data-act="copy-prescription-example">예시 JSON 복사</button></div>'+
@@ -680,7 +683,7 @@ function prescriptionJsonForm(c){
 function prescriptionPreview(result){
  const groups=result.groups.map(g=>'<div class="ill-import-group"><strong>'+E(g.name)+'</strong>'+
   '<small>1일 '+g.timesPerDay+'회 · '+g.days+'일 · 시간 간격 미확인</small>'+
-  '<ul>'+g.items.map(i=>'<li>'+E(i.name)+' <b>'+E(doseLabel(i.amount,i.unit))+'</b></li>').join("")+'</ul></div>').join("");
+  '<ul>'+g.items.map(i=>'<li><span>'+E(i.name)+(i.purpose?'<small class="ill-medicine-purpose">복약안내 용도: '+E(i.purpose)+'</small>':"")+'</span><b>'+E(doseLabel(i.amount,i.unit))+'</b></li>').join("")+'</ul></div>').join("");
  return '<div class="ill-import-preview"><h4>저장 전 확인 · '+result.medicationCount+'종 / '+result.groups.length+'묶음</h4>'+
   (result.hasExtraPrecision?'<p class="ill-alert">처방 원문의 0.3333g 등은 반올림하지 않았습니다. 실제 약봉투를 확인하세요.</p>':'')+
   '<p class="ill-alert">'+E(result.note)+'</p>'+groups+
@@ -699,7 +702,7 @@ function medicationGroupForm(c){
   '<form data-form="group" class="ill-fields">'+
   '<input type="hidden" name="editGroupId" value="'+attr(editing?.id||"")+'">'+
   '<label>묶음 이름 <small>(선택)</small><input name="groupName" maxlength="80" value="'+attr(group.name||"")+'" placeholder="예: 아침·저녁 약"></label>'+
-  '<div class="ill-group-item-head"><b>같이 복용하는 약 · 1회량</b><small>mg·농도 정보 입력 불필요</small></div>'+
+  '<div class="ill-group-item-head"><b>같이 복용하는 약 · 1회량</b><small>약 용도는 사진에 적힌 표현만 입력</small></div>'+
   '<div class="ill-group-items">'+(group.items?.length?group.items:[{}]).map(groupItemRow).join("")+'</div>'+
   '<button type="button" class="ill-secondary" data-act="add-drug-line">+ 같이 먹는 약 추가</button>'+
   '<div class="ill-two">'+
@@ -724,7 +727,7 @@ function groupPanel(c){
    '<p>위에서 JSON을 가져오거나 약을 직접 입력해 등록할 수 있습니다.</p></div>';
  const renderGroup=g=>{
   const info=groupGuidance(g),history=[...g.events].sort((a,b)=>at(b.at)-at(a.at));
-  const items=g.items.map(item=>'<li><span>'+E(item.name)+'</span><strong>'+E(doseLabel(item.amount,item.unit))+'</strong></li>').join("");
+  const items=g.items.map(item=>'<li><span>'+E(item.name)+(item.purpose?'<small class="ill-medicine-purpose">복약안내 용도: '+E(item.purpose)+'</small>':"")+'</span><strong>'+E(doseLabel(item.amount,item.unit))+'</strong></li>').join("");
   return '<article data-ill-group-id="'+attr(g.id)+'" class="ill-group '+info.state+'">'+
    '<div class="ill-summary"><strong>'+E(groupMedicineLabel(g,true))+'</strong>'+
    '<span class="ill-tag">'+(g.active?(g.mode==="prn"?"필요시 복용":"정기 복용"):"복용 종료")+'</span></div>'+
@@ -797,8 +800,8 @@ function groupMedicineLabel(group,short=false){
 function currentPrescriptionPanel(c){
  const groups=c.medicationGroups.filter(g=>!g.deletedAt&&(c.status==="closed"||g.active));
  const singles=c.medications.filter(m=>c.status==="closed"||m.active);
- const allDrugs=groups.flatMap(g=>g.items||[]).map(i=>i.name+" "+doseLabel(i.amount,i.unit))
-  .concat(singles.map(m=>m.name+" "+doseLabel(m.doseMl,"mL")));
+ const allDrugs=groups.flatMap(g=>g.items||[]).map(i=>i.name+" "+doseLabel(i.amount,i.unit)+(i.purpose?" · "+i.purpose:""))
+  .concat(singles.map(m=>m.name+" "+doseLabel(m.doseMl,"mL")+(m.purpose?" · "+m.purpose:"")));
  const status=c.status==="closed"?"질병 종료 · 처방 보관":groups.length+singles.length+"개 복용 단위 · "+allDrugs.length+"종 약";
  return card(c.status==="closed"?"지난 처방 내역":"현재 처방 한눈에",
   '<div class="ill-current-prescription"><p class="ill-prescription-status">'+E(status)+'</p>'+
