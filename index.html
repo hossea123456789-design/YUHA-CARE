@@ -2192,7 +2192,7 @@
       if(sleepConflicts.length&&!manual)return;
       const isSyncable=op=>(sleepServerNap2Ready||(op.field!=="nap2Start"&&op.field!=="nap2End"))&&
         (sleepServerMetaReady||!SLEEP_META_KEYS.includes(op.field));
-      const snapshot=sleepPending.filter(isSyncable).map(op=>({...op}));
+      const snapshot=sleepPending.filter(isSyncable).slice(0,120).map(op=>({...op}));
       if(!snapshot.length){
         setSleepStatus(sleepPending.some(op=>SLEEP_META_KEYS.includes(op.field))?
           "새 수면 관찰 기록은 기기에 보관 중 · Apps Script Code.gs v3 배포 필요":
@@ -2204,8 +2204,8 @@
       showAppProgress("sleep-save","수면 기록 저장 중","busy");
       google.script.run
         .withSuccessHandler(result=>{
-          sleepSaving=false;
           if(!result||!result.ok){
+            sleepSaving=false;
             showAppProgress("sleep-save","수면 저장 실패","error");
             setSleepStatus(result?.message||"서버 연결 지연 · 기기 저장본 유지","error");
             scheduleSleepRetry();return;
@@ -2218,18 +2218,28 @@
             setSleepStatus(`서버/기기 기록 충돌 ${sleepConflicts.length}건 · 확인 필요`,"error");
             return;
           }
-          sleepRetryCount=0;
-          settleSleepEdits(snapshot);
-          const readyMore=sleepPending.some(isSyncable);
-          const metaWaiting=!sleepServerMetaReady&&sleepPending.some(op=>SLEEP_META_KEYS.includes(op.field));
-          showAppProgress("sleep-save",readyMore?"추가 수면 기록 저장 중":
-            metaWaiting?"새 수면 관찰 기록은 기기에 보관 중":"수면 기록 저장 완료",
-            readyMore?"busy":metaWaiting?"pending":"done");
-          setSleepStatus(metaWaiting?"새 수면 관찰 기록은 기기에 보관 중 · Apps Script Code.gs v3 배포 필요":
-            readyMore?`자동 저장 중 · 남은 ${sleepPending.length}건`:"자동 저장 완료",
-            metaWaiting?"error":"saved");
-          if(readyMore)requestSleepSync(false);
-          if(currentTab==="sleep")renderSleepTab();
+          // The server write ACK is not enough: verify every submitted field
+          // from the shared DB before releasing the device's pending queue.
+          verifySleepSnapshot(snapshot,verified=>{
+            sleepSaving=false;
+            if(!verified){
+              showAppProgress("sleep-save","수면 저장 후 서버 재조회 검증 실패","error");
+              setSleepStatus("서버 저장 여부 미확인 · 기기 수정본 보호 · 재시도 예정","error");
+              scheduleSleepRetry();return;
+            }
+            sleepRetryCount=0;
+            settleSleepEdits(snapshot);
+            const readyMore=sleepPending.some(isSyncable);
+            const metaWaiting=!sleepServerMetaReady&&sleepPending.some(op=>SLEEP_META_KEYS.includes(op.field));
+            showAppProgress("sleep-save",readyMore?"추가 수면 기록 저장 중":
+              metaWaiting?"새 수면 관찰 기록은 기기에 보관 중":"수면 기록 저장·재조회 완료",
+              readyMore?"busy":metaWaiting?"pending":"done");
+            setSleepStatus(metaWaiting?"새 수면 관찰 기록은 기기에 보관 중 · Apps Script Code.gs v3 배포 필요":
+              readyMore?`서버 검증 완료 · 남은 ${sleepPending.length}건 저장 중`:"서버 저장 및 재조회 검증 완료",
+              metaWaiting?"error":"saved");
+            if(readyMore)requestSleepSync(false);
+            if(currentTab==="sleep")renderSleepTab();
+          });
         })
         .withFailureHandler(err=>{
           sleepSaving=false;
@@ -2238,6 +2248,33 @@
           scheduleSleepRetry();
         })
         .syncSleepChanges({edits:snapshot});
+    }
+
+    function verifySleepSnapshot(snapshot,callback) {
+      const months=new Set(snapshot.filter(op=>op.date!=="@profile").map(op=>sleepMonthOfDate(op.date)));
+      if(snapshot.some(op=>op.date==="@profile"))
+        months.add(sleepMonthKey(sleepViewYear,sleepViewMonth));
+      if(!months.size){callback(true);return;}
+      let remaining=months.size,valid=true;
+      months.forEach(key=>{
+        const [year,monthNumber]=key.split("-").map(Number);
+        google.script.run
+          .withSuccessHandler(result=>{
+            if(!result?.ok||Number(result.schemaVersion)<3)valid=false;
+            else {
+              snapshot.forEach(op=>{
+                if(op.date==="@profile"){
+                  if(String(result.birthDate||"")!==op.value)valid=false;
+                }else if(sleepMonthOfDate(op.date)===key){
+                  if(String(result.records?.[op.date]?.[op.field]??"")!==op.value)valid=false;
+                }
+              });
+            }
+            if(--remaining===0)callback(valid);
+          })
+          .withFailureHandler(()=>{valid=false;if(--remaining===0)callback(false);})
+          .getSleepMonth(year,monthNumber);
+      });
     }
 
     function settleSleepEdits(snapshot) {
@@ -2304,12 +2341,18 @@
       sleepSaving=true;setSleepStatus("선택한 항목을 서버에 동기화 중…");
       google.script.run
         .withSuccessHandler(result=>{
-          sleepSaving=false;
-          if(!result||!result.ok){setSleepStatus(result?.message||"서버 저장 실패 · 기기 저장본 유지","error");return;}
-          if(result.conflicts?.length){sleepConflicts=result.conflicts;showSleepConflicts(result.conflicts);return;}
-          settleSleepEdits(toUpload);
-          setSleepStatus(sleepPending.length?`동기화 일부 완료 · ${sleepPending.length}건 대기`:"충돌 해결 · 자동 저장 완료","saved");
-          if(currentTab==="sleep")renderSleepTab();
+          if(!result||!result.ok){sleepSaving=false;setSleepStatus(result?.message||"서버 저장 실패 · 기기 저장본 유지","error");return;}
+          if(result.conflicts?.length){sleepSaving=false;sleepConflicts=result.conflicts;showSleepConflicts(result.conflicts);return;}
+          verifySleepSnapshot(toUpload,verified=>{
+            sleepSaving=false;
+            if(!verified){
+              setSleepStatus("충돌 해결 저장 후 서버 재조회 불일치 · 기기값 보관","error");
+              return;
+            }
+            settleSleepEdits(toUpload);
+            setSleepStatus(sleepPending.length?`서버 검증 완료 · ${sleepPending.length}건 대기`:"충돌 해결 · 서버 재조회 검증 완료","saved");
+            if(currentTab==="sleep")renderSleepTab();
+          });
         })
         .withFailureHandler(err=>{sleepSaving=false;setSleepStatus("저장 실패 · 기기값 유지: "+(err.message||err),"error");})
         .syncSleepChanges({edits:toUpload});
