@@ -557,7 +557,7 @@ async function connect(){
   notice="기기 기록 보관 중 · 서버 연결 확인 필요: "+String(e?.message||e);
   noticeError=true;
  }finally{
-  if(epoch===syncEpoch){busy=false;if(active)render();}
+  if(epoch===syncEpoch){busy=false;if(active)render({background:true});}
  }
  if(epoch===syncEpoch&&connected)await pushPending();
 }
@@ -600,7 +600,7 @@ async function pushPending(retries=0){
    persist();notice="서버 저장 및 재조회 검증 완료";noticeError=false;
   }catch(e){notice="원본 보존 중 · 서버 저장 확인 필요: "+String(e?.message||e);noticeError=true;break;}
  }
- busy=false;if(active)render();
+ busy=false;if(active)render({background:true});
  if(retryMerged&&connected&&active&&retries<2)void pushPending(retries+1);
 }
 function chooseConflict(id,choice){
@@ -1374,8 +1374,13 @@ function conflictsView(){
  '<div class="ill-row-actions"><button data-act="choose-server" data-id="'+attr(id)+'">서버 원본 선택</button>'+
  '<button data-act="choose-local" data-id="'+attr(id)+'">기기 원본 선택 후 서버 보관·갱신</button></div></div>').join(""));
 }
-function render(){
+function render(options={}){
  hydrate();active=true;root=document.getElementById("main");if(!root)return;
+ window.YuhaFormGuard?.bind(root,"illness");
+ // Never destroy a native date/time picker, selected medicine, or unsaved
+ // temperature while an asynchronous cloud read/write completes.
+ if(options.background===true&&window.YuhaFormGuard?.isEditing(root,"illness"))return;
+ const editingDraft=window.YuhaFormGuard?.capture(root,"illness");
  const c=current(),feedback=lastActionFeedback?
   '<p class="ill-entry-feedback" role="status">'+E(lastActionFeedback)+'</p>':"";
  root.innerHTML='<div class="ill-root"><div class="ill-heading panel-head tab-panel-head">'+
@@ -1400,6 +1405,7 @@ function render(){
     diseaseManagementPanel(null))+
   conflictsView()+'</div>';
  root.dataset.illnessEpisode=selected||"";
+ window.YuhaFormGuard?.restore(root,editingDraft);
  if(!root.dataset.illnessBound){root.dataset.illnessBound="true";
   root.addEventListener("submit",onSubmit);
   root.addEventListener("click",onClick);
