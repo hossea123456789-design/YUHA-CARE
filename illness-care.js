@@ -162,7 +162,7 @@ function heatBand(v){
 }
 const model={cases:{},pending:{},conflicts:{},snapshots:[],serverBaseline:{}};
 let loaded=false,selected="",month=isoMonth(nowIso()),temperatureDay=dayKey(nowIso()),connected=false,initialFetchStarted=false,busy=false;
-let active=false,syncEpoch=0,lastActionFeedback="";
+let active=false,syncEpoch=0,lastActionFeedback="",lastCloudReadAt=0;
 let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",editVisit="",editTemperatureId="",editDoseId="",editDoseGroupId="",editDoseLegacy=false,copyDraft=null,pendingPrescription=null,timer=null,root=null;
 function persist(){
  try{
@@ -315,6 +315,7 @@ async function connect(){
  // No separate password, opt-in step, or server key.
  if(busy)return;
  const epoch=syncEpoch;
+ lastCloudReadAt=Date.now();
  busy=true;notice="기존 앱 서버에서 질병 기록 자동 조회 중";noticeError=false;
  try{
   const res=await rpc("getIllnessCases",[]);
@@ -362,6 +363,7 @@ async function pushPending(){
     model.pending[id].expectedRevision=remote.revision;
     delete model.pending[id].resolution;
    }
+   model.serverBaseline[id]=clone(remote);
    persist();notice="서버 저장 및 재조회 검증 완료";noticeError=false;
   }catch(e){notice="원본 보존 중 · 서버 저장 확인 필요: "+String(e?.message||e);noticeError=true;break;}
  }
@@ -1639,13 +1641,15 @@ function onClick(e){
 window.addEventListener("online",()=>{
  if(active&&!busy)void connect();
 });
-// Returning to the app must recheck cloud changes made on the other phone.
+// Returning to the app must recheck cloud changes made on the other phone;
+// throttle the focus/visibility pair to avoid redundant server requests.
+function refreshIllnessOnReturn(){
+ if(active&&!busy&&Date.now()-lastCloudReadAt>15000)void connect();
+}
 document.addEventListener?.("visibilitychange",()=>{
- if(active&&document.visibilityState==="visible"&&!busy)void connect();
+ if(document.visibilityState==="visible")refreshIllnessOnReturn();
 });
-window.addEventListener("focus",()=>{
- if(active&&!busy)void connect();
-});
+window.addEventListener("focus",refreshIllnessOnReturn);
 window.YuhaIllness={render,stop,model,
  _test:{normalize,guidance,groupGuidance,dailyMedicationEvents,medicationTimeline,parsePrescriptionJson,prescriptionExample,prescriptionChatRequest,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,absorbServer,connect,pushPending}};
 })();
