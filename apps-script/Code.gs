@@ -101,7 +101,7 @@ function saveAppData(payload) {
     const found=rows.slice(1).find(row=>String(row[0]||'')===DATA_KEY);
     const currentRevision=found?String(found[2]||''):'';
     if(currentRevision!==expected){
-      return {ok:true,conflict:true,updatedAt:currentRevision,
+      return {ok:false,conflict:true,updatedAt:currentRevision,
         schemaVersion:CHECKLIST_SYNC_SCHEMA_,revisionGuardApplied:true};
     }
     // The server, not a stale browser cache, is the authority for a write.
