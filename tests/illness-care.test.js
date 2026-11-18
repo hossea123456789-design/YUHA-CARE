@@ -857,7 +857,7 @@ function intake(at,status='taken',extra={}){
  const begin=e.root.innerHTML.indexOf('<div class="ill-group-actions"');
  const end=e.root.innerHTML.indexOf("</div></div>",begin);
  assert(begin>=0&&end>begin,"medicine actions must consist of two dedicated rows");
- const html=e.root.innerHTML.slice(begin,end+12),labels=["약·용량 수정","묶음 복사","복용 종료","묶음 삭제"];
+ const html=e.root.innerHTML.slice(begin,end+12),labels=["약·용량 수정","묶음 복사","복용 종료","영구 삭제"];
  let last=-1;
  for(const label of labels){
   const i=html.indexOf(label);
