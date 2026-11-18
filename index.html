@@ -488,6 +488,7 @@
   <script src="config.js?v=20261020-shared1"></script>
   <script src="bridge-client.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
+  <script src="form-draft-guard.js?v=20261118-formguard-v1"></script>
   <script src="mental.js?v=20261118-shared-mental-v1"></script>
   <script src="illness-care.js?v=20261118-legacy-conflict-recovery-v4"></script>
   <script src="sleep-monthly.js?v=20261111-sleep-observations-v1"></script>
@@ -870,7 +871,7 @@
                 checklistServerChecked=true;
                 saveClientCache();
                 setSaveStatus("서버 기록으로 갱신됨 · 이전 기기 원본 백업됨","saved");
-                render();
+                render({background:true});
                 return;
               }
             }
@@ -887,7 +888,7 @@
           checklistServerChecked=true;
           saveClientCache();
           setSaveStatus(result.fromCache?"서버 기록 확인 완료":"서버 최신 기록 반영 완료","saved");
-          if(!sameServerVersion)render();
+          if(!sameServerVersion)render({background:true});
         })
         .withFailureHandler((error) => {
           checklistLoading=false;
@@ -1070,6 +1071,7 @@
       const needSleepRecheck=tabKey==="sleep"&&sleepLastVisibleRefreshAt>0&&Date.now()-sleepLastVisibleRefreshAt>12000;
       const needSettingsRecheck=tabKey==="settings"&&sleepLastVisibleRefreshAt>0&&Date.now()-sleepLastVisibleRefreshAt>12000;
       currentTab = tabKey;
+      window.YuhaFormGuard?.bind(document.getElementById("main"),tabKey);
       rememberLastVisitedTab(tabKey);
       render();
       if(needSleepRecheck&&data)fetchSleepMonth(true);
@@ -1826,8 +1828,16 @@
       bar.style.width=pct+"%";
     }
 
-    function render() {
+    function render(options={}) {
       if (!data) return;
+      const mainRoot=document.getElementById("main");
+      window.YuhaFormGuard?.bind(mainRoot,currentTab);
+      // Background checklist/cloud updates may refresh the data model, but
+      // must not replace focused inputs in another tab's current editor.
+      if(options.background===true&&window.YuhaFormGuard?.isEditing(mainRoot,currentTab)){
+        updateSummary();
+        return;
+      }
       document.body.classList.toggle("has-bottom-actions", !["settings","sleep","mental","illness"].includes(currentTab));
       if(currentTab!=="mental"&&document.getElementById("appProgress")?.dataset.source==="mental"){
         progressTasks.delete("mental-save");
@@ -2142,7 +2152,7 @@
             sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:
             merged.refreshed?`다른 기기의 수면 변경 ${merged.refreshed}칸 반영 · 이전 기기 원본 보존`:"서버 최신 기록 조회 완료",
             hasRecoveryWarning||waitingMeta&&!sleepServerMetaReady||waitingNap2&&!sleepServerNap2Ready?"error":sleepPending.length?"":"saved");
-          if(currentTab==="sleep") renderSleepTab();
+          if(currentTab==="sleep") renderSleepTab({background:true});
           updateSleepRecoveryNotice();
           if(currentTab==="settings") {
             const bd=document.getElementById("sleepBirthDateSettings");
@@ -2187,7 +2197,15 @@
       storeSleepPending();
       setSleepStatus(navigator.onLine?"기기 저장됨 · 서버 자동 저장 중":"오프라인 · 기기에 저장됨", navigator.onLine?"":"error");
       if(navigator.onLine){clearTimeout(sleepSyncTimer);sleepSyncTimer=setTimeout(()=>requestSleepSync(false),420);}
-      if(currentTab==="sleep")renderSleepTab();
+      if(currentTab==="sleep"){
+        // The change is already saved in the local model. Do not rebuild
+        // the observation editor during focus/selection on mobile.
+        const mainRoot=document.getElementById("main");
+        if(window.YuhaFormGuard?.isEditing(mainRoot,"sleep")){
+          updateSleepSummaries();
+          updateSleepRecoveryNotice();
+        }else renderSleepTab();
+      }
     }
     function updateSleepField(dateKey,field,value) {
       if(!SLEEP_KEYS.includes(field))return;
@@ -2255,7 +2273,7 @@
               readyMore?`서버 검증 완료 · 남은 ${sleepPending.length}건 저장 중`:"서버 저장 및 재조회 검증 완료",
               metaWaiting?"error":"saved");
             if(readyMore)requestSleepSync(false);
-            if(currentTab==="sleep")renderSleepTab();
+            if(currentTab==="sleep")renderSleepTab({background:true});
           });
         })
         .withFailureHandler(err=>{
@@ -3053,7 +3071,10 @@
       setSleepStatus("수면 기기 캐시 원본을 JSON 파일로 내려받았습니다 · 서버 데이터 변경 없음","saved");
     }
 
-    function renderSleepTab() {
+    function renderSleepTab(options={}) {
+      const mainRoot=document.getElementById("main");
+      window.YuhaFormGuard?.bind(mainRoot,"sleep");
+      if(options.background===true&&window.YuhaFormGuard?.isEditing(mainRoot,"sleep"))return;
       const y=sleepViewYear,m=sleepViewMonth;
       const weekDates=getSleepWeekDates(sleepSelectedDate);
       const [wy,wm,wd]=weekDates[0].split("-").map(Number);
