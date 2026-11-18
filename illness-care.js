@@ -303,7 +303,7 @@ function mergeEpisodeSafe(base,local,remote,options={}){
  const copy=v=>v===undefined?undefined:clone(v);
  const obj=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
  const editedFields=options.editedFields||{};
- const revisionTime=String(remote.revision||"").match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z/)?.[0]||"";
+ const revisionTime=String(remote.revision||"").slice(0,24);
  const serverClock=Date.parse(revisionTime);
  const newerLocal=path=>{
   const localClock=Date.parse(editedFields[path]||options.editedAt||"");
