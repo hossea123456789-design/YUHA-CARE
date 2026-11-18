@@ -1629,6 +1629,9 @@ function bind(){
   const original=screen.querySelector("#mentalMemoFullText");
   if(original)original.textContent=text||"저장된 메모가 없습니다.";
   if(entry(memoDate).memo!==text)changes(memoDate,r=>{r.memo=text;});
+  // Memo input already persisted on-device; retain focus protection while
+  // typing, but allow cloud refresh after the editor loses focus.
+  window.YuhaFormGuard?.finish(screen,"mental");
   fitMemo();
  };
  if(memo){
