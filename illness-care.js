@@ -347,24 +347,115 @@ function mergeEpisodeSafe(base,local,remote,options={}){
   return normalize(merged);
  }catch{return null;}
 }
+// Recover queued edits created by older clients without a verified baseline.
+// Server wins ambiguous duplicates; unique temperature and medication events
+// remain; absent old prescriptions never resurrect after permanent deletion.
+function mergeLegacyPending(local,remote,job={}){
+ if(!local||!remote||local.id!==remote.id)return null;
+ const l=normalize(local),r=normalize(remote),result=clone(r);
+ const clocks=job.editedFields||{};
+ const serverTime=Date.parse(String(remote.revision||"").slice(0,24));
+ const fresh=path=>{
+  const stamp=Date.parse(clocks[path]||job.editedAt||"");
+  return Number.isFinite(stamp)&&Number.isFinite(serverTime)&&stamp>serverTime;
+ };
+ const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+ const mergeObject=(left,right,path)=>{
+  const out=clone(right);
+  for(const [key,value] of Object.entries(left)){
+   if(key==="id"||key==="revision")continue;
+   if(Array.isArray(value)&&Array.isArray(right[key])&&
+      ["temperatures","visits","doses","events","items"].includes(key)){
+    out[key]=combine(value,right[key],path+"/"+key);
+   }else if(value&&typeof value==="object"&&!Array.isArray(value)&&
+      right[key]&&typeof right[key]==="object"&&!Array.isArray(right[key])){
+    out[key]=mergeObject(value,right[key],path+"/"+key);
+   }else if(!same(value,right[key])&&fresh(path+"/"+key)){
+    out[key]=clone(value);
+   }
+  }
+  return out;
+ };
+ const combine=(left,right,path)=>{
+  const byId=new Map(right.map(v=>[v.id,clone(v)]));
+  for(const item of left){
+   if(!item?.id)continue;
+   if(byId.has(item.id)){
+    byId.set(item.id,mergeObject(item,byId.get(item.id),path+"/"+item.id));
+   }else if(path==="/medicationGroups"){
+    if(!item.deletedAt&&fresh(path+"/"+item.id))byId.set(item.id,clone(item));
+   }else if(path==="/medications"){
+    if(fresh(path+"/"+item.id))byId.set(item.id,clone(item));
+   }else{
+    byId.set(item.id,clone(item));
+   }
+  }
+  return [...byId.values()];
+ };
+ for(const key of ["temperatures","visits"])result[key]=combine(l[key],r[key],"/"+key);
+ result.medicationGroups=combine(l.medicationGroups,r.medicationGroups,"/medicationGroups")
+  .filter(g=>!g.deletedAt);
+ result.medications=combine(l.medications,r.medications,"/medications");
+ for(const group of result.medicationGroups){
+  const earlier=l.medicationGroups.find(x=>x.id===group.id);
+  if(earlier)group.events=combine(earlier.events||[],group.events||[],
+   "/medicationGroups/"+group.id+"/events");
+ }
+ for(const medicine of result.medications){
+  const earlier=l.medications.find(x=>x.id===medicine.id);
+  if(earlier)medicine.doses=combine(earlier.doses||[],medicine.doses||[],
+   "/medications/"+medicine.id+"/doses");
+ }
+ for(const key of ["title","onsetAt","symptoms","note","status","closedAt",
+  "recoveryConfirmed","noFurtherMedicationConfirmed","closureNote"]){
+  if(fresh("/"+key))result[key]=clone(l[key]);
+ }
+ result.revision=remote.revision;
+ return normalize(result);
+}
+function removeArchivedGroups(entry){
+ const clean=normalize(entry);
+ clean.medicationGroups=clean.medicationGroups.filter(g=>!g.deletedAt);
+ return clean;
+}
+function queueArchivedCleanup(id,remote){
+ if(model.conflicts[id])return false;
+ const before=model.cases[id];if(!before)return false;
+ const clean=removeArchivedGroups(before);
+ if(sameData(before,clean))return false;
+ recordSnapshot("before-permanent-legacy-cleanup",before);
+ model.cases[id]=clean;
+ const old=model.pending[id];
+ model.pending[id]={episode:clone(clean),
+  expectedRevision:old?.expectedRevision??remote.revision,
+  editedAt:old?.editedAt||nowIso(),editedFields:old?.editedFields||{}};
+ return true;
+}
 // Keep pending edits and the remote copy intact unless both can be merged.
 function mergePendingOnRemote(id,remote){
  const job=model.pending[id],local=model.cases[id],baseline=model.serverBaseline[id];
- if(!job||!local||!baseline||!baseline.revision||
-    String(job.expectedRevision||"")!==String(baseline.revision||""))return false;
- const merged=mergeEpisodeSafe(baseline,local,remote,job);
+ if(!job||!local)return false;
+ const hasBase=!!baseline&&!!baseline.revision&&
+  String(job.expectedRevision||"")===String(baseline.revision||"");
+ const merged=hasBase?mergeEpisodeSafe(baseline,local,remote,job):
+  mergeLegacyPending(local,remote,job);
  if(!merged)return false;
  const prev={record:local,pending:job,baseline,conflict:model.conflicts[id]};
- recordSnapshot("verified-three-way-merge",{baseline,local,remote});
- model.cases[id]=merged;
- model.pending[id]={episode:clone(merged),expectedRevision:remote.revision,
-  editedAt:job.editedAt,editedFields:job.editedFields||{}};
+ recordSnapshot(hasBase?"verified-three-way-merge":"legacy-conflict-auto-reconcile",
+  {baseline:baseline||null,local,remote});
+ model.cases[id]=removeArchivedGroups(merged);
+ if(sameData(model.cases[id],remote)){
+  delete model.pending[id];
+ }else{
+  model.pending[id]={episode:clone(model.cases[id]),expectedRevision:remote.revision,
+   editedAt:job.editedAt||nowIso(),editedFields:job.editedFields||{}};
+ }
  model.serverBaseline[id]=clone(remote);
  delete model.conflicts[id];
  if(!persist()){
   model.cases[id]=prev.record;model.pending[id]=prev.pending;
-  model.serverBaseline[id]=prev.baseline;
-  if(prev.conflict)model.conflicts[id]=prev.conflict;
+  if(prev.baseline)model.serverBaseline[id]=prev.baseline;else delete model.serverBaseline[id];
+  if(prev.conflict)model.conflicts[id]=prev.conflict;else delete model.conflicts[id];
   return false;
  }
  return true;
@@ -1822,5 +1913,5 @@ document.addEventListener?.("visibilitychange",()=>{
 });
 window.addEventListener("focus",refreshIllnessOnReturn);
 window.YuhaIllness={render,stop,model,
- _test:{normalize,guidance,groupGuidance,dailyMedicationEvents,medicationTimeline,parsePrescriptionJson,prescriptionExample,prescriptionChatRequest,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,mergeEpisodeSafe,mergePendingOnRemote,absorbServer,connect,pushPending}};
+ _test:{normalize,guidance,groupGuidance,dailyMedicationEvents,medicationTimeline,parsePrescriptionJson,prescriptionExample,prescriptionChatRequest,samePrescriptionGroup,validAmount,parseTemperature,formatTemperatureInput,dailyTemperatureReadings,temperatureTrend,dailyMax,heatBand,sameData,mergeEpisodeSafe,mergeLegacyPending,mergePendingOnRemote,removeArchivedGroups,absorbServer,connect,pushPending}};
 })();
