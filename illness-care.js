@@ -384,7 +384,9 @@ function mergeLegacyPending(local,remote,job={}){
     byId.set(item.id,mergeObject(item,byId.get(item.id),path+"/"+item.id));
    }else if(path==="/medicationGroups"){
     if(!item.deletedAt&&fresh(path+"/"+item.id))byId.set(item.id,clone(item));
-   }else if(path==="/medications"){
+   }else if(path==="/medications"||path.includes("/medicationGroups/")&&path.endsWith("/items")){
+    // A medicine or ingredient removed from the server is not revived by a
+    // stale phone unless this phone has a provably newer creation clock.
     if(fresh(path+"/"+item.id))byId.set(item.id,clone(item));
    }else{
     byId.set(item.id,clone(item));
