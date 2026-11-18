@@ -1987,16 +1987,30 @@
     function mergeSleepMonthWithoutErasing(key,serverRows,deviceRows) {
       const server=cleanSleepSnapshot(serverRows,key);
       const device=cleanSleepSnapshot(deviceRows,key);
-      const combined={},mismatches=[];
+      // A verified previous cloud version distinguishes an unedited stale
+      // cache from genuinely independent device edits. Keep both versions
+      // for unknown/unsynced data; never discard a pending local change.
+      const baseline=typeof sleepServerMonths!=="undefined"&&sleepServerMonths[key]?
+        cleanSleepSnapshot(sleepServerMonths[key],key):{};
+      const queue=typeof sleepPending!=="undefined"?sleepPending:[];
+      const pendingKeys=new Set(queue.filter(op=>op.date!=="@profile").map(op=>sleepOpId(op)));
+      const combined={},mismatches=[];let refreshed=0;
       for(const day of new Set([...Object.keys(server),...Object.keys(device)])){
         const incoming=server[day]||{},stored=device[day]||{};
         const row=defaultSleepRecord();
         SLEEP_KEYS.forEach(field=>{
           const serverValue=String(incoming[field]??"");
           const localValue=String(stored[field]??"");
+          const previous=baseline[day]&&String(baseline[day][field]??"");
+          const isPending=pendingKeys.has(day+"|"+field);
+          if(server[day]&&previous!==undefined&&!isPending&&
+            localValue===previous && localValue!==serverValue){
+            // This device still has the previously verified cloud value.
+            // Adopt the new cloud value, including a deliberate field clear.
+            row[field]=serverValue;
+            refreshed++;return;
+          }
           if(localValue!==""&&serverValue!==""&&localValue!==serverValue){
-            // Display the device value, but preserve both source versions
-            // in their separate snapshots. No implicit cloud overwrite.
             mismatches.push({date:day,field,serverValue,localValue});
           }
           row[field]=localValue!==""?localValue:serverValue;
@@ -2004,7 +2018,7 @@
         if(sleepRecordHasData(row))combined[day]=row;
       }
       return {records:combined,deviceOnly:Object.keys(device).filter(d=>!server[d]).length,
-        serverOnly:Object.keys(server).filter(d=>!device[d]).length,mismatches,
+        serverOnly:Object.keys(server).filter(d=>!device[d]).length,mismatches,refreshed,
         serverCount:Object.keys(server).length,deviceCount:Object.keys(device).length};
     }
     function persistSleepMonth(key) {
@@ -2068,6 +2082,7 @@
             result.records:{};
           const oldServerCount=Object.keys(cleanSleepSnapshot(sleepServerMonths[key],key)).length;
           const merged=mergeSleepMonthWithoutErasing(key,incoming,cachedBefore);
+          if(merged.refreshed)rescueSleepSnapshot(key,cachedBefore,"device");
           sleepRecoveryState[key]=merged;
           sleepFetchHealth[key]={state:merged.serverCount===0?"empty":"success",
             serverCount:merged.serverCount,deviceCount:merged.deviceCount,
@@ -2108,7 +2123,8 @@
             "새 수면 관찰 기록은 기기에 보관 중 · Apps Script Code.gs v3 배포 후 자동 동기화":
             waitingNap2&&!sleepServerNap2Ready?
             "2차 낮잠은 기기에 보관 중 · Apps Script Code.gs 새 버전 배포 필요":
-            sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:"자동 저장 연결됨",
+            sleepPending.length?`기기 저장 ${sleepPending.length}건 · 서버 연결됨`:
+            merged.refreshed?`다른 기기의 수면 변경 ${merged.refreshed}칸 반영 · 이전 기기 원본 보존`:"서버 최신 기록 조회 완료",
             hasRecoveryWarning||waitingMeta&&!sleepServerMetaReady||waitingNap2&&!sleepServerNap2Ready?"error":sleepPending.length?"":"saved");
           if(currentTab==="sleep") renderSleepTab();
           updateSleepRecoveryNotice();
