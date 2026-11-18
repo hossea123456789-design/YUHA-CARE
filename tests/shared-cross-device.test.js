@@ -216,6 +216,19 @@ const record=(revision,value)=>({
   "both phones must show exactly the same server-verified result");
  console.log("PASS illness: screenshot-style old pending/conflict auto-recovers, purges old groups and converges both devices");
 })();
+(function testLegacyMedicineItemDeletionCannotBeResurrected(){
+ const remote=record("2026-11-18T06:05:00.000Z-new",37.1);
+ remote.medicationGroups=[{id:"igroup_new",name:"현재 처방",mode:"scheduled",
+  intervalHours:null,timesPerDay:2,days:3,deletedAt:"",
+  items:[{id:"idrug_keep",name:"현재 약",amount:2,unit:"mL"}],events:[]}];
+ const stale=structuredClone(remote);
+ stale.medicationGroups[0].items.push({id:"idrug_old",name:"이미 삭제한 약",amount:4,unit:"mL"});
+ const phone=device();
+ const merged=phone.api.mergeLegacyPending(stale,remote,{});
+ assert.deepEqual(Array.from(merged.medicationGroups[0].items.map(x=>x.id)),["idrug_keep"],
+  "deleted prescription ingredient must not reappear from a stale legacy phone");
+ console.log("PASS illness: removed medication items are not revived by unclocked old phones");
+})();
 (function testAutoPurgeServerTombstonesWithNoExistingPhoneConflict(){
  const remote=record("2026-11-18T06:00:00.000Z-new",37.5);
  remote.medicationGroups=[{id:"iold_group",name:"삭제한 묶음",mode:"scheduled",
