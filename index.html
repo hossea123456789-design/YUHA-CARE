@@ -923,6 +923,9 @@
       },delay);
     }
     function scheduleSave() {
+      // Checkbox/checklist mutations are committed to the device immediately.
+      // Keep focused inputs intact, but release stale draft locks after blur.
+      window.YuhaFormGuard?.finish(document.getElementById("main"),currentTab);
       checklistDirty=true;
       checklistVersion++;
       checklistLastChangeAt=Date.now();
