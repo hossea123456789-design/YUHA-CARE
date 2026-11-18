@@ -1463,15 +1463,34 @@ function onClick(e){
  }
  if(action==="confirm-json-import"){
   if(!c||c.status!=="active"||pendingPrescription?.episodeId!==c.id)return;
-  const toAdd=pendingPrescription.result.groups.filter(g=>!c.medicationGroups.some(existing=>samePrescriptionGroup(g,existing)));
-  if(!toAdd.length){
+  const toAdd=[],purposeUpdates=[];
+  for(const candidate of pendingPrescription.result.groups){
+   const existing=c.medicationGroups.find(g=>samePrescriptionGroup(candidate,g));
+   if(!existing){toAdd.push(candidate);continue;}
+   for(const newItem of candidate.items){
+    const oldItem=existing.items.find(i=>i.name===newItem.name&&i.amount===newItem.amount&&i.unit===newItem.unit);
+    // A repeated photo import may add a previously missing printed indication,
+    // but must never erase or overwrite an existing manual classification.
+    if(oldItem&&!oldItem.purpose&&newItem.purpose)
+     purposeUpdates.push({groupId:existing.id,itemId:oldItem.id,purpose:newItem.purpose});
+   }
+  }
+  if(!toAdd.length&&!purposeUpdates.length){
    pendingPrescription=null;notice="동일한 묶음이 이미 등록되어 중복 저장하지 않았습니다";noticeError=false;
    render();return;
   }
-  if(!window.confirm(toAdd.length+"개 묶음을 등록할까요? 약 이름·1회량·횟수를 확인했나요?"))return;
+  if(!window.confirm(toAdd.length+"개 묶음 등록 · 기존 약 용도 "+purposeUpdates.length+
+    "건 보충할까요? 사진 원문과 약 이름·1회량·횟수를 확인했나요?"))return;
   pendingPrescription=null;
-  changeCase(c.id,r=>r.medicationGroups.push(...toAdd));
-  notice=toAdd.length+"개 약 묶음을 기기에 기록했습니다";noticeError=false;
+  notice=toAdd.length+"개 묶음 등록 · 기존 용도 "+purposeUpdates.length+"건 보충됨";noticeError=false;
+  changeCase(c.id,record=>{
+   record.medicationGroups.push(...toAdd);
+   for(const update of purposeUpdates){
+    const group=record.medicationGroups.find(g=>g.id===update.groupId);
+    const item=group?.items.find(i=>i.id===update.itemId);
+    if(item&&!item.purpose)item.purpose=update.purpose;
+   }
+  });
   return;
  }
  if(action==="add-drug-line"){
