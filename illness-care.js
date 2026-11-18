@@ -461,53 +461,79 @@ function mergePendingOnRemote(id,remote){
  return true;
 }
 function absorbServer(incoming){
- let refreshed=0;
+ let refreshed=0,recovered=0;
  for(const [id,raw] of Object.entries(incoming||{})){
   const remote=normalize(raw);if(remote.id!==id)continue;
   const local=model.cases[id],pending=model.pending[id];
-  // Track the last confirmed server snapshot separately from the device draft.
-  // This is used to prove that an old device copy was not edited locally.
   const baseline=model.serverBaseline[id];
-  if(!local){model.cases[id]=remote;model.serverBaseline[id]=clone(remote);continue;}
+  if(!local){
+   model.cases[id]=remote;
+   model.serverBaseline[id]=clone(remote);
+   queueArchivedCleanup(id,remote);
+   refreshed++;
+   continue;
+  }
   if(pending){
    if(sameData(pending.episode,remote)){
-    model.cases[id]={...normalize(model.cases[id]),revision:remote.revision};
+    model.cases[id]=remote;
     delete model.pending[id];delete model.conflicts[id];
     model.serverBaseline[id]=clone(remote);
+    refreshed++;
    }else if(String(pending.expectedRevision||"")!==String(remote.revision||"")){
-    if(mergePendingOnRemote(id,remote))refreshed++;
-    else setConflict(id,remote);
-    // Preserve the merge base when unresolved. Replacing it with remote
-    // would make it impossible to compare what both phones changed.
-   }else model.serverBaseline[id]=clone(remote);
+    if(mergePendingOnRemote(id,remote)){
+     refreshed++;recovered++;
+    }else{
+     setConflict(id,remote);
+    }
+   }else{
+    // The server has not changed since this phone last edited the episode:
+    // a previously persisted conflict flag is obsolete and must not block upload.
+    delete model.conflicts[id];
+    model.serverBaseline[id]=clone(remote);
+   }
+   queueArchivedCleanup(id,remote);
    continue;
   }
   if(sameData(local,remote)){
-   model.cases[id]=remote;delete model.conflicts[id];
-   model.serverBaseline[id]=clone(remote);continue;
+   model.cases[id]=remote;
+   delete model.conflicts[id];
+   model.serverBaseline[id]=clone(remote);
+   queueArchivedCleanup(id,remote);
+   continue;
   }
   const knownClean=(!!baseline&&
    String(local.revision||"")===String(baseline.revision||"")&&sameData(local,baseline))||
-   (!baseline&&Boolean(local.revision)&&!pending);
-  // A revision-tagged device cache with no pending changes follows the cloud.
-  // Its previous contents remain in the safety snapshot.
+   Boolean(local.revision);
   if(knownClean){
-   // A previously synchronized, unedited device copy is stale. Adopt the
-   // newer cloud version and archive its former contents before replacing it.
    recordSnapshot("before-server-refresh",local);
    model.cases[id]=remote;delete model.conflicts[id];refreshed++;
   }else{
-   // Never discard a local-only record or an unsynced edit.
-   setConflict(id,remote);
+   // Legacy copies without a revision may have unique offline measurements.
+   // Preserve them by ID, but prefer the known server for ambiguous values.
+   const merged=mergeLegacyPending(local,remote,{});
+   if(merged){
+    recordSnapshot("legacy-unversioned-recovery",{local,remote});
+    model.cases[id]=removeArchivedGroups(merged);
+    delete model.conflicts[id];
+    if(!sameData(model.cases[id],remote)){
+     model.pending[id]={episode:clone(model.cases[id]),expectedRevision:remote.revision,
+      editedAt:nowIso(),editedFields:{}};
+    }
+    refreshed++;recovered++;
+   }else setConflict(id,remote);
   }
   model.serverBaseline[id]=clone(remote);
+  queueArchivedCleanup(id,remote);
  }
- // On a new phone the server can contain entries while no local episode
- // was selected. Select the latest one so it appears without extra taps.
- if(!model.cases[selected])
-  selected=Object.values(model.cases).sort((a,b)=>at(b.onsetAt)-at(a.onsetAt))[0]?.id||"";
+ if(!model.cases[selected]){
+  selected=Object.values(model.cases)
+   .sort((a,b)=>at(b.onsetAt)-at(a.onsetAt))[0]?.id||"";
+ }
  const saved=persist();
- if(refreshed&&saved)notice="서버 최신 기록 "+refreshed+"건을 기기에 반영하고 이전 원본을 백업했습니다";
+ if(recovered&&saved)
+  notice="이전 기기의 서버 충돌 "+recovered+"건을 자동 조정했습니다 · 서버 최종 저장 검증 중";
+ else if(refreshed&&saved)
+  notice="서버 최신 기록 "+refreshed+"건 반영 · 미전송 기록 서버 확인 중";
 }
 async function connect(){
  // Reuse the same shared Apps Script bridge as the other app tabs.
