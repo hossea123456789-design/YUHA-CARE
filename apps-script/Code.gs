@@ -42,9 +42,11 @@ function getAppData(forceFresh) {
 
   let dataJson = '';
   let updatedAt = '';
+  let hasChecklistRow = false;
 
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === DATA_KEY) {
+      hasChecklistRow = true;
       dataJson = rows[i][1];
       updatedAt = rows[i][2] || '';
       break;
@@ -52,6 +54,9 @@ function getAppData(forceFresh) {
   }
 
   if (!dataJson) {
+    if (hasChecklistRow) {
+      throw new Error('CHECKLIST_DB 저장 행은 있지만 JSON이 비어 있습니다. 기본 목록으로 덮어쓰지 않았습니다.');
+    }
     const defaultData = getDefaultData_();
     const now = new Date().toISOString();
     saveRawData_(defaultData, now);
