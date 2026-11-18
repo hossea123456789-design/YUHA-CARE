@@ -610,7 +610,7 @@ function activate(pass){
    if(--outstanding===0&&!anyFailed){
      cloudBusy=false;cloudReady=true;cloudError="";
      setState(stateText());
-     render();scheduleCloud(100);diag()?.flush(cloudCode);
+     render({background:true});scheduleCloud(100);diag()?.flush(cloudCode);
      publishProgress();
    }
   },failed);
@@ -618,7 +618,7 @@ function activate(pass){
  function failed(err){if(anyFailed||epoch!==cloudEpoch||!unlocked)return;anyFailed=true;cloudBusy=false;cloudReady=false;
    const reason=String(err?.message||err);
    traceMental('CLOUD_CONNECT_ERROR',{code:reason.slice(0,65),pendingCount:Object.keys(pending).length});
-   setState("연결 실패: "+reason,true);render();
+   setState("연결 실패: "+reason,true);render({background:true});
 }
 }
 // Load navigated months without overwriting unsynced records.
@@ -644,7 +644,7 @@ function fetchMentalMonthIfNeeded(k){
   mergeCloudMonth(result.records);
   loadedMentalMonths.add(k);
   saveLocal();cloudError="";
-  render();scheduleCloud(100);diag()?.flush(cloudCode);
+  render({background:true});scheduleCloud(100);diag()?.flush(cloudCode);
   if(k===month)publishProgress();
  },error=>{
   loadingMentalMonths.delete(k);
@@ -721,7 +721,7 @@ function syncNext(){
      serverComplete:numberFilled(result.serverEntry),reason:'revision_mismatch'});
    progress('error','다른 기기 기록과 충돌');
    setState('기록 충돌 · 서버·기기 원본 보관 · 수동 확인 필요',true);
-   render();scheduleCloud(200);return;
+   render({background:true});scheduleCloud(200);return;
   }
   if(!result?.ok){retry('server_rejected',5000);return;}
   if(p.resolution&&!result.conflictArchived){
@@ -774,7 +774,7 @@ function syncNext(){
    cloudSaving=false;
    saveLocal();diag()?.flush(cloudCode);
    setState(stateText());scheduleCloud(250);
-   if(screen){updateIndicators();if(selected===date&&!letterEditing)render();}
+   if(screen){updateIndicators();if(selected===date&&!letterEditing)render({background:true});}
    // An individual write is not a global green success while other dates
    // remain pending, conflicting, or inaccessible on the server.
    const finalState=progressViewState();
@@ -1466,9 +1466,12 @@ function view(){
   '<p class="mental-footer">이 점수는 개인 baseline과 장기 변화 관찰을 위한 참고값입니다. 낮은 점수가 모성애나 양육 능력을 뜻하지 않습니다. 지속적인 어려움이 있다면 의료·상담 전문가의 도움을 고려할 수 있습니다.</p>'+
   '</div>';
 }
-function render(){
+function render(options={}){
  screen=document.getElementById("main");
  if(!screen)return;
+ window.YuhaFormGuard?.bind(screen,"mental");
+ if(options.background===true&&window.YuhaFormGuard?.isEditing(screen,"mental"))return;
+ const editingDraft=window.YuhaFormGuard?.capture(screen,"mental");
  // Keep a focused memo and its caret when asynchronous server data causes rerender.
  const active=document.activeElement;
  const editingMemo=Boolean(unlocked&&active?.id==="mentalMemo"&&active.isConnected);
@@ -1482,6 +1485,7 @@ function render(){
  }
  if(!unlocked){screen.innerHTML=lockMarkup();bindLock();return;}
  screen.innerHTML=view();
+ window.YuhaFormGuard?.restore(screen,editingDraft);
  bind();
  const restoredDetails=screen.querySelector("#mentalMemoFullDetails");
  if(restoredDetails&&fullMemoOpen)restoredDetails.open=true;
