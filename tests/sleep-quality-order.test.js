@@ -5,7 +5,7 @@ const vm=require("node:vm");
 const html=fs.readFileSync("index.html","utf8");
 const css=fs.readFileSync("design.css","utf8");
 const begin=html.indexOf("    function drawSleepObservation(){");
-const end=html.indexOf("    function renderSleepTab() {",begin);
+const end=html.indexOf("    function renderSleepTab(options={}) {",begin);
 assert(begin>=0&&end>begin,"Observation renderer must be present");
 const date="2026-11-11";
 const stored={
@@ -62,7 +62,7 @@ assert(markup.includes('data-sleep-special="travel" checked'));
 assert(markup.includes('Apps Script Code.gs(v3)'),"Existing local-protection message must remain");
 console.log("PASS UI: explicit date, overnight → morning → nap → evening → day context");
 console.log("PASS UI: selected user-recorded values and local protection notice preserved");
-const renderBegin=html.indexOf("    function renderSleepTab() {");
+const renderBegin=html.indexOf("    function renderSleepTab(options={}) {");
 const renderEnd=html.indexOf("    function changeSleepWeek(",renderBegin);
 assert(renderBegin>=0&&renderEnd>renderBegin);
 const fragment=html.slice(renderBegin,renderEnd);
