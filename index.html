@@ -1068,10 +1068,12 @@
       if (currentTab === "mental" && tabKey !== "mental") window.YuhaMental?.lock();
       if (currentTab === "illness" && tabKey !== "illness") window.YuhaIllness?.stop();
       const needSleepRecheck=tabKey==="sleep"&&sleepLastVisibleRefreshAt>0&&Date.now()-sleepLastVisibleRefreshAt>12000;
+      const needSettingsRecheck=tabKey==="settings"&&sleepLastVisibleRefreshAt>0&&Date.now()-sleepLastVisibleRefreshAt>12000;
       currentTab = tabKey;
       rememberLastVisitedTab(tabKey);
       render();
       if(needSleepRecheck&&data)fetchSleepMonth(true);
+      if(needSettingsRecheck&&data)fetchSleepMonthFor(sleepViewYear,sleepViewMonth,true);
       if(["daycare","outing","daily","weekly","settings"].includes(tabKey)&&
         data&&Date.now()-lastChecklistReadAt>12000&&!checklistLoading)loadFromServer();
       return true;
@@ -2045,6 +2047,7 @@
       // 수면 탭의 상태 문구가 네트워크 작업 없이 진행바를 띄우지 않도록 분리.
     }
     function fetchSleepMonthFor(year,month,force=false) {
+      sleepLastVisibleRefreshAt=Date.now();
       const key=sleepMonthKey(year,month);
       ensureSleepMonth(year,month);
       if(!force&&sleepLoadTokens[key])return;
@@ -3517,7 +3520,7 @@
     function refreshSharedTabsAfterReturn(){
       if(!navigator.onLine||!data)return;
       if(!checklistLoading&&Date.now()-lastChecklistReadAt>15000)loadFromServer();
-      if(currentTab==="sleep"&&Date.now()-sleepLastVisibleRefreshAt>15000)
+      if((currentTab==="sleep"||currentTab==="settings")&&Date.now()-sleepLastVisibleRefreshAt>15000)
         fetchSleepMonth(true);
     }
     document.addEventListener("visibilitychange",()=>{
