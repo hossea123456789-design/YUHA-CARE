@@ -1067,10 +1067,11 @@
       if (!tabOrder.includes(tabKey) || currentTab === tabKey) return false;
       if (currentTab === "mental" && tabKey !== "mental") window.YuhaMental?.lock();
       if (currentTab === "illness" && tabKey !== "illness") window.YuhaIllness?.stop();
+      const needSleepRecheck=tabKey==="sleep"&&sleepLastVisibleRefreshAt>0&&Date.now()-sleepLastVisibleRefreshAt>12000;
       currentTab = tabKey;
       rememberLastVisitedTab(tabKey);
       render();
-      if(tabKey==="sleep"&&data&&Date.now()-sleepLastVisibleRefreshAt>12000)fetchSleepMonth(true);
+      if(needSleepRecheck&&data)fetchSleepMonth(true);
       if(["daycare","outing","daily","weekly","settings"].includes(tabKey)&&
         data&&Date.now()-lastChecklistReadAt>12000&&!checklistLoading)loadFromServer();
       return true;
