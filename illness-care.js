@@ -6,6 +6,7 @@
 "use strict";
 const STORE="yuha_illness_records_v1",QUEUE="yuha_illness_pending_v1";
 const CONFLICT="yuha_illness_conflicts_v1",SNAPSHOTS="yuha_illness_snapshots_v1";
+const SERVER_BASELINE="yuha_illness_last_verified_server_v1";
 const SITES={ear:"귀",armpit:"겨드랑이",forehead:"이마",rectal:"직장",oral:"입",other:"기타"};
 const CATEGORIES={acetaminophen:"해열·진통(아세트아미노펜 계열)",ibuprofen:"해열·진통(이부프로펜 계열)",antibiotic:"항생제",antihistamine:"항히스타민",cough:"기침·가래약",respiratory:"호흡기·비강 약",gastro:"소화기 약",other:"기타 / 직접 입력"};
 const E=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -159,7 +160,7 @@ function heatBand(v){
  if(v<39)return "fever";
  return "high";
 }
-const model={cases:{},pending:{},conflicts:{},snapshots:[]};
+const model={cases:{},pending:{},conflicts:{},snapshots:[],serverBaseline:{}};
 let loaded=false,selected="",month=isoMonth(nowIso()),temperatureDay=dayKey(nowIso()),connected=false,initialFetchStarted=false,busy=false;
 let active=false,syncEpoch=0,lastActionFeedback="";
 let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",editVisit="",editTemperatureId="",editDoseId="",editDoseGroupId="",editDoseLegacy=false,copyDraft=null,pendingPrescription=null,timer=null,root=null;
@@ -171,6 +172,7 @@ function persist(){
   localStorage.setItem(STORE,JSON.stringify(model.cases));
   localStorage.setItem(QUEUE,JSON.stringify(model.pending));
   localStorage.setItem(CONFLICT,JSON.stringify(model.conflicts));
+  localStorage.setItem(SERVER_BASELINE,JSON.stringify(model.serverBaseline));
   noticeError=false;return true;
  }catch(e){notice="기기 저장 실패 · 화면을 닫거나 캐시를 삭제하지 말고 원본 백업을 확인하세요";noticeError=true;return false;}
 }
@@ -181,6 +183,7 @@ function hydrate(){
  for(const [id,c] of Object.entries(cases))if(/^i[a-z0-9_]+$/i.test(id)&&c&&c.id===id)model.cases[id]=normalize(c);
  model.pending=parseStore(QUEUE,{});
  model.conflicts=parseStore(CONFLICT,{});
+ model.serverBaseline=parseStore(SERVER_BASELINE,{});
  const snaps=parseStore(SNAPSHOTS,[]);
  model.snapshots=Array.isArray(snaps)?snaps:[];
  selected=Object.values(model.cases).sort((a,b)=>at(b.onsetAt)-at(a.onsetAt))[0]?.id||"";
@@ -198,7 +201,10 @@ function changeCase(id,modifier,feedback=""){
  model.pending[id]={episode:clone(next),
   expectedRevision:old?.expectedRevision??before.revision??"",
   ...(old?.resolution?{resolution:old.resolution}:{})};
- const saved=persist();if(saved&&feedback)lastActionFeedback=feedback;
+ const saved=persist();if(saved){
+  if(feedback)lastActionFeedback=feedback;
+  notice=connected?"기기에 저장됨 · 서버 저장 후 재조회 검증 중":"기기에 저장됨 · 서버 연결 후 동기화 대기";
+ }
  if(connected&&saved)void pushPending();render();
 }
 function newEpisode(title,onset,symptoms,note){
@@ -263,22 +269,46 @@ function setConflict(id,server){
  persist();
 }
 function absorbServer(incoming){
+ let refreshed=0;
  for(const [id,raw] of Object.entries(incoming||{})){
   const remote=normalize(raw);if(remote.id!==id)continue;
   const local=model.cases[id],pending=model.pending[id];
-  if(!local){model.cases[id]=remote;continue;}
+  // Track the last confirmed server snapshot separately from the device draft.
+  // This is used to prove that an old device copy was not edited locally.
+  const baseline=model.serverBaseline[id];
+  if(!local){model.cases[id]=remote;model.serverBaseline[id]=clone(remote);continue;}
   if(pending){
    if(sameData(pending.episode,remote)){
     model.cases[id]={...normalize(model.cases[id]),revision:remote.revision};
     delete model.pending[id];delete model.conflicts[id];
    }else if(String(pending.expectedRevision||"")!==String(remote.revision||""))setConflict(id,remote);
+   model.serverBaseline[id]=clone(remote);
    continue;
   }
-  if(sameData(local,remote)){model.cases[id]=remote;continue;}
-  // Existing local originals are never overwritten implicitly by cloud reads.
-  setConflict(id,remote);
+  if(sameData(local,remote)){
+   model.cases[id]=remote;delete model.conflicts[id];
+   model.serverBaseline[id]=clone(remote);continue;
+  }
+  const knownClean=baseline?(
+   String(local.revision||"")===String(baseline.revision||"")&&sameData(local,baseline)
+  ):Boolean(local.revision);
+  if(knownClean){
+   // A previously synchronized, unedited device copy is stale. Adopt the
+   // newer cloud version and archive its former contents before replacing it.
+   recordSnapshot("before-server-refresh",local);
+   model.cases[id]=remote;delete model.conflicts[id];refreshed++;
+  }else{
+   // Never discard a local-only record or an unsynced edit.
+   setConflict(id,remote);
+  }
+  model.serverBaseline[id]=clone(remote);
  }
- persist();
+ // On a new phone the server can contain entries while no local episode
+ // was selected. Select the latest one so it appears without extra taps.
+ if(!model.cases[selected])
+  selected=Object.values(model.cases).sort((a,b)=>at(b.onsetAt)-at(a.onsetAt))[0]?.id||"";
+ const saved=persist();
+ if(refreshed&&saved)notice="서버 최신 기록 "+refreshed+"건을 기기에 반영하고 이전 원본을 백업했습니다";
 }
 async function connect(){
  // Reuse the same shared Apps Script bridge as the other app tabs.
@@ -1073,12 +1103,22 @@ function diseaseManagementPanel(c){
 function syncPanel(){
  const count=Object.keys(model.pending).length;
  const conflicts=Object.keys(model.conflicts).length;
- const label=connected?"서버 연결됨":"서버 확인 필요";
- return '<details class="ill-utilities"'+(noticeError||conflicts?' open':'')+'>'+
+ const label=conflicts?"서버·기기 기록 불일치":noticeError?"서버 저장 확인 필요":
+  busy?"서버 확인 중":count?"서버 저장 대기":connected?"서버 조회 완료":"서버 확인 전";
+ const alert=conflicts?
+  '<p class="ill-alert" role="status">서버와 기기에 다른 기록 '+conflicts+'건이 있습니다. 임의로 덮어쓰지 않았습니다. 기기 원본 백업 후 아래 충돌 항목을 확인하세요.</p>':
+  noticeError?
+   '<p class="ill-alert" role="status">'+E(notice)+'</p>':
+  count?
+   '<p class="ill-alert" role="status">기기 저장 '+count+'건이 아직 서버에 확정되지 않았습니다. 두 기기에서 다르게 보일 수 있습니다.</p>':
+  !connected?
+   '<p class="ill-muted" role="status">기기 저장 기록을 먼저 표시 중입니다. 서버 조회가 완료되면 공유 기록을 확인합니다.</p>':
+   '<p class="ill-muted" role="status">서버 기록 조회 완료 · 현재 기기와 공유 기록을 확인했습니다.</p>';
+ return alert+'<details class="ill-utilities"'+(noticeError||conflicts?' open':'')+'>'+
   '<summary><strong>기록 저장·동기화 상태</strong><small>'+E(label)+' · 대기 '+count+'건'+
   (conflicts?' · 충돌 '+conflicts+'건':'')+'</small></summary>'+
   '<div class="ill-utilities-body"><p class="'+(noticeError?'ill-alert':'ill-muted')+'" role="status">'+E(notice)+'</p>'+
-  '<p class="ill-muted">기기에 우선 저장하고 기존 Google Sheets와 동기화합니다.</p>'+
+  '<p class="ill-muted">기기에 우선 저장하고 기존 Google Sheets와 동기화합니다. 서버 조회 완료와 서버 저장 확정은 서로 다른 상태입니다.</p>'+
   '</div></details>';
 }
 function conflictsView(){
@@ -1597,6 +1637,13 @@ function onClick(e){
  }
 }
 window.addEventListener("online",()=>{
+ if(active&&!busy)void connect();
+});
+// Returning to the app must recheck cloud changes made on the other phone.
+document.addEventListener?.("visibilitychange",()=>{
+ if(active&&document.visibilityState==="visible"&&!busy)void connect();
+});
+window.addEventListener("focus",()=>{
  if(active&&!busy)void connect();
 });
 window.YuhaIllness={render,stop,model,
