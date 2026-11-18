@@ -113,7 +113,7 @@ const make=(q={},records={},today="2026-10-31",recommendationFor=()=>({min:660,m
 (function testRealMonthlyDashboardRendersFromCalculatedEvidence(){
  const html=fs.readFileSync("index.html","utf8");
  const begin=html.indexOf("    function drawSleepMonthlySummary() {");
- const end=html.indexOf("    function renderSleepTab() {",begin);
+ const end=html.indexOf("    function renderSleepTab(options={}) {",begin);
  assert(begin>=0&&end>begin,"Monthly renderer must be declared before main sleep tab");
  const panel={innerHTML:""};
  const q={"2026-10-01":{level:"good",total:720,night:600,nap:120,napCount:1,latency:30}};
