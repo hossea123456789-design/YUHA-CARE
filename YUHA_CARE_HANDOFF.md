@@ -1,3 +1,28 @@
+## 64. 2026-11-18 — 질병 약·체온 및 모든 탭의 입력창 보존
+
+### 재현 및 근본 원인
+- 약 선택 후 복약 시각, 체온 입력 후 측정 시각을 고르는 중 서버 조회/저장 완료 시, `illness-care.js`의 `connect()`/`pushPending()`이 `render()` 호출.
+- `render()`에서 `root.innerHTML` 전체 교체, 입력창·선택값·날짜/시각 피커가 파괴됨.
+- 상위 `index.html`의 공용 체크리스트 원격 응답도 전체 탭 렌더를 호출할 수 있었고, 수면·아내 회복의 자체 동기화에서도 동일한 패턴이 존재.
+- 모바일 iOS에서는 native datetime picker 실행 중 focus가 일시적으로 이동할 수 있으므로 단순 `document.activeElement` 확인만으로는 불충분.
+
+### 핵심 구조 변경
+- 신규 `form-draft-guard.js`: 전 탭의 편집 세션을 마킹하고 API `bind`/`isEditing`/`finish`/`capture`/`restore` 제공. `#main`의 DOM 컨트롤 값과 펼친 details, 포커스·커서 위치를 메모리에서 안전하게 복구. 다른 탭으로 전환하면 이전 탭 편집 세션 해제. 입력 시각/약 선택 및 체온 값은 사용자 저장 전 서버 데이터로 취급하지 않음.
+- `illness-care.js`: 백그라운드 서버 완료 시 `render({background:true})`, 편집 중에는 `innerHTML` 갱신 생략. 의도된 일반 렌더는 이전 편집 상태를 유지(다른 질병에서는 재사용하지 않음).
+- `mental.js`: 서버 월조회·충돌·확인 단계는 background 렌더, 메모 등 입력 중 DOM 유지. 편집한 메모를 기기에 저장한 뒤 잠금 해제, 날짜 이동 시 임시 입력은 해당 날짜에만 복원.
+- `index.html`: 외부 서버 체크리스트 로드/충돌 처리 시 background 렌더. 수면 조회·저장 검증 시 background 렌더. 수면 관찰을 사용자가 수정하면 저장하고 편집 DOM은 보존하며 UI 요약만 변경. 수면 특별 상황 체크박스 상호배타 규칙은 rerender 없이 즉시 DOM에 반영. 일상 체크리스트 자동저장 후 guard 갱신.
+- `.github/workflows/pages.yml`: 신규 JS를 `public-site`에 포함하고 검사/회귀 테스트 실행.
+- `tests/form-draft-guard.test.js`: iOS picker 포커스 해제 상황, 약·체온 임시값 보존, 저장 후 해제, 전 탭 동작, 서버 응답 렌더링 방어 확인.
+- 테스트 호환 업데이트 `tests/sleep-monthly.test.js`, `tests/sleep-quality-order.test.js`, `tests/history-export-ui.test.js` (배경 렌더 옵션 추가된 메서드 서명).
+
+### 유지할 규칙
+1. `#main.innerHTML` 전체 교체는 사용자의 활성 입력 도중, 특히 서버 응답 콜백에서 절대 호출하지 말 것. 모든 비동기 callback에서 `render({background:true})` 또는 부분 DOM 업데이트 사용.
+2. 실제 저장은 기존 서버 ACK 이후 재조회 검증 유지, 입력 폼 스냅샷으로 서버 기록을 덮어쓰지 말 것.
+3. 다른 날짜/질병/탭으로 이동 시 이전 폼 임시값을 다음 레코드에 복원하지 말 것.
+4. iOS 시각 선택기 포커스·블러 상태가 일시적으로 불안정한 환경을 계속 회귀 테스트할 것.
+
+---
+
 ## 63. 2026-11-18 — 실사용 휴대폰의 영구 동기화 충돌 자동복구
 
 ### 재현된 문제
