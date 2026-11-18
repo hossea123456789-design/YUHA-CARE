@@ -84,6 +84,7 @@ function normalize(source){
   medications:Array.isArray(c.medications)?c.medications.map(m=>({
    id:cleanText(m.id,60),visitId:cleanText(m.visitId,60),
    category:CATEGORIES[m.category]?m.category:"other",name:cleanText(m.name,120),
+   purpose:cleanText(m.purpose,160),
    ingredient:cleanText(m.ingredient,120),formulation:cleanText(m.formulation,120),
    mode:m.mode==="prn"?"prn":"scheduled",doseMl:num(m.doseMl),
    intervalHours:num(m.intervalHours),endsAt:isTime(m.endsAt)?m.endsAt:"",
@@ -103,6 +104,7 @@ function normalize(source){
    sourceDate:cleanText(g.sourceDate,10),sourceKind:cleanText(g.sourceKind,35),
    items:Array.isArray(g.items)?g.items.map(item=>({
     id:cleanText(item.id,60),name:cleanText(item.name,120),
+    purpose:cleanText(item.purpose,160),
     amount:num(item.amount),unit:MED_UNITS.includes(item.unit)?item.unit:"mL"
    })):[],
    events:Array.isArray(g.events)?g.events.map(d=>({
@@ -111,6 +113,7 @@ function normalize(source){
     note:cleanText(d.note,300),scheduledFor:isTime(d.scheduledFor)?d.scheduledFor:"",
     items:Array.isArray(d.items)?d.items.map(item=>({
      id:cleanText(item.id,60),name:cleanText(item.name,120),
+     purpose:cleanText(item.purpose,160),
      amount:num(item.amount),unit:MED_UNITS.includes(item.unit)?item.unit:"mL"
     })):[] 
    })):[]
@@ -519,7 +522,9 @@ function parsePrescriptionJson(input){
   const name=String(m.name??"").trim(),unit=String(m.doseUnit??"");
   if(!name||name.length>120||!MED_UNITS.includes(unit)||!validAmount(m.doseAmount,unit))
    throw Error((i+1)+"번째 약 이름·1회량·단위를 확인하세요.");
-  return {name,amount:num(m.doseAmount),unit,
+  if(m.purpose!==undefined&&(typeof m.purpose!=="string"||m.purpose.length>160))
+   throw Error(name+" 약 용도(purpose)는 160자 이내의 사진 원문 문자열이어야 합니다.");
+  return {name,amount:num(m.doseAmount),unit,purpose:String(m.purpose||"").trim(),
    timesPerDay:natural(m.timesPerDay,12,name+" 1일 횟수"),
    days:natural(m.days,60,name+" 일수")};
  });
@@ -572,7 +577,7 @@ function parsePrescriptionJson(input){
  const groups=plans.map(g=>({id:newId(),name:g.name,mode:"scheduled",
   intervalHours:null,timesPerDay:g.timesPerDay,days:g.days,sourceDate,
   sourceKind:"prescription-json",visitId:"",endsAt:"",active:true,
-  items:g.items.map(i=>({id:newId(),name:i.name,amount:i.amount,unit:i.unit})),events:[]}));
+  items:g.items.map(i=>({id:newId(),name:i.name,purpose:i.purpose||"",amount:i.amount,unit:i.unit})),events:[]}));
  return {groups,medicationCount:mlist.length,sourceDate,
   hasExtraPrecision:mlist.some(m=>m.unit==="g"&&decimalPlaces(m.amount)>2),
   note:"1일 복용 횟수만으로 복용 간격을 추정하지 않았습니다. 의사·약사에게 확인한 시간 간격을 별도로 입력하세요."};
@@ -598,7 +603,9 @@ function groupItemRow(item){
   '<input aria-label="약 이름" required name="drugName" maxlength="120" placeholder="약 이름 (예: 챔프)" value="'+attr(values.name||"")+'">'+
   '<input aria-label="1회 투약량" required type="number" inputmode="decimal" min="0.1" max="100" step="any" name="drugAmount" placeholder="1회량" value="'+attr(values.amount??"")+'">'+
   '<select aria-label="투약 단위" name="drugUnit">'+MED_UNITS.map(v=>'<option value="'+v+'"'+(unit===v?" selected":"")+'>'+v+'</option>').join("")+'</select>'+
-  '<button type="button" class="ill-minor" data-act="remove-drug-line" aria-label="이 약 입력 줄 삭제">×</button></div>';
+  '<button type="button" class="ill-minor" data-act="remove-drug-line" aria-label="이 약 입력 줄 삭제">×</button>'+
+  '<input class="ill-drug-purpose" aria-label="약의 용도 또는 효능 분류 (복약안내에 적힌 원문)" name="drugPurpose" maxlength="160" '+
+  'placeholder="약 용도·효능 분류 (선택 · 복약안내 원문)" value="'+attr(values.purpose||"")'+'"></div>';
 }
 // A portable transcription contract to paste into another chat with a photo.
 // This example is fictitious and contains no real prescription or patient data.
@@ -1263,7 +1270,7 @@ function onSubmit(e){
   if(type==="group"){
    const data=new FormData(form);
    const names=data.getAll("drugName"),amounts=data.getAll("drugAmount"),
-    units=data.getAll("drugUnit");
+    units=data.getAll("drugUnit"),purposes=data.getAll("drugPurpose");
    need(names.length>0&&names.length===amounts.length&&names.length===units.length&&names.length<=20,
     "약 이름과 1회량을 모두 입력해 주세요");
    const editId=get(form,"editGroupId"),old=c.medicationGroups.find(g=>g.id===editId);
@@ -1272,7 +1279,8 @@ function onSubmit(e){
     need(String(name||"").trim(),"약 이름을 입력해 주세요");
     need(validAmount(amount,unit),"1회량은 소수 둘째 자리까지 입력해 주세요. g 처방 원문은 넷째 자리까지 보존합니다.");
     need(MED_UNITS.includes(unit),"복용 단위를 선택해 주세요");
-    return {id:old?.items[i]?.id||newId(),name:String(name).trim(),amount,unit};
+    return {id:old?.items[i]?.id||newId(),name:String(name).trim(),amount,unit,
+     purpose:cleanText(purposes[i]===undefined?(old?.items[i]?.purpose||""):purposes[i],160).trim()};
    });
    const mode=get(form,"mode")==="prn"?"prn":"scheduled",interval=num(get(form,"intervalHours"));
    need(mode==="prn"||interval!==null||old?.timesPerDay||copyDraft?.timesPerDay,"정기 복용 묶음은 처방 간격이 필요합니다. 횟수만 있는 가져오기 기록은 미확인으로 보관합니다.");
@@ -1332,6 +1340,7 @@ function onSubmit(e){
    need(interval===null||(interval>=.5&&interval<=72),"처방 간격은 0.5~72시간 범위에서 입력해 주세요");
    const id=get(form,"editId"),end=get(form,"endsAt");
    const payload={name,mode,doseMl:dose,intervalHours:interval,
+    purpose:cleanText(get(form,"purpose"),160).trim(),
     visitId:get(form,"visitId"),instructions:get(form,"instructions"),endsAt:end?inputTime(end):""};
    changeCase(c.id,r=>{
     const m=r.medications.find(x=>x.id===id);
