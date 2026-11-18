@@ -207,8 +207,12 @@ function changeCase(id,modifier,feedback=""){
  const saved=persist();if(saved){
   if(feedback)lastActionFeedback=feedback;
   notice=connected?"기기에 저장됨 · 서버 저장 후 재조회 검증 중":"기기에 저장됨 · 서버 연결 후 동기화 대기";
+ }else{
+  model.cases[id]=before;
+  if(old)model.pending[id]=old;else delete model.pending[id];
  }
  if(connected&&saved)void pushPending();render();
+ return saved;
 }
 function newEpisode(title,onset,symptoms,note){
  const id=newId();
@@ -677,7 +681,8 @@ function prescriptionJsonForm(c){
   '<form data-form="prescription-json" class="ill-fields ill-json-form">'+
   '<label>처방 JSON<textarea name="prescriptionJson" rows="5" maxlength="100000" spellcheck="false" placeholder="여기에 처방 JSON을 붙여넣으세요"></textarea></label>'+
   '<button type="submit" class="ill-primary">JSON 분석 · 약별량 확인</button></form>'+
-  '<div id="illPrescriptionPreview" aria-live="polite"></div>'+
+  '<div id="illPrescriptionPreview" aria-live="polite">'+
+  (pendingPrescription?.episodeId===c.id?prescriptionPreview(pendingPrescription.result):"")+'</div>'+
   '<p class="ill-muted">자동 등록되지 않습니다. 분석 결과를 확인한 뒤 등록합니다. 1일 횟수만으로 복용 간격은 추정하지 않습니다.</p></section>';
 }
 function prescriptionPreview(result){
@@ -743,17 +748,18 @@ function groupPanel(c){
    '<div class="ill-group-action-row ill-group-status-actions">'+
    (g.active?'<button type="button" class="ill-secondary" data-act="end-group" data-id="'+attr(g.id)+'">복용 종료</button>':
       '<button type="button" class="ill-secondary" data-act="resume-group" data-id="'+attr(g.id)+'">복용 재개</button>')+
-   '<button type="button" class="ill-text-danger" data-act="delete-group" data-id="'+attr(g.id)+'">묶음 삭제</button>'+
+   '<button type="button" class="ill-text-danger" data-act="delete-group" data-id="'+attr(g.id)+'">영구 삭제</button>'+
    '</div></div>':'')+
    '<p class="ill-muted">복용 이력 '+history.length+'건 · 시간별 기록은 위 복약 서머리에서 확인·수정</p></article>';
  };
  const sections=all.map(renderGroup).join("");
  const past=finished.length?'<details class="ill-group-past"><summary>복용 종료한 묶음 '+finished.length+'개</summary>'+
    finished.map(renderGroup).join("")+'</details>':'';
- const archive=deleted.length?'<details class="ill-group-archive"><summary>삭제한 묶음 '+deleted.length+'개 · 복원 가능</summary>'+
-  '<p class="ill-muted">삭제한 묶음과 기존 투약 기록은 보관됩니다. 삭제한 묶음의 이력은 일반 복약 서머리에서 제외합니다.</p>'+
+ const archive=deleted.length?'<details class="ill-group-archive"><summary>이전 버전의 삭제 보관 묶음 '+deleted.length+'개 · 정리 필요</summary>'+
+  '<p class="ill-muted">이전 버전에서 삭제 표시로만 남은 데이터입니다. 영구 삭제 시 연결된 실제 복용 이력도 제거됩니다.</p>'+
+  (c.status==="active"?'<button type="button" class="ill-text-danger" data-act="purge-archived-groups">삭제 보관 묶음 전체 영구 삭제</button>':'')+
   deleted.map(g=>'<div class="ill-archive-row"><span>'+E(g.name)+' · 복용 이력 '+g.events.length+'건</span>'+
-   (c.status==="active"?'<button type="button" class="ill-secondary" data-act="restore-group" data-id="'+attr(g.id)+'">복원</button>':'')+'</div>').join("")+'</details>':'';
+   (c.status==="active"?'<button type="button" class="ill-secondary" data-act="delete-group" data-id="'+attr(g.id)+'">영구 삭제</button>':'')+'</div>').join("")+'</details>':'';
  return '<div class="ill-registered-groups">'+sections+past+archive+
  '<p class="ill-muted">복용·미복용 기록과 수정은 위 시간별 히스토리에서 확인합니다.</p></div>';
 }
@@ -1462,10 +1468,14 @@ function onClick(e){
   return;
  }
  if(action==="confirm-json-import"){
-  if(!c||c.status!=="active"||pendingPrescription?.episodeId!==c.id)return;
+  if(!c||c.status!=="active"||pendingPrescription?.episodeId!==c.id){
+   notice="분석 결과가 현재 질병과 일치하지 않습니다. 처방 JSON을 다시 분석해 주세요.";
+   noticeError=true;render();return;
+  }
   const toAdd=[],purposeUpdates=[];
   for(const candidate of pendingPrescription.result.groups){
-   const existing=c.medicationGroups.find(g=>samePrescriptionGroup(candidate,g));
+   // Legacy deleted prescriptions must never block a new import.
+   const existing=c.medicationGroups.find(g=>!g.deletedAt&&samePrescriptionGroup(candidate,g));
    if(!existing){toAdd.push(candidate);continue;}
    for(const newItem of candidate.items){
     const oldItem=existing.items.find(i=>i.name===newItem.name&&i.amount===newItem.amount&&i.unit===newItem.unit);
@@ -1481,16 +1491,17 @@ function onClick(e){
   }
   if(!window.confirm(toAdd.length+"개 묶음 등록 · 기존 약 용도 "+purposeUpdates.length+
     "건 보충할까요? 사진 원문과 약 이름·1회량·횟수를 확인했나요?"))return;
+  const review=pendingPrescription;
   pendingPrescription=null;
-  notice=toAdd.length+"개 묶음 등록 · 기존 용도 "+purposeUpdates.length+"건 보충됨";noticeError=false;
-  changeCase(c.id,record=>{
+  const saved=changeCase(c.id,record=>{
    record.medicationGroups.push(...toAdd);
    for(const update of purposeUpdates){
     const group=record.medicationGroups.find(g=>g.id===update.groupId);
     const item=group?.items.find(i=>i.id===update.itemId);
     if(item&&!item.purpose)item.purpose=update.purpose;
    }
-  });
+  },toAdd.length+"개 처방 묶음을 기기에 등록했습니다. 서버 저장 검증 상태를 확인하세요.");
+  if(!saved){pendingPrescription=review;render();}
   return;
  }
  if(action==="add-drug-line"){
@@ -1598,16 +1609,22 @@ function onClick(e){
   return;
  }
  if(action==="delete-group"){
-  const target=c.medicationGroups.find(g=>g.id===id&&!g.deletedAt);
+  const target=c.medicationGroups.find(g=>g.id===id);
   if(!target)return;
-  const message="‘"+target.name+"’ 묶음을 삭제할까요?\n복용 이력 "+target.events.length+
-   "건은 원본에 보관되며, 일반 목록과 복약 서머리에서 제외됩니다. 나중에 복원할 수 있습니다.";
-  if(!window.confirm(message))return;
+  const count=target.events?.length||0;
+  if(!window.confirm("‘"+target.name+"’ 묶음을 영구 삭제할까요?\n연결된 실제 복용 이력 "+count+"건도 함께 삭제됩니다. 복원 버튼이나 삭제 보관 목록은 생성되지 않습니다."))return;
   if(editGroup===id){editGroup="";copyDraft=null;}
-  changeCase(c.id,r=>{
-   const g=r.medicationGroups.find(x=>x.id===id);
-   if(g){g.deletedAt=nowIso();g.active=false;}
-  });
+  changeCase(c.id,r=>{r.medicationGroups=r.medicationGroups.filter(g=>g.id!==id);},
+   "처방 묶음 영구 삭제 · 복용 이력 "+count+"건 포함");
+  return;
+ }
+ if(action==="purge-archived-groups"){
+  const oldGroups=c.medicationGroups.filter(g=>g.deletedAt);
+  if(!oldGroups.length)return;
+  const doseCount=oldGroups.reduce((n,g)=>n+(g.events?.length||0),0);
+  if(!window.confirm("삭제 보관된 처방 묶음 "+oldGroups.length+"개를 영구 제거할까요?\n포함된 실제 복용 이력 "+doseCount+"건도 함께 삭제됩니다."))return;
+  changeCase(c.id,r=>{r.medicationGroups=r.medicationGroups.filter(g=>!g.deletedAt);},
+   "이전 삭제 보관 묶음 "+oldGroups.length+"개 영구 정리 완료");
   return;
  }
  if(action==="restore-group"){
