@@ -77,10 +77,21 @@ const block=(source,start,end)=>{
  assert(html.includes("verifySleepSnapshot(snapshot,verified=>"));
  console.log("PASS sleep: newer cloud data visible only for unedited verified fields, pending and blanks protected");
 })();
-function device(initial={}){
+function device(initial={},rpcHandler=null){
  const store=new Map(Object.entries(initial));
  const root={dataset:{},innerHTML:"",addEventListener(){},querySelector(){return null},querySelectorAll(){return []}};
  const win={addEventListener(){},confirm(){return true}};
+ if(rpcHandler){
+  win.google={script:{run:{
+   withSuccessHandler(success){
+    return {withFailureHandler(failure){
+     return new Proxy({}, {get(_target,method){
+      return (...args)=>rpcHandler(method,args,success,failure);
+     }});
+    }};
+   }
+  }}};
+ }
  const ctx={window:win,document:{getElementById(){return root},addEventListener(){}},
   localStorage:{getItem(k){return store.get(k)||null},setItem(k,v){store.set(k,String(v))}},
   setInterval(){return 1},clearInterval(){},setTimeout(){return 1},clearTimeout(){},
@@ -219,6 +230,63 @@ const record=(revision,value)=>({
  assert.equal(phone.model.pending[remote.id].episode.medicationGroups.length,0);
  console.log("PASS illness: old archived prescriptions automatically cleaned from shared server");
 })();
+(async function testActualTwoDeviceServerRoundtripAndReadback(){
+ const id="ifever_shared";
+ const base=record("2026-11-18T00:10:00.000Z-old",37.9);
+ const serverRecord=record("2026-11-18T02:00:00.000Z-server",38.2);
+ serverRecord.temperatures.push({id:"iremote_added",at:"2026-11-18T01:20:00.000Z",
+  celsius:37.2,site:"ear"});
+ serverRecord.medicationGroups=[{id:"ilegacy_tombstone",name:"보관 삭제 처방",
+  mode:"scheduled",intervalHours:null,timesPerDay:2,days:3,
+  deletedAt:"2026-11-18T01:00:00.000Z",
+  items:[{id:"ilegacy_drug",name:"옛 약",amount:2,unit:"mL"}],events:[]}];
+ let server=structuredClone(serverRecord),revisionCount=0,writeCalls=0,readCalls=0;
+ const rpc=(method,args,success,failure)=>{
+  if(method==="getIllnessCases"){
+   readCalls++;
+   success({ok:true,schemaVersion:4,cases:{[id]:structuredClone(server)}});
+  }else if(method==="syncIllnessCase"){
+   writeCalls++;
+   const job=args[0];
+   if(job.expectedRevision!==server.revision){
+    success({ok:true,conflict:true,serverEntry:structuredClone(server),
+     serverRevision:server.revision});return;
+   }
+   server=structuredClone(job.episode);
+   server.revision="2026-11-18T02:10:00.000Z-verified"+(++revisionCount);
+   success({ok:true,revision:server.revision});
+  }else failure(new Error("unknown API "+method));
+ };
+ const local=structuredClone(base);
+ local.temperatures.push({id:"ilocal_added",at:"2026-11-18T01:30:00.000Z",
+  celsius:36.5,site:"ear"});
+ const first=device({
+  yuha_illness_records_v1:JSON.stringify({[id]:local}),
+  yuha_illness_pending_v1:JSON.stringify({[id]:{episode:local,expectedRevision:base.revision}}),
+  yuha_illness_conflicts_v1:JSON.stringify({[id]:{local,server:base}})
+ },rpc);
+ const second=device({},rpc);
+ const flush=async()=>{for(let i=0;i<10;i++)await Promise.resolve();};
+ await flush();
+ await first.api.connect();
+ await flush();
+ await second.api.connect();
+ await flush();
+ assert.equal(Object.keys(first.model.conflicts).length,0,
+  "legacy phone must clear old 1-conflict warning");
+ assert.equal(Object.keys(first.model.pending).length,0,
+  "legacy phone must have 0 server-pending writes after verified readback");
+ assert.equal(Object.keys(second.model.conflicts).length,0);
+ assert.equal(Object.keys(second.model.pending).length,0);
+ assert.equal(server.medicationGroups.length,0,"old deleted medicine group removed on server");
+ assert.equal(server.temperatures.length,3,"both phones' nonduplicate readings retained");
+ assert.equal(first.model.cases[id].revision,server.revision);
+ assert.equal(second.model.cases[id].revision,server.revision);
+ assert.equal(JSON.stringify(first.model.cases[id]),JSON.stringify(second.model.cases[id]),
+  "both phones must display identical final server data after RPC readback");
+ assert(writeCalls>0&&readCalls>2,"real save and multiple server reads must occur");
+ console.log("PASS illness live-RPC simulation: stale conflict → merge → save → verify → identical phones (0 pending/0 conflict)");
+})().catch(err=>{console.error(err);process.exitCode=1;});
 (function testMentalRefreshAndStateVisibility(){
  assert(mental.includes("function refreshCloudRecords(force=false)"));
  assert(mental.includes('document.addEventListener?.("visibilitychange"'));
