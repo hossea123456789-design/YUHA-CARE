@@ -111,11 +111,13 @@ const record=(revision,value)=>({
  const other=device({yuha_illness_records_v1:JSON.stringify({[old.id]:old}),
   yuha_illness_pending_v1:JSON.stringify({[old.id]:pending})});
  other.api.absorbServer({[old.id]:updated});
- assert.equal(other.model.cases[old.id].temperatures[0].celsius,38.2,
-  "A genuine local unsent change is retained");
- assert.equal(Object.keys(other.model.conflicts).length,1,
-  "A remote conflicting edit must be flagged, not silently overwritten");
- console.log("PASS illness: new device sees cloud records, stale clean device refreshes, unsynced edits protected");
+ assert.equal(other.model.cases[old.id].temperatures[0].celsius,38.7,
+  "Without a reliable local edit clock, the latest server value wins a duplicate");
+ assert.equal(Object.keys(other.model.conflicts).length,0,
+  "Legacy duplicate-only conflicts must clear automatically");
+ assert.equal(Object.keys(other.model.pending).length,0,
+  "No outdated duplicate should be re-uploaded");
+ console.log("PASS illness: new device and legacy duplicate queue converge on latest cloud record");
 })();
 (function testTwoPhonesConvergeAfterConcurrentEdits(){
  const base=record("2026-11-18T00:00:00.000Z-v0",38.1);
