@@ -166,7 +166,7 @@ function heatBand(v){
 const model={cases:{},pending:{},conflicts:{},snapshots:[],serverBaseline:{}};
 let loaded=false,selected="",month=isoMonth(nowIso()),temperatureDay=dayKey(nowIso()),connected=false,initialFetchStarted=false,busy=false;
 let active=false,syncEpoch=0,lastActionFeedback="",lastCloudReadAt=0;
-let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",editVisit="",editTemperatureId="",editDoseId="",editDoseGroupId="",editDoseLegacy=false,copyDraft=null,pendingPrescription=null,timer=null,root=null;
+let notice="기기에 즉시 저장 · 서버 자동 동기화 준비 중",noticeError=false,editMedication="",editGroup="",editVisit="",editTemperatureId="",editDoseId="",editDoseGroupId="",editDoseLegacy=false,copyDraft=null,pendingPrescription=null,prescriptionDraft="",prescriptionError="",timer=null,root=null;
 function persist(){
  try{
   // Archive before changing primary records. Keep the bounded archive small
@@ -757,7 +757,8 @@ function prescriptionJsonForm(c){
   '<button type="button" class="ill-secondary" data-act="copy-prescription-example">예시 JSON 복사</button></div>'+
   '<p class="ill-muted" data-prescription-copy-status>요청문과 약봉투 사진을 보내면 앱에서 읽을 수 있는 JSON을 받을 수 있습니다.</p>'+
   '<form data-form="prescription-json" class="ill-fields ill-json-form">'+
-  '<label>처방 JSON<textarea name="prescriptionJson" rows="5" maxlength="100000" spellcheck="false" placeholder="여기에 처방 JSON을 붙여넣으세요"></textarea></label>'+
+  '<label>처방 JSON<textarea name="prescriptionJson" rows="5" maxlength="100000" spellcheck="false" placeholder="여기에 처방 JSON을 붙여넣으세요">'+E(prescriptionDraft)+'</textarea></label>'+
+  (prescriptionError?'<p class="ill-alert" role="alert">'+E(prescriptionError)+'</p>':"")+
   '<button type="submit" class="ill-primary">JSON 분석 · 약별량 확인</button></form>'+
   '<div id="illPrescriptionPreview" aria-live="polite">'+
   (pendingPrescription?.episodeId===c.id?prescriptionPreview(pendingPrescription.result):"")+'</div>'+
@@ -1286,6 +1287,10 @@ function stop(){if(timer){clearInterval(timer);timer=null;}
  syncEpoch++;busy=false;
 }
 function onInput(e){
+ if(e.target?.name==="prescriptionJson"){
+  prescriptionDraft=e.target.value;prescriptionError="";
+  return;
+ }
  if(e.target?.name!=="celsius")return;
  const input=e.target,formatted=formatTemperatureInput(input.value);
  if(formatted!==input.value){
@@ -1348,10 +1353,12 @@ function onSubmit(e){
    });return;
   }
   if(type==="prescription-json"){
-   const parsed=parsePrescriptionJson(get(form,"prescriptionJson"));
+   prescriptionDraft=get(form,"prescriptionJson");
+   const parsed=parsePrescriptionJson(prescriptionDraft);
    pendingPrescription={episodeId:c.id,result:parsed};
-   const slot=root?.querySelector("#illPrescriptionPreview");
-   if(slot)slot.innerHTML=prescriptionPreview(parsed);
+   prescriptionError="";
+   render();
+   root?.querySelector("#illPrescriptionPreview")?.scrollIntoView?.({block:"nearest"});
    return;
   }
   if(type==="group"){
@@ -1519,13 +1526,20 @@ function onSubmit(e){
     r.medications.forEach(m=>{m.active=false;});
    });return;
   }
- }catch(err){notice=String(err.message||err);noticeError=true;render();}
+ }catch(err){
+  if(form?.dataset?.form==="prescription-json"){
+   prescriptionDraft=get(form,"prescriptionJson");
+   prescriptionError=String(err.message||err);
+  }
+  notice=String(err.message||err);noticeError=true;render();
+ }
 }
 function onClick(e){
  const btn=e.target.closest("[data-act]");if(!btn)return;
  const action=btn.dataset.act,id=btn.dataset.id,c=current();
  if(action==="export-illness-xml"){exportIllnessHistoryXml();return;}
  if(action==="select"){
+  prescriptionDraft="";prescriptionError="";
   selected=id;lastActionFeedback="";editMedication="";editGroup="";editVisit="";editTemperatureId="";editDoseId="";editDoseGroupId="";editDoseLegacy=false;copyDraft=null;pendingPrescription=null;
   const c=current();
   temperatureDay=c?.status==="closed"&&c.temperatures.length?
@@ -1540,7 +1554,7 @@ function onClick(e){
   void copyPrescriptionText(JSON.stringify(prescriptionExample(),null,2));return;
  }
  if(action==="cancel-json-import"){
-  pendingPrescription=null;
+  pendingPrescription=null;prescriptionError="";
   const slot=root?.querySelector("#illPrescriptionPreview");
   if(slot)slot.innerHTML="";
   return;
