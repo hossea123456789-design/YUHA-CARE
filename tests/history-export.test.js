@@ -221,14 +221,14 @@ assert(x&&typeof x.buildXml==="function"&&typeof x.open==="function");
    deletedAt:"2026-11-05T07:20:00.000Z",
    mode:"scheduled",timesPerDay:3,days:4,intervalHours:null,
    endsAt:"",sourceDate:"2026-11-01",sourceKind:"prescription-json",visitId:"ivisit1",
-   items:[{id:"im1",name:"씨투스건조시럽",amount:0.3333,unit:"g"},
-    {id:"im2",name:"코슈정",amount:0.25,unit:"정"}],
+   items:[{id:"im1",name:"씨투스건조시럽",purpose:"천식, 알레르기 치료제",amount:0.3333,unit:"g"},
+    {id:"im2",name:"코슈정",purpose:"비염 & 콧물약",amount:0.25,unit:"정"}],
    events:[
     {id:"ie_old",at:"2026-10-31T22:00:00.000Z",status:"taken",
-     items:[{id:"im1",name:"씨투스건조시럽",amount:0.3333,unit:"g"}]},
+     items:[{id:"im1",name:"씨투스건조시럽",purpose:"천식, 알레르기 치료제",amount:0.3333,unit:"g"}]},
     {id:"ie1",at:"2026-11-02T08:00:00.000Z",status:"taken",note:"두 약 모두 복용",
-     items:[{id:"im1",name:"씨투스건조시럽",amount:0.3333,unit:"g"},
-      {id:"im2",name:"코슈정",amount:0.25,unit:"정"}]},
+     items:[{id:"im1",name:"씨투스건조시럽",purpose:"천식, 알레르기 치료제",amount:0.3333,unit:"g"},
+      {id:"im2",name:"코슈정",purpose:"비염 & 콧물약",amount:0.25,unit:"정"}]},
     {id:"ie2",at:"2026-11-02T16:00:00.000Z",status:"skipped",note:"보호자 확인",
      scheduledFor:"2026-11-02T15:30:00.000Z",items:[]}
    ]
@@ -265,6 +265,9 @@ assert(x&&typeof x.buildXml==="function"&&typeof x.open==="function");
   assert(out.xml.includes(field),"illness XML missing "+field);
  assert(out.xml.includes('고열 &amp; 기침 &lt;관찰&gt;'));
  assert(out.xml.includes('하루 3회 &amp; 점심'));
+ assert(out.xml.includes('purpose="천식, 알레르기 치료제"'),"printed drug purpose survives XML export");
+ assert(out.xml.includes('purpose="비염 &amp; 콧물약"'),"XML-escaped leaflet label is preserved");
+ assert(out.xml.includes('key="medicationGroups.group.prescribedDrugs.drug.purpose"'));
  assert(out.xml.includes('낮 &lt;측정&gt;'));
  assert(!out.xml.includes('id="it_old"'),"October fever should be excluded");
  assert(!out.xml.includes('id="ie_old"'),"October bundled administration must be excluded");
