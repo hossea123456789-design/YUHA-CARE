@@ -1560,6 +1560,7 @@ function onSubmit(e){
   if(form?.dataset?.form==="prescription-json"){
    prescriptionDraft=get(form,"prescriptionJson");
    prescriptionError=String(err.message||err);
+   render();return;
   }
   notice=String(err.message||err);noticeError=true;render();
  }
