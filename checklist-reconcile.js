@@ -47,7 +47,14 @@ function reconcile(base,local,remote,options={}){
    if(theirs===undefined)return copy(ours);
   }
   if(previous!==undefined){
-   if(same(ours,previous))return copy(theirs);
+   // With a tracked checkbox click, do not short-circuit an entire parent
+   // section just because its final JSON happens to match the old version.
+   // Recurse until we reach the exact /<itemId>/checked field and resolve
+   // its input clock against the server's timestamp.
+   const canDescend=(object(ours)&&object(theirs))||
+    (Array.isArray(ours)&&Array.isArray(theirs));
+   if(same(ours,previous)&&!(canDescend&&Object.keys(checkedEdits).length))
+    return copy(theirs);
    if(same(theirs,previous))return copy(ours);
   }
   // Stable record IDs preserve independent checkbox toggles, additions
