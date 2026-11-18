@@ -489,6 +489,7 @@
   <script src="bridge-client.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
   <script src="form-draft-guard.js?v=20261118-formguard-v1"></script>
+  <script src="checklist-reconcile.js?v=20261119-sync-guard-v1"></script>
   <script src="mental.js?v=20261118-editor-guard-v2"></script>
   <script src="illness-care.js?v=20261118-editor-guard-v5"></script>
   <script src="sleep-monthly.js?v=20261111-sleep-observations-v1"></script>
@@ -517,6 +518,10 @@
     let dragState = null;
     let saveTimer = null;
     let serverUpdatedAt = "";
+    // Persist the last verified server payload, not just its revision. This
+    // is the common ancestor for non-destructive three-way reconciliation.
+    let checklistServerBaseline = null;
+    let checklistRefreshAfterSave = false;
     let checklistDirty = false;
     let checklistGuardSupported = false;
     let lastChecklistReadAt = 0;
@@ -714,7 +719,10 @@
 
         data = normalizeData(parsed.data);
         serverUpdatedAt = parsed.updatedAt || "";
+        checklistServerBaseline = parsed.serverBaseData || null;
         checklistDirty = parsed.dirty === true;
+        if(checklistDirty&&parsed.lastChangeAt)
+          checklistLastChangeAt = Number(parsed.lastChangeAt)||Date.parse(parsed.cachedAt||"")||0;
         setSaveStatus("휴대폰 저장본 먼저 표시 · 서버 확인 중", "saving");
         render();
         return true;
@@ -728,6 +736,8 @@
       try {
         localStorage.setItem(CLIENT_CACHE_KEY,JSON.stringify({
           data,updatedAt:serverUpdatedAt||"",dirty:checklistDirty,
+          serverBaseData:checklistServerBaseline,
+          lastChangeAt:checklistLastChangeAt,
           cachedAt:new Date().toISOString()
         }));
         checklistCacheAvailable=true;
@@ -810,97 +820,125 @@
       if(checklistFirstLoadRetryTimer!==null){
         clearTimeout(checklistFirstLoadRetryTimer);checklistFirstLoadRetryTimer=null;
       }
-      const hadCache = !!data || loadClientCache();
+      // The preceding save may already be committed but not yet acknowledged.
+      // Never interpret our own unacknowledged write as a second phone's edit.
+      if(checklistSaving){checklistRefreshAfterSave=true;return;}
+      const hadCache=!!data||loadClientCache();
       if(checklistLoading)return;
       checklistLoading=true;
-      checklistServerChecked = false;
-      if (!hadCache) setSaveStatus("최초 연결 · 서버 기록 불러오는 중", "saving");
-      if (!navigator.onLine) {
+      checklistServerChecked=false;
+      if(!hadCache)setSaveStatus("최초 연결 · 서버 기록 불러오는 중","saving");
+      if(!navigator.onLine){
         checklistLoading=false;
-        setSaveStatus(hadCache ? "오프라인 · 기기 기록 표시 중" : "오프라인 · 최초 연결 시 인터넷이 필요합니다", "error");
+        setSaveStatus(hadCache?"오프라인 · 기기 기록 표시 중":"오프라인 · 최초 연결 시 인터넷이 필요합니다","error");
         return;
       }
-      if (hadCache) setSaveStatus("기기 기록 표시 중 · 서버 변경 확인 중", "saving");
+      if(hadCache)setSaveStatus("기기 기록 표시 중 · 서버 변경 확인 중","saving");
       showAppProgress("checklist-read","목록 동기화 중","busy");
-      google.script.run
-        .withSuccessHandler((result) => {
-          checklistLoading=false;
-          if (!result || !result.ok) {
-            if(checklistDirty)scheduleChecklistRetry();
-            showAppProgress("checklist-read","목록 조회 실패","error");
-            setSaveStatus(hadCache ? "기기 기록 유지 · 서버 조회 실패" : "서버 조회 실패", "error");
-            if(!hadCache)showFirstLoadConnectionError("서버가 정상적인 체크리스트 응답을 반환하지 않았습니다.");
-            return;
-          }
-          showAppProgress("checklist-read","목록 업데이트 완료","done");
-          checklistGuardSupported=Number(result.schemaVersion)>=2;
-          lastChecklistReadAt=Date.now();
-          const incomingAt = result.updatedAt || "";
-          if (checklistDirty) {
-            if(!checklistGuardSupported){
-              checklistServerChecked=false;
-              setSaveStatus("기기 변경 보관 중 · 서버에 안전 저장 API(v2) 배포 필요","error");
-              saveClientCache();
-              return;
-            }
-            // If a previous write succeeded but its ACK was lost, a verified
-            // read can safely settle the local queue without uploading again.
-            if(JSON.stringify(result.data)===JSON.stringify(data)){
-              checklistDirty=false;
-              serverUpdatedAt=incomingAt;
-              checklistServerChecked=true;
-              saveClientCache();
-              setSaveStatus("서버 동일 내용 확인 · 공유 저장 완료","saved");
-              return;
-            }
-            if(incomingAt!==serverUpdatedAt){
-              if(!archiveChecklistDifference(data,result.data,serverUpdatedAt,incomingAt)){
-                checklistServerChecked=false;
-                return;
-              }
-              const overwrite=window.confirm(
-                "다른 기기와 체크리스트 내용이 다릅니다. 양쪽 원본을 기기에 백업했습니다.\n\n"+
-                "확인: 현재 기기 변경으로 서버 갱신 시도\n"+
-                "취소: 서버 기록 사용 (기기 이전 원본은 백업에 보관)"
-              );
-              if(!overwrite){
-                data=normalizeData(result.data);
-                checklistDirty=false;
-                checklistVersion++;
-                serverUpdatedAt=incomingAt;
-                checklistServerChecked=true;
-                saveClientCache();
-                setSaveStatus("서버 기록으로 갱신됨 · 이전 기기 원본 백업됨","saved");
-                render({background:true});
-                return;
-              }
-            }
-            serverUpdatedAt=incomingAt;
-            checklistServerChecked=true;
-            saveClientCache();
-            saveNow();
-            return;
-          }
-          const sameServerVersion=!!data&&!!incomingAt&&serverUpdatedAt===incomingAt;
-          if(!sameServerVersion)data=normalizeData(result.data);
-          serverUpdatedAt=incomingAt;
-          checklistDirty=false;
-          checklistServerChecked=true;
-          saveClientCache();
-          setSaveStatus(result.fromCache?"서버 기록 확인 완료":"서버 최신 기록 반영 완료","saved");
-          if(!sameServerVersion)render({background:true});
-        })
-        .withFailureHandler((error) => {
-          checklistLoading=false;
+      google.script.run.withSuccessHandler(result=>{
+        checklistLoading=false;
+        if(checklistSaving){
+          checklistRefreshAfterSave=true;
+          showAppProgress("checklist-read","저장 확인 후 목록 재조회","pending");
+          return;
+        }
+        if(!result?.ok){
           if(checklistDirty)scheduleChecklistRetry();
           showAppProgress("checklist-read","목록 조회 실패","error");
-          setSaveStatus(hadCache ? "기기 기록 유지 · 서버 연결 실패" :
-            "서버 연결 실패: " + (error.message || error), "error");
-          if(!hadCache)showFirstLoadConnectionError(error?.message||String(error));
-        })
-        .getAppData(true);
+          setSaveStatus(hadCache?"기기 기록 유지 · 서버 조회 실패":"서버 조회 실패","error");
+          if(!hadCache)showFirstLoadConnectionError("서버가 정상적인 체크리스트 응답을 반환하지 않았습니다.");
+          return;
+        }
+        checklistGuardSupported=Number(result.schemaVersion)>=2;
+        lastChecklistReadAt=Date.now();
+        const remote=normalizeData(JSON.parse(JSON.stringify(result.data)));
+        const incomingAt=String(result.updatedAt||"");
+        const same=window.YuhaChecklistReconcile?.same||
+          ((a,b)=>JSON.stringify(a)===JSON.stringify(b));
+        if(checklistDirty){
+          if(!checklistGuardSupported){
+            checklistServerChecked=false;
+            setSaveStatus("기기 변경 보관 중 · 서버에 안전 저장 API(v2) 배포 필요","error");
+            saveClientCache();return;
+          }
+          if(same(remote,data)){
+            // A previous write may have succeeded while its reply was lost.
+            // Cloud content equality confirms the pending device copy.
+            checklistDirty=false;
+            checklistSaveQueued=false;
+            serverUpdatedAt=incomingAt;
+            checklistServerBaseline=JSON.parse(JSON.stringify(remote));
+            checklistServerChecked=true;
+            checklistRetryCount=0;
+            saveClientCache();
+            setSaveStatus("서버 동일 내용 확인 · 공유 저장 완료","saved");
+            showAppProgress("checklist-read","서버 동일 내용 확인","done");
+            return;
+          }
+          if(incomingAt!==serverUpdatedAt){
+            // A revision mismatch does NOT identify another editor. A request
+            // from this very phone can advance the server revision first.
+            if(!archiveChecklistDifference(data,remote,serverUpdatedAt,incomingAt)){
+              checklistServerChecked=false;
+              return;
+            }
+            try{
+              const reconciled=window.YuhaChecklistReconcile.reconcile(
+                checklistServerBaseline,data,remote,{
+                  localEditAt:checklistLastChangeAt?new Date(checklistLastChangeAt).toISOString():"",
+                  serverRevision:incomingAt
+                });
+              if(reconciled.changedLocal){
+                data=normalizeData(reconciled.data);
+                checklistVersion++;
+                render({background:true});
+              }
+              setSaveStatus("기기 체크와 서버 최신본 자동 조정 · 저장 대기","saving");
+            }catch(error){
+              checklistServerChecked=false;
+              saveClientCache();
+              setSaveStatus("서버·기기 기록을 각각 백업했습니다 · 자동 병합 검증 필요: "+
+                String(error?.message||error),"error");
+              return;
+            }
+          }
+          serverUpdatedAt=incomingAt;
+          checklistServerBaseline=JSON.parse(JSON.stringify(remote));
+          checklistServerChecked=true;
+          checklistDirty=!same(data,remote);
+          saveClientCache();
+          if(checklistDirty){
+            queueChecklistSave(Math.max(0,CHECKLIST_SAVE_IDLE_MS-
+              (Date.now()-Math.max(checklistLastChangeAt,checklistLastInteractionAt))));
+          }else{
+            setSaveStatus("기기·서버 기록 일치 · 저장 완료","saved");
+          }
+          showAppProgress("checklist-read",checklistDirty?
+            "기기 기록 합침 · 서버 자동 저장 대기":"서버 최신 기록 확인 완료",
+            checklistDirty?"pending":"done");
+          return;
+        }
+        const updated=!same(data,remote);
+        if(updated)data=remote;
+        serverUpdatedAt=incomingAt;
+        checklistServerBaseline=JSON.parse(JSON.stringify(remote));
+        checklistDirty=false;
+        checklistServerChecked=true;
+        checklistRetryCount=0;
+        saveClientCache();
+        setSaveStatus(result.fromCache?"서버 기록 확인 완료":"서버 최신 기록 반영 완료","saved");
+        showAppProgress("checklist-read","목록 업데이트 완료","done");
+        if(updated)render({background:true});
+      }).withFailureHandler(error=>{
+        checklistLoading=false;
+        if(checklistSaving){checklistRefreshAfterSave=true;return;}
+        if(checklistDirty)scheduleChecklistRetry();
+        showAppProgress("checklist-read","목록 조회 실패","error");
+        setSaveStatus(hadCache?"기기 기록 유지 · 서버 연결 실패":
+          "서버 연결 실패: "+(error?.message||error),"error");
+        if(!hadCache)showFirstLoadConnectionError(error?.message||String(error));
+      }).getAppData(true);
     }
-
     function queueChecklistSave(delayMs=CHECKLIST_SAVE_IDLE_MS) {
       clearTimeout(saveTimer);
       saveTimer=null;
@@ -973,8 +1011,10 @@
             checklistDirty=true;
             checklistServerChecked=false;
             saveClientCache();
-            showAppProgress("checklist-save","다른 기기 변경 감지","pending");
-            setSaveStatus("서버 기록이 먼저 변경됨 · 양쪽 원본 확인 필요","error");
+            // It may be our own last request, not another editor. Refresh,
+            // reconcile independent checkbox edits, and retry with fresh CAS.
+            showAppProgress("checklist-save","버전 차이 확인 · 체크 기록 보존","pending");
+            setSaveStatus("서버 버전 변경 확인 · 기기 체크 자동 재조정 중","saving");
             loadFromServer();
             return;
           }
@@ -998,6 +1038,8 @@
             }
             checklistSaving=false;
             serverUpdatedAt=result.updatedAt||"";
+            checklistServerBaseline=JSON.parse(JSON.stringify(snapshot));
+            checklistServerChecked=true;
             checklistRetryCount=0;
             clearChecklistRetry();
             if(checklistVersion!==savingVersion || checklistSaveQueued){
@@ -1012,6 +1054,10 @@
               saveClientCache();
               showAppProgress("checklist-save","서버 저장·재조회 검증 완료","done");
               setSaveStatus("서버 저장 및 재조회 검증 완료","saved");
+            }
+            if(checklistRefreshAfterSave){
+              checklistRefreshAfterSave=false;
+              if(!checklistDirty)loadFromServer();
             }
           }).withFailureHandler(error=>failed(
             "서버 저장 후 재조회 실패 · 기기 변경 보호: "+(error?.message||error)
