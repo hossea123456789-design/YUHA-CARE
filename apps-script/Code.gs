@@ -1046,7 +1046,7 @@ function illnessValidateEpisode_(raw){
   }));
   return {id:illnessId_(m.id),visitId:illnessText_(m.visitId,60),
    category:illnessText_(m.category,50),name:illnessText_(m.name,120),
-   ingredient:illnessText_(m.ingredient,120),formulation:illnessText_(m.formulation,120),
+   purpose:illnessText_(m.purpose,160),ingredient:illnessText_(m.ingredient,120),formulation:illnessText_(m.formulation,120),
    mode,doseMl,intervalHours,endsAt:illnessStamp_(m.endsAt,true),
    instructions:illnessText_(m.instructions,500),active:m.active!==false,doses};
  });
@@ -1063,7 +1063,7 @@ function illnessValidateEpisode_(raw){
    const scale=unit==='g'?10000:100;
    if(Math.abs(amount*scale-Math.round(amount*scale))>1e-6)
     throw new Error(unit==='g'?'g 처방량은 원문 최대 소수 넷째 자리까지 보존':'투약량은 소수 둘째 자리까지 입력');
-   return {id:illnessId_(item.id),name,amount,unit};
+   return {id:illnessId_(item.id),name,purpose:illnessText_(item.purpose,160),amount,unit};
   };
   const items=illnessLimitedArray_(g.items,20).map(validatedItem);
   if(!items.length)throw new Error('복용 묶음에 약 하나 이상 필요');
