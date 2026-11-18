@@ -17,7 +17,7 @@ const script=fs.readFileSync("history-export.js","utf8");
   "The wife recovery XML export button must appear exactly once");
  assert(mental.includes('screen.querySelector("#mentalHistoryExport")?.addEventListener("click",openMentalHistoryExport)'),
   "Existing PIN-gated XML export handler must remain attached");
- assert(page.includes('mental.js?v=20261115-common-tabs-v2'),
+ assert(page.includes('mental.js?v=20261118-shared-mental-v1'),
   "Cache key must refresh mental.js on mobile");
  const illness=fs.readFileSync("illness-care.js","utf8");
  const css=fs.readFileSync("design.css","utf8");
@@ -52,7 +52,7 @@ const script=fs.readFileSync("history-export.js","utf8");
   "Illness sync details must follow top tools, before record content");
  assert(!mental.slice(mental.indexOf("function lockMarkup()"),mental.indexOf("function bindLock()")).includes('id="mentalHistoryExport"'),"PIN lock must not render XML export");
  assert(page.includes("design.css?v=20261115-common-tabs-v1"));
- assert(page.includes("illness-care.js?v=20261118-shared-illness-v1"));
+ assert(page.includes("illness-care.js?v=20261118-shared-illness-v2"));
  console.log("PASS all tab header/export, backup and date navigation control positions");
 }
 
