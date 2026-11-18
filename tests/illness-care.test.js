@@ -469,8 +469,8 @@ function intake(at,status='taken',extra={}){
  assert.equal(e.model.cases[id].medicationGroups.length,0,"preview must not save before confirmation");
  e.window.YuhaIllness.render();
  assert(e.root.innerHTML.includes('data-act="confirm-json-import"'),"preview confirmation survives a background rerender");
- assert(preview.innerHTML.includes("저장 전 확인"));
- assert(preview.innerHTML.includes("진해거담제, 기침감기약"),"printed indication shown in pre-save review");
+ assert(e.root.innerHTML.includes("저장 전 확인"));
+ assert(e.root.innerHTML.includes("진해거담제, 기침감기약"),"printed indication shown in pre-save review");
  click("confirm-json-import");
  assert.equal(e.model.cases[id].medicationGroups.length,2);
  assert(e.model.cases[id].medicationGroups.every(g=>g.events.length===0));
@@ -501,7 +501,7 @@ function intake(at,status='taken',extra={}){
  // A new photo can add previously unrecognized purpose without duplicating prescription or touching doses.
  const supplemented={...input,medications:input.medications.map(m=>m.name==="약 2"?{...m,purpose:"비염 & 콧물약"}:m)};
  fire("prescription-json",{prescriptionJson:JSON.stringify(supplemented)});
- assert(preview.innerHTML.includes("비염 &amp; 콧물약"),"untrusted photo labels are HTML escaped");
+ assert(e.root.innerHTML.includes("비염 &amp; 콧물약"),"untrusted photo labels are HTML escaped");
  click("confirm-json-import");
  assert.equal(e.model.cases[id].medicationGroups.length,existing,"metadata-only reimport never duplicates prescribed drugs");
  assert.equal(e.model.cases[id].medicationGroups[1].items[0].purpose,"비염 & 콧물약");
@@ -532,8 +532,20 @@ function intake(at,status='taken',extra={}){
  const conflictingLocal=structuredClone(local),conflictingRemote=structuredClone(remote);
  conflictingLocal.temperatures[0].celsius=38;
  conflictingRemote.temperatures[0].celsius=39;
- assert.equal(e.test.mergeEpisodeSafe(base,conflictingLocal,conflictingRemote),null,
-  "two different edits to the same reading must not merge");
+ const laterLocal=e.test.mergeEpisodeSafe(base,conflictingLocal,
+  {...conflictingRemote,revision:"2026-11-14T10:00:00.000Z-r1"},{
+   editedAt:"2026-11-14T10:05:00.000Z",
+   editedFields:{"/temperatures/itemp_base/celsius":"2026-11-14T10:05:00.000Z"}
+  });
+ assert.equal(laterLocal.temperatures[0].celsius,38,
+  "last edited local reading wins duplicate conflict");
+ const laterServer=e.test.mergeEpisodeSafe(base,conflictingLocal,
+  {...conflictingRemote,revision:"2026-11-14T10:10:00.000Z-r2"},{
+   editedAt:"2026-11-14T10:05:00.000Z",
+   editedFields:{"/temperatures/itemp_base/celsius":"2026-11-14T10:05:00.000Z"}
+  });
+ assert.equal(laterServer.temperatures[0].celsius,39,
+  "last saved remote reading wins duplicate conflict");
  const deletingRemote=structuredClone(remote);
  deletingRemote.medicationGroups=[];
  const unchangedGroupLocal=structuredClone(local);
@@ -541,8 +553,8 @@ function intake(at,status='taken',extra={}){
   "a server deletion must not be resurrected");
  const editedGroupLocal=structuredClone(local);
  editedGroupLocal.medicationGroups[0].items[0].amount=3;
- assert.equal(e.test.mergeEpisodeSafe(base,editedGroupLocal,deletingRemote),null,
-  "locally modified medicine cannot silently disappear during server purge");
+ assert.equal(e.test.mergeEpisodeSafe(base,editedGroupLocal,deletingRemote).medicationGroups.length,0,
+  "permanently deleted medication never resurrects from an older phone");
  storage.set("yuha_illness_records_v1",JSON.stringify({[id]:local}));
  storage.set("yuha_illness_pending_v1",JSON.stringify({[id]:{
   episode:local,expectedRevision:"r0"
@@ -555,7 +567,7 @@ function intake(at,status='taken',extra={}){
  assert.equal(linked.model.conflicts[id],undefined);
  assert.equal(JSON.parse(storage.get("yuha_illness_pending_v1"))[id].episode.temperatures.length,3,
   "merged data must remain in durable outbound queue");
- console.log("PASS illness sync: two-phone independent changes merge, same-field collision blocks, deletion never resurrected");
+ console.log("PASS illness sync: independent changes merge, newest field wins, deleted medication stays removed");
 })();
 (function testUnverifiedLocalRevisionCannotBeOverwritten(){
  storage.clear();
@@ -564,10 +576,11 @@ function intake(at,status='taken',extra={}){
  const remote={...local,title:"서버 수정",revision:"new-r"};
  storage.set("yuha_illness_records_v1",JSON.stringify({[id]:local}));
  const e=setup();e.window.YuhaIllness.render();e.test.absorbServer({[id]:remote});
- assert.equal(e.model.cases[id].title,"기기 수정",
-  "without proven baseline, incoming server must not overwrite local revision");
- assert(e.model.conflicts[id],"preserve both unknown originals for manual reconciliation");
- console.log("PASS illness sync: unverified local copy never silently overwritten");
+ assert.equal(e.model.cases[id].title,"서버 수정",
+  "a revision-tagged cache without pending user edits must converge on the cloud");
+ assert.equal(e.model.conflicts[id],undefined);
+ assert(JSON.parse(storage.get("yuha_illness_snapshots_v1")).some(x=>x.reason==="before-server-refresh"));
+ console.log("PASS illness sync: unedited stale phone cache converges to verified server");
 })();
 (function testCopyableCrossChatPrescriptionRequest(){
  storage.clear();
