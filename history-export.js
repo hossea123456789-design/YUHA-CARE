@@ -192,7 +192,7 @@ function illnessXmlText(name,value,spaces){
 function illnessDoseItemXml(item,spaces){
  const pad=" ".repeat(spaces);
  return pad+"<drug"+attr("id",item?.id||"")+
-  attr("name",item?.name||"")+attr("amount",item?.amount??"")+
+  attr("name",item?.name||"")+attr("purpose",item?.purpose||"")+attr("amount",item?.amount??"")+
   attr("unit",item?.unit||"")+ "/>\n";
 }
 function illnessVersionXml(src,source,start,end,additional={}){
@@ -280,7 +280,7 @@ function illnessVersionXml(src,source,start,end,additional={}){
  xml+="        </medicationGroups>\n";
  xml+="        <legacyMedications"+attr("count",scoped.meds.length)+">\n";
  for(const m of scoped.meds){
-  xml+="          <medication"+attr("id",m.id||"")+attr("name",m.name||"")+
+  xml+="          <medication"+attr("id",m.id||"")+attr("name",m.name||"")+attr("purpose",m.purpose||"")+
    attr("active",m.active!==false)+attr("doseMl",m.doseMl??"")+
    attr("doseUnit","mL")+attr("mode",m.mode||"")+
    attr("intervalHours",m.intervalHours??"")+attr("endsAt",m.endsAt||"")+
@@ -350,6 +350,7 @@ function buildIllnessXml(doc){
   '    <field key="dailyTemperatureSummary.day.maxCelsius" label="해당 날짜의 최고 실측 체온" unit="℃"/>\n'+
   '    <field key="medicationGroups.group.administrations.administration" label="묶음 복용·미복용 기록"/>\n'+
   '    <field key="administeredDrugs.drug.amount" label="실제 약별 복용량" unit="drug.unit"/>\n'+
+   '    <field key="medicationGroups.group.prescribedDrugs.drug.purpose" label="복약안내에 기재된 약 용도·효능 분류(원문)"/>\n'+
   '    <field key="legacyMedications.medication.administrations" label="구형 개별 약 복용 기록"/>\n'+
   '    <field key="medicationGroups.group.deletedAt" label="삭제 보관된 묶음 시각"/>\n'+
   '  </fieldDefinitions>\n'+
