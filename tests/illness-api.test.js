@@ -50,7 +50,7 @@ function entry(){
   recoveryConfirmed:false,noFurtherMedicationConfirmed:false,closureNote:'',
   visits:[{id:'ivisit01',at:'2026-11-14T03:00:00.000Z',
    hospital:'가상병원',diagnosis:'검사 필요',notes:'안내 받은 내용'}],
-  medications:[{id:'imed01',visitId:'ivisit01',category:'other',name:'처방 시럽',
+  medications:[{id:'imed01',visitId:'ivisit01',category:'other',name:'처방 시럽',purpose:'진해거담제, 기침감기약',
    ingredient:'성분 확인',formulation:'10 mg/5mL',mode:'scheduled',
    doseMl:2.5,intervalHours:8,endsAt:'',instructions:'8시간마다 2.5mL',
    active:true,doses:[{id:'idose01',at:'2026-11-14T03:30:00.000Z',
@@ -68,6 +68,7 @@ function entry(){
  assert.equal(saved.ok,true);
  const read=e.fn('getIllnessCases')();
  assert.equal(read.cases[original.id].medications[0].doseMl,2.5);
+ assert.equal(read.cases[original.id].medications[0].purpose,'진해거담제, 기침감기약');
  assert.equal(read.cases[original.id].medications[0].intervalHours,8);
  assert.equal(read.cases[original.id].medications[0].doses[0].amountMl,2.5);
  assert.equal(read.cases[original.id].temperatures[0].celsius,38.3);
@@ -118,7 +119,7 @@ function entry(){
 (function testMedicationBundlesWithLegacyPreservation(){
  const e=setup(),raw=entry();
  const items=[
-  {id:'idrug01',name:'약 A',amount:2.5,unit:'mL'},
+  {id:'idrug01',name:'약 A',purpose:'진해거담제, 기침감기약',amount:2.5,unit:'mL'},
   {id:'idrug02',name:'약 B',amount:1,unit:'포'}
  ];
  raw.medicationGroups=[{
@@ -133,6 +134,9 @@ function entry(){
  assert.equal(r.medications.length,1,'legacy medicines must remain');
  assert.equal(r.medicationGroups.length,1,'bundled medicine should roundtrip');
  assert.equal(r.medicationGroups[0].items.length,2);
+ assert.equal(r.medicationGroups[0].items[0].purpose,'진해거담제, 기침감기약');
+ assert.equal(r.medicationGroups[0].items[1].purpose,'','v1 input without indication is still valid');
+ assert.equal(r.medicationGroups[0].events[0].items[0].purpose,'진해거담제, 기침감기약');
  assert.equal(r.medicationGroups[0].events[0].items[0].amount,2.5);
  const changed=structuredClone(raw);
  changed.medicationGroups[0].items[0].amount=3;
@@ -140,6 +144,9 @@ function entry(){
  assert.equal(done.ok,true);
  r=e.fn('getIllnessCases')().cases[raw.id];
  assert.equal(r.medicationGroups[0].items[0].amount,3);
+ assert.equal(r.medicationGroups[0].items[0].purpose,'진해거담제, 기침감기약');
+ assert.equal(r.medicationGroups[0].events[0].items[0].purpose,'진해거담제, 기침감기약',
+  'the printed original belongs to the historical dose snapshot');
  assert.equal(r.medicationGroups[0].events[0].items[0].amount,2.5,
   'past actual amount must remain unchanged');
  assert.equal(r.medications[0].doses[0].amountMl,2.5);
@@ -161,7 +168,7 @@ function entry(){
   id:"igrambundle01",name:"3회/일 · 4일",mode:"scheduled",intervalHours:null,
   timesPerDay:3,days:4,sourceDate:"2026-11-14",sourceKind:"prescription-json",
   visitId:"",endsAt:"",active:true,
-  items:[{id:"igram01",name:"건조 시럽",amount:0.3333,unit:"g"},
+  items:[{id:"igram01",name:"건조 시럽",purpose:"천식, 알레르기 치료제",amount:0.3333,unit:"g"},
    {id:"itablet01",name:"정제",amount:0.25,unit:"정"}],events:[]
  }];
  const created=e.fn("syncIllnessCase")({episode:raw,expectedRevision:""});
@@ -174,6 +181,7 @@ function entry(){
  assert.equal(g.days,4);
  assert.equal(g.sourceDate,"2026-11-14");
  assert.equal(g.items[0].amount,0.3333);
+ assert.equal(g.items[0].purpose,"천식, 알레르기 치료제");
  assert.equal(g.items[1].amount,0.25);
  const invalid=structuredClone(raw);
  invalid.medicationGroups[0].items[1].amount=0.251;
