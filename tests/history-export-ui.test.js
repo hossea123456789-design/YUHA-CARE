@@ -17,7 +17,7 @@ const script=fs.readFileSync("history-export.js","utf8");
   "The wife recovery XML export button must appear exactly once");
  assert(mental.includes('screen.querySelector("#mentalHistoryExport")?.addEventListener("click",openMentalHistoryExport)'),
   "Existing PIN-gated XML export handler must remain attached");
- assert(page.includes('mental.js?v=20261118-shared-mental-v1'),
+ assert(page.includes('mental.js?v=20261118-editor-guard-v2'),
   "Cache key must refresh mental.js on mobile");
  const illness=fs.readFileSync("illness-care.js","utf8");
  const css=fs.readFileSync("design.css","utf8");
