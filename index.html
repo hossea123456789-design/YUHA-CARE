@@ -3023,6 +3023,11 @@
         const value=[...next].sort().join(",");
         if(String(getSleepRecord(date).specialFlags||"")!==value)
           updateSleepField(date,"specialFlags",value);
+        // The input editor is not replaced during autosave. Apply exclusive
+        // flag selection in place, rather than relying on a full rerender.
+        el.querySelectorAll("[data-sleep-special]").forEach(box=>{
+          box.checked=next.has(box.dataset.sleepSpecial);
+        });
       }));
     }
 
