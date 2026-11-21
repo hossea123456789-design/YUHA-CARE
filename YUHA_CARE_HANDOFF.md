@@ -1,3 +1,22 @@
+## 66. 2026-11-21 — 오전/오후 선택 명확화
+
+### 사용자 피드백
+- 질병/수면 시간 선택 시 기본 모바일 브라우저의 오전·오후 하이라이트가 불분명해 어떤 쪽이 선택되었는지 알기 어려움. 선택 상태를 색상뿐 아니라 텍스트와 구조로 확실하게 구분할 필요.
+
+### 구현
+- `time-picker-ui.js`: `parseClock`, `composeClock`, `enhance`, `sync`, `refresh`. 기존 네이티브 입력은 숨기되 동일 name/value를 유지하고 새로운 날짜/AM·PM/시/분 UI가 해당 필드의 `value`를 갱신함. `12 AM`=00시, `12 PM`=12시. 기본값이 없는 선택형 날짜/시간은 누르기 전 빈 값을 유지.
+- `time-picker-ui.css`: 오전·오후 중 활성 버튼에 짙은 초록 배경, 굵은 테두리, `✓ 선택됨` 표시. 상태 텍스트에서 최종 시각을 반복 확인. 360px 전후 작은 화면에 맞춰 크기와 패딩 조정.
+- `illness-care.js`: 전체 UI 재렌더 후 새 시각 컨트롤을 삽입, FormGuard 복원 이후 재동기화. `dose-time-now` 버튼의 시간 문자열을 변경할 때 시각 선택 화면도 갱신.
+- `index.html`: sleep modal의 `sleepModalInput`을 생성/갱신할 때 새 컨트롤을 준비하고 동기화. 전용 JS/CSS 로딩, 질병 UI cache-bust.
+- `form-draft-guard.js`: `data-yuha-editable` 버튼을 편집 중 상태로 간주해 오전·오후 선택 중 비동기 재조회가 폼을 파괴하지 않음.
+- `.github/workflows/pages.yml`: 새 JS/CSS 자산 배포, JS 구문검사, `tests/time-picker-ui.test.js` 실행, HTML 링크 확인.
+- `tests/sleep-time-link.test.js`: 새 UI가 수면 모달 추천 시각과 동기화되는지 검증.
+
+### 호환 주의사항
+- 백엔드는 이전과 같은 `YYYY-MM-DDTHH:mm`, `HH:mm` 값을 받음. 날짜/시각을 다시 입력할 때 통제 UI와 숨겨진 native field가 반드시 동기화되어야 함. 화면 전체 렌더 또는 `지금` 버튼 추가 시 `enhance()` / `sync()` 호출 누락 방지. 사용자의 체온·약 용량 등 미저장 입력 보존 규칙 유지.
+
+---
+
 ## 65. 2026-11-19 — 체크리스트 단독 입력 중 버전 차이 오경고 및 자동 병합
 
 ### 문제
