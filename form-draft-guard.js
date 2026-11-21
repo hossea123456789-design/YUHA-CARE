@@ -9,6 +9,8 @@ let activeTab="",rootNode=null,editing=false,installed=false;
 const EDITABLE="input:not([type=hidden]), textarea, select";
 function editable(node){
  if(!node||!node.tagName)return false;
+ // Explicit AM/PM buttons also start an unsaved form session.
+ if(node.dataset?.yuhaEditable==="true")return true;
  const tag=String(node.tagName).toUpperCase();
  if(tag==="TEXTAREA"||tag==="SELECT")return !node.disabled;
  if(tag==="INPUT")return !node.disabled&&!["hidden","submit","button","reset","file"].includes(String(node.type).toLowerCase());
