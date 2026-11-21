@@ -9,8 +9,8 @@ const two=(text,lo,hi)=>{const n=Number(text);return Number.isInteger(n)&&n>=lo&
 function parseClock(value,withDate){
  const text=String(value||"");
  const match=withDate?
-  /^(\\d{4}-\\d{2}-\\d{2})T(\\d{2}):(\\d{2})(?::\\d{2})?$/.exec(text):
-  /^(\\d{2}):(\\d{2})(?::\\d{2})?$/.exec(text);
+  /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/.exec(text):
+  /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(text);
  if(!match)return null;
  const date=withDate?match[1]:"";
  const hh=two(withDate?match[2]:match[1],0,23);
@@ -20,7 +20,7 @@ function parseClock(value,withDate){
 }
 function composeClock(date,period,hour,minute,withDate){
  const hh=two(hour,1,12),mm=two(minute,0,59);
- if((withDate&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(date||"")))||
+ if((withDate&&!/^\d{4}-\d{2}-\d{2}$/.test(String(date||"")))||
   !["am","pm"].includes(period)||hh===null||mm===null)return "";
  const h24=hh%12+(period==="pm"?12:0);
  return (withDate?date+"T":"")+PAD(h24)+":"+PAD(mm);
