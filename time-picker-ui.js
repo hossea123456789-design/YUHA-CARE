@@ -57,7 +57,7 @@ function enhance(scope){
   for(const [period,label] of [["am","오전"],["pm","오후"]]){
    const button=doc.createElement("button");
    button.type="button";button.className="yuha-time-period-btn";
-   button.dataset.period=period;button.setAttribute("aria-pressed","false");
+   button.dataset.period=period;button.dataset.yuhaEditable="true";button.setAttribute("aria-pressed","false");
    const name=doc.createElement("strong");name.textContent=label;
    const status=doc.createElement("span");status.className="yuha-time-period-status";
    button.append(name,status);row.append(button);
