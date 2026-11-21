@@ -66,7 +66,7 @@ function enhance(scope){
   ui.append(row);
   const clock=doc.createElement("div");clock.className="yuha-time-clock";
   const makeSelect=(type,max,caption)=>{
-   const wrap=doc.createElement("label");wrap.className="yuha-time-number-wrap";
+   const wrap=doc.createElement("div");wrap.className="yuha-time-number-wrap";
    const text=doc.createElement("span");text.className="yuha-time-small-label";text.textContent=caption;
    const select=doc.createElement("select");select.className="yuha-time-number-select";
    select.dataset.timePart=type;select.setAttribute("aria-label",caption+" 선택");
