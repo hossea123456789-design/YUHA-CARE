@@ -5,7 +5,12 @@
 (function(root){
 "use strict";
 const PAD=n=>String(n).padStart(2,"0");
-const two=(text,lo,hi)=>{const n=Number(text);return Number.isInteger(n)&&n>=lo&&n<=hi?n:null;};
+const two=(text,lo,hi)=>{
+ const raw=String(text??"").trim();
+ if(!/^\d{1,2}$/.test(raw))return null;
+ const n=Number(raw);
+ return Number.isInteger(n)&&n>=lo&&n<=hi?n:null;
+};
 function parseClock(value,withDate){
  const text=String(value||"");
  const match=withDate?
@@ -48,9 +53,6 @@ function enhance(scope){
    dateInput.setAttribute("aria-label","기록 날짜");
    dateBox.append(title,dateInput);ui.append(dateBox);
   }
-  const periodTitle=doc.createElement("span");periodTitle.className="yuha-time-small-label";
-  periodTitle.textContent="오전 · 오후 선택";
-  ui.append(periodTitle);
   const row=doc.createElement("div");row.className="yuha-time-period-row";
   row.setAttribute("role","group");row.setAttribute("aria-label","오전 또는 오후");
   const buttons={};
@@ -65,22 +67,56 @@ function enhance(scope){
   }
   ui.append(row);
   const clock=doc.createElement("div");clock.className="yuha-time-clock";
-  const makeSelect=(type,max,caption)=>{
+  const makeNumber=(part,caption,min,max)=>{
    const wrap=doc.createElement("div");wrap.className="yuha-time-number-wrap";
-   const text=doc.createElement("span");text.className="yuha-time-small-label";text.textContent=caption;
-   const select=doc.createElement("select");select.className="yuha-time-number-select";
-   select.dataset.timePart=type;select.setAttribute("aria-label",caption+" 선택");
-   for(let value=type==="hour"?1:0;value<=max;value++){
-    const option=doc.createElement("option");
-    option.value=PAD(value);option.textContent=PAD(value);
-    select.append(option);
-   }
-   wrap.append(text,select);clock.append(wrap);return select;
+   const title=doc.createElement("span");title.className="yuha-time-small-label";
+   title.textContent=caption;
+   const stepper=doc.createElement("div");stepper.className="yuha-time-stepper";
+   const decrement=doc.createElement("button");decrement.type="button";
+   decrement.className="yuha-time-step";decrement.textContent="−";
+   decrement.dataset.timeStep="minus";decrement.dataset.yuhaEditable="true";
+   decrement.setAttribute("aria-label",caption+" 1 감소");
+   const number=doc.createElement("input");number.type="text";
+   number.className="yuha-time-number-input";
+   number.inputMode="numeric";number.maxLength=2;number.autocomplete="off";
+   number.setAttribute("inputmode","numeric");
+   number.setAttribute("pattern","[0-9]*");
+   number.setAttribute("aria-label",caption+" 직접 입력");
+   const increment=doc.createElement("button");increment.type="button";
+   increment.className="yuha-time-step";increment.textContent="+";
+   increment.dataset.timeStep="plus";increment.dataset.yuhaEditable="true";
+   increment.setAttribute("aria-label",caption+" 1 증가");
+   stepper.append(decrement,number,increment);
+   wrap.append(title,stepper);clock.append(wrap);
+   const move=(delta)=>{
+    const initial=two(number.value,min,max);
+    const current=initial===null?(part==="hour"?9:0):initial;
+    number.value=PAD(current===max&&delta>0?min:
+     current===min&&delta<0?max:current+delta);
+    commit();
+   };
+   decrement.addEventListener("click",event=>{
+    event.preventDefault();event.stopPropagation();move(-1);
+   });
+   increment.addEventListener("click",event=>{
+    event.preventDefault();event.stopPropagation();move(1);
+   });
+   number.addEventListener("input",commit);
+   number.addEventListener("change",()=>{
+    const n=two(number.value,min,max);
+    if(n!==null)number.value=PAD(n);
+    commit();
+   });
+   number.addEventListener("blur",()=>{
+    const n=two(number.value,min,max);
+    if(n!==null)number.value=PAD(n);
+   });
+   return number;
   };
-  const hour=makeSelect("hour",12,"시");
+  const hour=makeNumber("hour","시",1,12);
   const colon=doc.createElement("span");colon.className="yuha-time-colon";colon.textContent=":";
   clock.append(colon);
-  const minute=makeSelect("minute",59,"분");
+  const minute=makeNumber("minute","분",0,59);
   ui.append(clock);
   const status=doc.createElement("p");status.className="yuha-time-choice";
   status.setAttribute("role","status");status.setAttribute("aria-live","polite");
@@ -114,12 +150,14 @@ function enhance(scope){
     mark.textContent=active?"✓ 선택됨":"선택";
    }
    const saved=read();
-   const period=saved?.period||controls.period;
-   const preview=period?(period==="am"?"오전":"오후")+
-    " "+PAD(Number(hour.value))+":"+minute.value:"";
-   status.textContent=saved?
-    "✓ 선택한 시각: "+(withDate?saved.date+" · ":"")+preview:
-    (period?"날짜와 시간을 확인하고 저장해 주세요":"오전 또는 오후를 선택해 주세요");
+   const valid=two(hour.value,1,12)!==null&&two(minute.value,0,59)!==null;
+   hour.setAttribute("aria-invalid",String(two(hour.value,1,12)===null));
+   minute.setAttribute("aria-invalid",String(two(minute.value,0,59)===null));
+   status.textContent=!valid?"시 01–12 · 분 00–59로 입력해 주세요":
+    saved?"✓ "+(withDate?saved.date+" · ":"")+
+     (saved.period==="am"?"오전":"오후")+" "+PAD(saved.hour)+":"+PAD(saved.minute):
+    (!controls.period?"오전 또는 오후를 선택해 주세요":
+     withDate?"날짜를 지정해 주세요":"시간을 확인해 주세요");
    status.dataset.complete=String(!!saved);
   }
   const commit=()=>{
@@ -166,6 +204,8 @@ function sync(field){
   "✓ 선택한 시각: "+(c.withDate?parsed.date+" · ":"")+
    (parsed.period==="am"?"오전":"오후")+" "+PAD(parsed.hour)+":"+PAD(parsed.minute):
   "오전 또는 오후를 선택해 주세요";
+ c.hour.setAttribute("aria-invalid","false");
+ c.minute.setAttribute("aria-invalid","false");
  c.status.dataset.complete=String(!!parsed);
  return true;
 }
