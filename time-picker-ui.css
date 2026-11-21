@@ -113,3 +113,11 @@
 @media(prefers-reduced-motion:reduce){
  .yuha-time-period-btn,.yuha-time-step{transition:none!important}
 }
+
+/* Reduce excess padding in the bottom sleep-time modal itself. */
+.sleep-modal{padding:14px 14px 12px}
+.sleep-modal h3{font-size:16px;margin-bottom:4px}
+.sleep-modal #sleepModalDate{margin:0 0 8px}
+.sleep-modal #sleepModalTimeHint{margin:7px 0 0}
+.sleep-modal #sleepModalTimeHint:empty{display:none}
+.sleep-modal .sleep-modal-actions{margin-top:10px}
