@@ -61,6 +61,18 @@ function tap(button){button.dispatchEvent(new FakeEvent("click"));}
  assert.equal(dose.name,"at","form submission field name remains unchanged");
  assert.equal(dose.hidden,true);
  const ui=dose._yuhaTimeControls;
+ assert.equal(ui.hour.tagName,"INPUT");
+ assert.equal(ui.minute.tagName,"INPUT");
+ assert.equal(ui.hour.type,"text");
+ assert.equal(ui.minute.type,"text");
+ assert.equal(ui.hour.inputMode,"numeric");
+ assert.equal(ui.minute.inputMode,"numeric");
+ const allNodes=(node)=>[node,...(node.children||[]).flatMap(allNodes)];
+ assert(!allNodes(ui.ui).some(n=>n.tagName==="SELECT"),
+  "Neither hour nor minute may open a fullscreen native mobile dropdown");
+ const hourButtons=ui.hour.parentElement.children, minuteButtons=ui.minute.parentElement.children;
+ assert.equal(hourButtons[0].dataset.timeStep,"minus");
+ assert.equal(hourButtons[2].dataset.timeStep,"plus");
  assert.equal(ui.dateInput.required,true,"native required moves to visible date input");
  assert.equal(ui.buttons.am.button.getAttribute("aria-pressed"),"true");
  assert.equal(ui.buttons.pm.button.getAttribute("aria-pressed"),"false");
@@ -78,6 +90,21 @@ function tap(button){button.dispatchEvent(new FakeEvent("click"));}
  assert.equal(dose.value,"2026-11-21T12:05","12 PM is 12:xx not 00:xx");
  tap(ui.buttons.am.button);
  assert.equal(dose.value,"2026-11-21T00:05","12 AM is 00:xx");
+ tap(hourButtons[2]);
+ assert.equal(dose.value,"2026-11-21T01:05","hour + wraps 12 to 1");
+ tap(hourButtons[0]);
+ assert.equal(dose.value,"2026-11-21T00:05","hour - wraps 1 to 12");
+ ui.minute.value="59";ui.minute.dispatchEvent(new FakeEvent("change"));
+ tap(minuteButtons[2]);
+ assert.equal(dose.value,"2026-11-21T00:00","minute + wraps 59 to 00");
+ tap(minuteButtons[0]);
+ assert.equal(dose.value,"2026-11-21T00:59","minute - wraps 00 to 59");
+ ui.minute.value="99";ui.minute.dispatchEvent(new FakeEvent("input"));
+ assert.equal(dose.value,"","invalid minute cannot silently save prior time");
+ assert.equal(ui.minute.getAttribute("aria-invalid"),"true");
+ assert(ui.status.textContent.includes("00–59"),"invalid minute has inline feedback");
+ ui.minute.value="43";ui.minute.dispatchEvent(new FakeEvent("input"));
+ assert.equal(dose.value,"2026-11-21T00:43","valid correction restores form value");
  dose.value="2026-11-21T23:43";
  assert.equal(picker.sync(dose),true);
  assert.equal(ui.buttons.pm.button.getAttribute("aria-pressed"),"true");
@@ -123,7 +150,11 @@ assert(illness.includes("window.YuhaTimePicker?.enhance(root)"));
 assert(illness.includes("window.YuhaTimePicker?.refresh(root)"));
 assert(index.includes("time-picker-ui.js?v=")&&index.includes("time-picker-ui.css?v="));
 assert(css.includes('.yuha-time-period-btn[data-selected="true"]'));
-assert(css.includes('3px solid #083c31')&&css.includes("✓ 선택됨")===false,
- "selection must have a bold border while the text mark is generated in JS");
+assert(css.includes('border:2px solid #083c31')&&css.includes("✓ 선택됨")===false,
+ "selection has a bold border and a separate JS-generated check mark");
+assert(!script.includes('doc.createElement("select")'),
+ "time controls must never use fullscreen native hour/minute dropdowns");
+assert(css.includes("height:40px")&&css.includes("min-height:37px"),
+ "compact mobile stepper and AM/PM buttons must replace tall UI");
 assert(script.includes('mark.textContent=active?"✓ 선택됨":"선택"'));
 console.log("PASS time picker: integration and unmistakable selected-state styles");
