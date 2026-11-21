@@ -1405,7 +1405,11 @@ function render(options={}){
     diseaseManagementPanel(null))+
   conflictsView()+'</div>';
  root.dataset.illnessEpisode=selected||"";
+ // Use an in-app 12-hour clock so native AM/PM highlight colors cannot hide
+ // which period was selected. The original datetime field still submits ISO time.
+ window.YuhaTimePicker?.enhance(root);
  window.YuhaFormGuard?.restore(root,editingDraft);
+ window.YuhaTimePicker?.refresh(root);
  if(!root.dataset.illnessBound){root.dataset.illnessBound="true";
   root.addEventListener("submit",onSubmit);
   root.addEventListener("click",onClick);
@@ -1799,7 +1803,10 @@ function onClick(e){
  if(!c)return;
  if(action==="dose-time-now"){
   const field=btn.closest?.("form")?.querySelector?.('[name="at"]');
-  if(field)field.value=localInput(nowIso());
+  if(field){
+   field.value=localInput(nowIso());
+   window.YuhaTimePicker?.sync(field);
+  }
   return;
  }
  if(action==="manage-prescription"){
