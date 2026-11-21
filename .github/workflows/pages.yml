@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p public-site/assets
-          cp index.html design.css mental.css mental.js illness-care.css illness-care.js form-draft-guard.js checklist-reconcile.js mental-diagnostics.js bridge-client.js config.js sleep-monthly.js history-export.js public-site/
+          cp index.html design.css mental.css mental.js illness-care.css illness-care.js form-draft-guard.js checklist-reconcile.js time-picker-ui.js time-picker-ui.css mental-diagnostics.js bridge-client.js config.js sleep-monthly.js history-export.js public-site/
           cp assets/mental-letter-sealed.svg assets/mental-letter-opened.svg public-site/assets/
       - name: Verify artwork paths and integrity before publishing
         run: |
@@ -32,6 +32,7 @@ jobs:
           node --check public-site/mental.js
           node --check public-site/form-draft-guard.js
           node --check public-site/checklist-reconcile.js
+          node --check public-site/time-picker-ui.js
           node --check public-site/illness-care.js
           node --check public-site/sleep-monthly.js
           node --check public-site/history-export.js
@@ -53,6 +54,7 @@ jobs:
           node tests/shared-cross-device.test.js
           node tests/form-draft-guard.test.js
           node tests/checklist-reconcile.test.js
+          node tests/time-picker-ui.test.js
           python3 -c "import xml.etree.ElementTree as ET; r=ET.parse('/tmp/yuha-history-export-fixture.xml').getroot(); assert r.tag=='yuhaCareHistory'; assert len(r.findall('./records/record'))==3; print('PASS XML parsed by ElementTree')"
           python3 -c "import xml.etree.ElementTree as ET; r=ET.parse('/tmp/yuha-sleep-observations.xml').getroot(); assert r.attrib['category']=='sleep'; assert len(r.findall('./records/record/sleepObservations/version'))==5; print('PASS sleep observations XML parsed by ElementTree')"
           python3 -c "import xml.etree.ElementTree as ET; r=ET.parse('/tmp/yuha-illness-history.xml').getroot(); assert r.tag=='yuhaCareHistory' and r.attrib['category']=='illness'; assert len(r.findall('./records/record'))==1; assert len(r.findall('./records/record/version/temperatureHistory/reading'))>=2; assert len(r.findall('./records/record/version/medicationGroups/group/administrations/administration'))>=2; print('PASS illness fever and medication XML parsed by ElementTree')"
@@ -69,6 +71,8 @@ jobs:
           grep -q 'illness-care.js?v=' public-site/index.html
           grep -q 'form-draft-guard.js?v=' public-site/index.html
           grep -q 'checklist-reconcile.js?v=' public-site/index.html
+          grep -q 'time-picker-ui.js?v=' public-site/index.html
+          grep -q 'time-picker-ui.css?v=' public-site/index.html
           if grep -q 'recovery-comfort' public-site/index.html || grep -q 'dailyComfortHTML' public-site/mental.js; then
             echo 'Removed daily quote feature accidentally returned'; exit 1
           fi
