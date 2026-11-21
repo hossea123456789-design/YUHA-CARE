@@ -1,0 +1,61 @@
+/* Explicit AM / PM picker — selected state visible without relying on color. */
+.yuha-time-source[hidden]{display:none!important}
+.yuha-time-picker{
+ display:flex;flex-direction:column;gap:9px;width:100%;min-width:0;margin:7px 0 2px;
+ padding:13px;border:1px solid #b9d0c8;border-radius:15px;
+ background:#f5faf8;color:#243b34;text-align:left;
+}
+.yuha-time-picker *{box-sizing:border-box}
+.yuha-time-picker .yuha-time-small-label{display:block;font-size:12px;line-height:1.3;
+ font-weight:800;color:#365e50;margin-bottom:5px;letter-spacing:-.15px}
+.yuha-time-datebox{width:100%;min-width:0}
+.yuha-time-picker .yuha-time-date-input{
+ display:block!important;width:100%!important;min-width:0!important;
+ min-height:46px!important;padding:9px 12px!important;border:1px solid #a9c6ba!important;
+ border-radius:10px!important;background:#fff!important;color:#1f342d!important;
+ font-size:16px!important;font-weight:740!important;color-scheme:light;
+}
+.yuha-time-period-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px}
+.yuha-time-period-btn{
+ display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;
+ width:100%;min-width:0;min-height:62px;padding:9px 8px;
+ border:2px solid #9db7ac!important;border-radius:13px!important;
+ background:#fff!important;color:#365449!important;cursor:pointer;
+ transition:none!important;box-shadow:none;font-family:inherit;
+}
+.yuha-time-period-btn strong{font-size:19px;font-weight:850;line-height:1.15;letter-spacing:-.4px}
+.yuha-time-period-status{font-size:11px;font-weight:800;line-height:1.3}
+.yuha-time-period-btn[data-selected="true"]{
+ background:#165849!important;color:#fff!important;
+ border:3px solid #083c31!important;
+ box-shadow:inset 0 0 0 1px rgba(255,255,255,.6),0 3px 9px rgba(19,80,63,.24)!important;
+}
+.yuha-time-period-btn[data-selected="true"] .yuha-time-period-status{
+ background:#fff;color:#145542;padding:2px 9px;border-radius:99px
+}
+.yuha-time-period-btn[data-selected="false"] .yuha-time-period-status{color:#586f65}
+.yuha-time-period-btn:focus-visible{outline:3px solid #e89d34!important;outline-offset:2px!important}
+.yuha-time-clock{display:grid;grid-template-columns:minmax(0,1fr) 13px minmax(0,1fr);
+ align-items:end;gap:9px;min-width:0}
+.yuha-time-number-wrap{display:block;min-width:0}
+.yuha-time-picker .yuha-time-number-select{
+ display:block!important;width:100%!important;min-width:0!important;min-height:47px!important;
+ padding:9px 10px!important;border:1px solid #a9c6ba!important;
+ border-radius:10px!important;background:#fff!important;color:#1d3830!important;
+ font-family:inherit!important;font-size:18px!important;font-weight:800!important;
+ text-align:center!important;font-variant-numeric:tabular-nums
+}
+.yuha-time-colon{align-self:end;text-align:center;font-size:23px;font-weight:850;padding-bottom:9px;color:#235647}
+.yuha-time-choice{
+ margin:3px 0 0!important;padding:10px 11px!important;
+ border:1px solid #c8ded6;border-radius:9px;background:#e7f3ed;
+ color:#1c5741!important;font-size:13px!important;line-height:1.5!important;
+ font-weight:850!important;font-variant-numeric:tabular-nums;
+}
+.yuha-time-choice[data-complete="false"]{background:#fff8e9;border-color:#f3deb0;color:#765521!important}
+@media(max-width:370px){
+ .yuha-time-picker{padding:10px;gap:7px}
+ .yuha-time-period-btn{min-height:58px}
+ .yuha-time-period-btn strong{font-size:18px}
+}
+@media(prefers-reduced-motion:reduce){.yuha-time-period-btn{transition:none!important}}
