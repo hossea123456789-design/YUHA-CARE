@@ -1,73 +1,115 @@
-/* Explicit AM / PM picker — selected state visible without relying on color. */
+/* Compact 12-hour time editor. No native hour/minute select menus. */
 .yuha-time-source[hidden]{display:none!important}
 .yuha-time-picker{
- display:flex;flex-direction:column;gap:9px;width:100%;min-width:0;margin:7px 0 2px;
- padding:13px;border:1px solid #b9d0c8;border-radius:15px;
- background:#f5faf8;color:#243b34;text-align:left;
+ display:flex;flex-direction:column;gap:6px;width:100%;min-width:0;margin:5px 0 0;
+ padding:9px 10px;border:1px solid #bfd4cb;border-radius:12px;
+ background:#f7faf8;color:#233d35;text-align:left;
 }
 .yuha-time-picker *{box-sizing:border-box}
-.yuha-time-picker .yuha-time-small-label{display:block;font-size:12px;line-height:1.3;
- font-weight:800;color:#365e50;margin-bottom:5px;letter-spacing:-.15px}
-.yuha-time-datebox{width:100%;min-width:0}
+.yuha-time-picker .yuha-time-small-label{
+ display:block;margin:0 0 2px;color:#426457;
+ font-size:10px;font-weight:800;line-height:1.2
+}
+.yuha-time-datebox{
+ display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:8px;
+}
+.yuha-time-datebox .yuha-time-small-label{margin:0}
 .yuha-time-picker .yuha-time-date-input{
  display:block!important;width:100%!important;min-width:0!important;
- min-height:46px!important;padding:9px 12px!important;border:1px solid #a9c6ba!important;
- border-radius:10px!important;background:#fff!important;color:#1f342d!important;
- font-size:16px!important;font-weight:740!important;color-scheme:light;
+ min-height:38px!important;height:38px!important;padding:4px 9px!important;
+ border:1px solid #afc7be!important;border-radius:8px!important;
+ background:#fff!important;color:#233d35!important;color-scheme:light;
+ font-size:14px!important;font-weight:750!important;
 }
-.yuha-time-period-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px}
+.yuha-time-period-row{
+ display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;
+}
 .yuha-time-period-btn{
- display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;
- width:100%;min-width:0;min-height:62px;padding:9px 8px;
- border:2px solid #9db7ac!important;border-radius:13px!important;
- background:#fff!important;color:#365449!important;cursor:pointer;
- transition:none!important;box-shadow:none;font-family:inherit;
+ display:flex;flex-direction:row;justify-content:center;align-items:center;
+ gap:5px;width:100%;min-width:0;min-height:37px;padding:5px 7px;
+ border:1.5px solid #a9beb5!important;border-radius:8px!important;
+ background:#fff!important;color:#405d52!important;
+ box-shadow:none!important;transition:none!important;cursor:pointer;
 }
-.yuha-time-period-btn strong{font-size:19px;font-weight:850;line-height:1.15;letter-spacing:-.4px}
-.yuha-time-period-status{font-size:11px;font-weight:800;line-height:1.3}
+.yuha-time-period-btn strong{font-size:14px;font-weight:850;line-height:1.15}
+.yuha-time-period-status{font-size:10px;font-weight:750;line-height:1.1}
 .yuha-time-period-btn[data-selected="true"]{
  background:#165849!important;color:#fff!important;
- border:3px solid #083c31!important;
- box-shadow:inset 0 0 0 1px rgba(255,255,255,.6),0 3px 9px rgba(19,80,63,.24)!important;
+ border:2px solid #083c31!important;
+ box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)!important;
 }
 .yuha-time-period-btn[data-selected="true"] .yuha-time-period-status{
- background:#fff;color:#145542;padding:2px 9px;border-radius:99px
+ padding:2px 4px;border-radius:5px;background:#fff;color:#15533e;
 }
-.yuha-time-period-btn[data-selected="false"] .yuha-time-period-status{color:#586f65}
-.yuha-time-period-btn:focus-visible{outline:3px solid #e89d34!important;outline-offset:2px!important}
-.yuha-time-clock{display:grid;grid-template-columns:minmax(0,1fr) 13px minmax(0,1fr);
- align-items:end;gap:9px;min-width:0}
-.yuha-time-number-wrap{display:block;min-width:0}
-.yuha-time-picker .yuha-time-number-select{
- display:block!important;width:100%!important;min-width:0!important;min-height:47px!important;
- padding:9px 10px!important;border:1px solid #a9c6ba!important;
- border-radius:10px!important;background:#fff!important;color:#1d3830!important;
- font-family:inherit!important;font-size:18px!important;font-weight:800!important;
- text-align:center!important;font-variant-numeric:tabular-nums
+.yuha-time-period-btn[data-selected="false"] .yuha-time-period-status{color:#62796e}
+.yuha-time-period-btn:focus-visible,
+.yuha-time-step:focus-visible,
+.yuha-time-number-input:focus-visible{
+ outline:2px solid #e59b35!important;outline-offset:1px!important;
 }
-.yuha-time-colon{align-self:end;text-align:center;font-size:23px;font-weight:850;padding-bottom:9px;color:#235647}
+.yuha-time-clock{
+ display:grid;grid-template-columns:minmax(0,1fr) 8px minmax(0,1fr);
+ gap:6px;align-items:end;min-width:0;
+}
+.yuha-time-number-wrap{min-width:0}
+.yuha-time-stepper{
+ display:grid;grid-template-columns:32px minmax(0,1fr) 32px;
+ min-height:40px;height:40px;min-width:0;
+ border:1px solid #b1c9bf;border-radius:9px;overflow:hidden;background:#fff;
+}
+.yuha-time-picker .yuha-time-step{
+ display:grid;place-items:center;min-width:0;width:100%;min-height:0;height:100%;
+ padding:0!important;border:0!important;border-radius:0!important;
+ color:#245e4a!important;background:#ebf3ee!important;
+ font-family:inherit;font-size:21px!important;line-height:1;font-weight:750;
+ box-shadow:none!important;cursor:pointer;
+}
+.yuha-time-picker .yuha-time-step:active{background:#d5e8dc!important}
+.yuha-time-picker .yuha-time-number-input{
+ display:block!important;width:100%!important;min-width:0!important;
+ min-height:0!important;height:100%!important;max-height:40px!important;
+ padding:0 1px!important;margin:0!important;border:0!important;
+ border-radius:0!important;background:#fff!important;color:#1e4035!important;
+ font-size:16px!important;font-weight:850!important;
+ line-height:1!important;text-align:center!important;
+ font-variant-numeric:tabular-nums;box-shadow:none!important;
+ -webkit-appearance:none;appearance:none;
+}
+.yuha-time-picker .yuha-time-number-input[aria-invalid="true"]{
+ background:#fff0ea!important;color:#a4402c!important;
+}
+.yuha-time-colon{
+ align-self:end;text-align:center;padding:0 0 7px;font-size:18px;
+ font-weight:850;color:#3c6654;
+}
 .yuha-time-choice{
- margin:3px 0 0!important;padding:10px 11px!important;
- border:1px solid #c8ded6;border-radius:9px;background:#e7f3ed;
- color:#1c5741!important;font-size:13px!important;line-height:1.5!important;
- font-weight:850!important;font-variant-numeric:tabular-nums;
+ min-height:24px;margin:0!important;padding:4px 8px!important;
+ border:1px solid #d4e6dc;border-radius:7px;background:#eaf5ee;
+ color:#1d644b!important;font-size:11px!important;
+ line-height:1.25!important;font-weight:800!important;
+ font-variant-numeric:tabular-nums;
 }
-.yuha-time-choice[data-complete="false"]{background:#fff8e9;border-color:#f3deb0;color:#765521!important}
-@media(max-width:370px){
- .yuha-time-picker{padding:10px;gap:7px}
- .yuha-time-period-btn{min-height:58px}
- .yuha-time-period-btn strong{font-size:18px}
+.yuha-time-choice[data-complete="false"]{
+ background:#fff9ee;border-color:#eadcbe;color:#775924!important;
 }
-@media(prefers-reduced-motion:reduce){.yuha-time-period-btn{transition:none!important}}
-
-/* The dosing quick-entry formerly squeezed the native input beside Now and
-   next to the status selector. Give the explicit AM/PM buttons full width. */
+/* The controls inside the illness medication form need all available width. */
 .ill-quick-dose-grid:has(.yuha-time-picker){grid-template-columns:minmax(0,1fr)}
 .ill-time-control:has(.yuha-time-picker){
  display:flex!important;flex-direction:column;align-items:stretch;
  gap:4px;width:100%;min-width:0;
 }
 .ill-time-control:has(.yuha-time-picker)>button{
- align-self:flex-end;min-width:80px;min-height:38px;
- padding:8px 13px;
+ align-self:flex-end;min-width:80px;min-height:34px;
+ padding:6px 11px;
+}
+/* The sleep modal already includes the field title and date; avoid gaps. */
+.sleep-modal .yuha-time-picker{margin:4px 0 0}
+.sleep-modal .yuha-time-choice{margin:0!important}
+@media(max-width:370px){
+ .yuha-time-picker{padding:7px 8px;gap:5px}
+ .yuha-time-stepper{grid-template-columns:29px minmax(0,1fr) 29px}
+ .yuha-time-period-btn{padding:5px 4px}
+}
+@media(prefers-reduced-motion:reduce){
+ .yuha-time-period-btn,.yuha-time-step{transition:none!important}
 }
