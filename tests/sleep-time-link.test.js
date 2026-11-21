@@ -22,6 +22,10 @@ function setup(row,previousDay={},dateKey='2026-11-04'){
   return elements.get(id);
  }
  const c={
+  window:{YuhaTimePicker:{
+   enhance(input){input.dataset.timeEnhanced="true";},
+   sync(input){input.dataset.syncedClock=input.value;}
+  }},
   document:{getElementById:getEl},
   DAY_NAMES:['일','월','화','수','목','금','토'],
   getSleepRecord:date=>date===new Date(Date.parse(dateKey+'T12:00:00Z')-86400000).toISOString().slice(0,10)?previousDay:row,
@@ -39,6 +43,8 @@ function assertEdits(actual,expected){assert.deepEqual(JSON.parse(JSON.stringify
  const t=setup({napStart:'08:00',napEnd:''});
  t.test.openSleepTimeModal('2026-11-04','napEnd');
  assert.equal(t.element('sleepModalInput').value,'08:30');
+ assert.equal(t.element('sleepModalInput').dataset.syncedClock,'08:30',
+  '12-hour custom UI must mirror the original suggested time');
  assert.match(t.element('sleepModalTimeHint').textContent,/30분/);
  t.test.applySleepTimeModal(false);
  assertEdits(t.edits,[['napEnd','08:30']]);
