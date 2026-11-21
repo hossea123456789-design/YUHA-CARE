@@ -123,7 +123,8 @@ function enhance(scope){
    status.dataset.complete=String(!!saved);
   }
   const commit=()=>{
-   if(!controls.period)controls.period="am";
+   // Never silently assume AM for an optional date; users explicitly choose
+   // the period before a previously empty time value becomes saveable.
    const next=composeClock(dateInput?.value||"",controls.period,hour.value,minute.value,withDate);
    const changed=field.value!==next;
    field.value=next;
