@@ -1,3 +1,24 @@
+## 67. 2026-11-21 — 수면·질병 시각 선택 UI 컴팩트 개선
+
+### 사용자 이슈
+- 수면 '침대 입실' 모달의 오전·오후 시각 컨트롤이 너무 높음.
+- 숫자(시·분)를 탭하면 OS 네이티브 select 전체 화면 목록이 열려 가림. 질병 시간 입력의 동일 컨트롤도 영향 있음.
+
+### 구현 및 이유
+- `time-picker-ui.js`: `<select>`를 더 이상 생성하지 않음. `input[type=text][inputmode=numeric][maxlength=2]`를 중앙에 둔 컴팩트 ± 스테퍼로 교체. `input/change` 시 원본 hidden `datetime-local`/`time` 값을 검증해서 갱신. 시 1~12, 분 0~59; wrap-around 지원. 유효하지 않은 키 입력은 잘못된 시간을 저장하지 않도록 original field를 비움. `two()`에서 빈 문자열을 0으로 판정하던 Number('') 문제 수정. 이벤트 핸들러는 commit 함수 초기화 후 실행되도록 화살표 래퍼 사용.
+- `time-picker-ui.css`: 선택된 오전/오후의 `✓ 선택됨` 배지와 짙은 선택 배경은 유지하되 높이 37px, 입력 스테퍼 높이 40px. 시간 모달 내부 패딩·버튼 간격 축소. 질병 복용 시각은 전체 너비 확보.
+- `index.html`: 캐시 주소 `time-picker-ui.js/css?v=20261121-compact-v2`로 변경.
+- `tests/time-picker-ui.test.js`: native `SELECT`가 생성되지 않음을 확인하고, 직접 시/분 입력·± wrap-around·잘못된 분의 저장 방지·수면/질병 입력 포맷 보존을 검증.
+- 추가 Apps Script 배포/Google Sheets 셀 수정은 없음.
+
+### 향후 규칙
+- 시·분 native `select`를 다시 넣지 말 것. 모바일 전체 화면 목록 문제 재발.
+- 시각 표시가 작아져도 현재 선택된 오전/오후는 반드시 색상뿐 아니라 텍스트·`aria-pressed`로 확인 가능해야 함.
+- `get(form,"at")`가 인식하는 original field `name`과 24시간 문자열 형식은 바꾸지 말 것.
+- 기존 컨트롤 편집 중에는 server callback에서 DOM rerender를 하지 말 것.
+
+---
+
 ## 66. 2026-11-21 — 오전/오후 선택 명확화
 
 ### 사용자 피드백
