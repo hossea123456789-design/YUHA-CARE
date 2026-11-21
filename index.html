@@ -329,6 +329,7 @@
   <link rel="stylesheet" href="design.css?v=20261115-common-tabs-v1" />
   <link rel="stylesheet" href="mental.css?v=20261115-common-tabs-v2">
   <link rel="stylesheet" href="illness-care.css?v=20261118-purpose-v1">
+  <link rel="stylesheet" href="time-picker-ui.css?v=20261121-am-pm-v1">
 </head>
 
 <body>
@@ -489,9 +490,10 @@
   <script src="bridge-client.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
   <script src="form-draft-guard.js?v=20261118-formguard-v1"></script>
+  <script src="time-picker-ui.js?v=20261121-am-pm-v1"></script>
   <script src="checklist-reconcile.js?v=20261119-sync-guard-v1"></script>
   <script src="mental.js?v=20261118-editor-guard-v2"></script>
-  <script src="illness-care.js?v=20261118-editor-guard-v5"></script>
+  <script src="illness-care.js?v=20261121-am-pm-v1"></script>
   <script src="sleep-monthly.js?v=20261111-sleep-observations-v1"></script>
   <script src="history-export.js?v=20261118-purpose-v1"></script>
   <script>
@@ -3496,7 +3498,10 @@
       document.getElementById("sleepModalTitle").textContent=sleepFieldLabels[field];
       document.getElementById("sleepModalDate").textContent=`${dateKey} (${DAY_NAMES[new Date(dateKey+"T12:00:00").getDay()]}) · ${field==="wakeTime"?"이날 아침":field==="napStart"||field==="napEnd"||field==="nap2Start"||field==="nap2End"?"이날 낮": "이날 밤"}`;
       const suggestion=suggestedSleepTime(row,field,dateKey);
-      document.getElementById("sleepModalInput").value=suggestion.time;
+      const sleepTimeField=document.getElementById("sleepModalInput");
+      sleepTimeField.value=suggestion.time;
+      window.YuhaTimePicker?.enhance(sleepTimeField);
+      window.YuhaTimePicker?.sync(sleepTimeField);
       document.getElementById("sleepModalTimeHint").textContent=
         suggestion.source==="yesterday"?"어제 같은 항목의 "+suggestion.time+" 기록을 참고했어요 · 저장 시 적용됩니다.":
         suggestion.source==="spacing"?"오늘 시작 시각이 어제 기록과 달라 "+suggestion.time+" (+30분)을 추천했어요 · 저장 시 적용됩니다.":"";
