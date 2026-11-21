@@ -101,7 +101,7 @@ function enhance(scope){
    increment.addEventListener("click",event=>{
     event.preventDefault();event.stopPropagation();move(1);
    });
-   number.addEventListener("input",commit);
+   number.addEventListener("input",()=>commit());
    number.addEventListener("change",()=>{
     const n=two(number.value,min,max);
     if(n!==null)number.value=PAD(n);
