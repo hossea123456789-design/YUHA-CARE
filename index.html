@@ -487,7 +487,7 @@
     })();
   </script>
   <script src="config.js?v=20261020-shared1"></script>
-  <script src="bridge-client.js?v=20261028-deviceaudit-final2"></script>
+  <script src="bridge-client.js?v=20261123-shared-time-v1"></script>
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
   <script src="form-draft-guard.js?v=20261121-formguard-time-v2"></script>
   <script src="time-picker-ui.js?v=20261123-stepper-v1"></script>
@@ -1504,6 +1504,108 @@
       render();
     }
 
+    // The increment preference belongs to shared APP_SETTINGS, not each
+    // device. Do not treat a default value as a successful cloud read.
+    let timeStepServerRevision=null;
+    let timeStepRequestBusy=false,timeStepSaveBusy=false,timeStepLastReadAt=0;
+    let timeStepStatus="공유 DB에서 시간 설정을 확인하는 중입니다.";
+    function showTimeStepSettings(){
+      const selector=document.getElementById("timeMinuteStepSettings");
+      const notice=document.getElementById("timeMinuteStepNotice");
+      const confirmed=window.YuhaTimePicker?.getMinuteStep?.()||5;
+      if(selector){
+        selector.value=String(confirmed);
+        selector.disabled=timeStepSaveBusy||timeStepRequestBusy||timeStepServerRevision===null;
+      }
+      if(notice)notice.textContent=timeStepStatus;
+    }
+    function refreshTimeStepFromDb(force=false){
+      if(timeStepRequestBusy||timeStepSaveBusy)return;
+      if(!navigator.onLine||!window.YuhaDBBridge?.connected?.()){
+        timeStepStatus="서버 연결 후 공유 시간 설정을 확인합니다. 현재 표시된 기본 5분은 서버 확인 전 값입니다.";
+        showTimeStepSettings();return;
+      }
+      if(!force&&timeStepServerRevision!==null&&Date.now()-timeStepLastReadAt<15000)return;
+      timeStepRequestBusy=true;
+      timeStepStatus="공유 DB의 분 증가폭 확인 중";
+      showTimeStepSettings();
+      google.script.run.withSuccessHandler(result=>{
+        timeStepRequestBusy=false;
+        if(!result?.ok||Number(result.schemaVersion)!==1||
+          !window.YuhaTimePicker?.setMinuteStep?.(result.minuteStep)){
+          timeStepServerRevision=null;
+          timeStepStatus="공유 시간 설정 서버 응답이 유효하지 않습니다. 서버 API 배포를 확인하세요.";
+          showTimeStepSettings();return;
+        }
+        timeStepServerRevision=String(result.revision??"");
+        timeStepLastReadAt=Date.now();
+        timeStepStatus="공유 DB 설정 확인됨 · 현재 "+result.minuteStep+
+          "분 단위 · 두 기기에 공통 적용됩니다.";
+        showTimeStepSettings();
+      }).withFailureHandler(error=>{
+        timeStepRequestBusy=false;
+        timeStepServerRevision=null;
+        timeStepStatus="공유 시간 설정 조회 실패 · 새 Apps Script API 배포 필요: "+
+          String(error?.message||error).slice(0,100);
+        showTimeStepSettings();
+      }).getTimePickerSettings();
+    }
+    function saveTimeStepToDb(value){
+      const step=Number(value);
+      const picker=window.YuhaTimePicker;
+      if(!picker?.minuteStepOptions?.includes(step)||timeStepServerRevision===null||
+        timeStepRequestBusy||timeStepSaveBusy){
+        timeStepStatus="서버의 기존 설정을 확인한 뒤 변경할 수 있습니다.";
+        showTimeStepSettings();return;
+      }
+      const previousRevision=timeStepServerRevision;
+      timeStepSaveBusy=true;
+      timeStepStatus=step+"분 단위를 공유 DB에 저장·재조회하는 중";
+      showTimeStepSettings();
+      google.script.run.withSuccessHandler(reply=>{
+        if(reply?.conflict){
+          timeStepSaveBusy=false;
+          timeStepServerRevision=null;
+          timeStepStatus="다른 기기의 설정 변경 감지 · 서버 최신값 조회 중";
+          showTimeStepSettings();
+          refreshTimeStepFromDb(true);return;
+        }
+        if(!reply?.ok||Number(reply.schemaVersion)!==1||
+          Number(reply.minuteStep)!==step){
+          timeStepSaveBusy=false;
+          timeStepStatus="시간 단위 저장 미확인 · 변경하지 않았습니다.";
+          showTimeStepSettings();refreshTimeStepFromDb(true);return;
+        }
+        google.script.run.withSuccessHandler(readback=>{
+          timeStepSaveBusy=false;
+          if(!readback?.ok||Number(readback.schemaVersion)!==1||
+            Number(readback.minuteStep)!==step||
+            String(readback.revision??"")!==String(reply.revision??"")){
+            timeStepServerRevision=null;
+            timeStepStatus="서버 저장 후 재조회 불일치 · 값을 확정하지 않았습니다.";
+            showTimeStepSettings();refreshTimeStepFromDb(true);return;
+          }
+          timeStepServerRevision=String(readback.revision??"");
+          timeStepLastReadAt=Date.now();
+          picker.setMinuteStep(step);
+          timeStepStatus="공유 DB 저장·재조회 완료 · 분 증가폭 "+step+
+            "분 · 다른 기기에서도 서버 재조회 시 적용됩니다.";
+          showTimeStepSettings();
+        }).withFailureHandler(error=>{
+          timeStepSaveBusy=false;
+          timeStepServerRevision=null;
+          timeStepStatus="저장 후 확인에 실패했습니다 · 서버를 다시 조회합니다: "+
+            String(error?.message||error).slice(0,100);
+          showTimeStepSettings();refreshTimeStepFromDb(true);
+        }).getTimePickerSettings();
+      }).withFailureHandler(error=>{
+        timeStepSaveBusy=false;
+        timeStepStatus="서버 저장 실패 · 기존 설정 유지: "+
+          String(error?.message||error).slice(0,100);
+        showTimeStepSettings();
+      }).saveTimePickerSettings({minuteStep:step,expectedRevision:previousRevision});
+    }
+
     function renderSettingsTab() {
       const main = document.getElementById("main");
 
@@ -1536,8 +1638,9 @@
             </select>
           </div>
           <p class="sleep-sync-note" id="timeMinuteStepNotice" role="status" aria-live="polite">
-            기본 5분 · 시는 1시간씩, 분은 선택한 단위로 움직입니다. 길게 누르면 점점 빨라집니다. 이 기기에만 저장됩니다.
+            ${timeStepStatus}
           </p>
+          <p class="sleep-sync-note">기본값 5분 · 시 ±1시간 · 분 ±선택 단위 · 길게 누르면 가속. 공유 APP_SETTINGS DB에 저장되어 두 기기에서 동일하게 사용합니다.</p>
         </div>
         <div class="settings-card">
           <h3>작은 제목 추가</h3>
@@ -1560,14 +1663,10 @@
       `;
 
       document.getElementById("timeMinuteStepSettings").addEventListener("change",(event)=>{
-        const value=Number(event.target.value);
-        const applied=window.YuhaTimePicker?.setMinuteStep?.(value)===true;
-        const step=window.YuhaTimePicker?.getMinuteStep?.()||5;
-        event.target.value=String(step);
-        document.getElementById("timeMinuteStepNotice").textContent=applied?
-          "분 + / − 버튼 증가폭이 "+step+"분으로 변경됐습니다. 길게 누르면 자동 반복이 가속됩니다. 이 기기에만 적용됩니다.":
-          "설정값을 적용하지 못했습니다. 현재 "+step+"분 단위를 사용합니다.";
+        saveTimeStepToDb(event.target.value);
       });
+      showTimeStepSettings();
+      refreshTimeStepFromDb(true);
       document.getElementById("addSectionBtn").addEventListener("click", addSectionFromSettings);
       document.getElementById("newSectionInput").addEventListener("keydown", (event) => {
         if (event.key === "Enter") addSectionFromSettings();
@@ -3644,13 +3743,20 @@
     document.getElementById("sleepConflictCancel").addEventListener("click",closeSleepConflicts);
     document.getElementById("sleepConflictApply").addEventListener("click",applySleepConflictChoices);
     loadFromServer();
+    // The DB bridge emits connected again after reconnect and each RPC. The
+    // fetch throttle prevents loops; no local-only preference is persisted.
+    window.addEventListener("yuha-db-status",event=>{
+      if(event.detail?.state==="connected")refreshTimeStepFromDb();
+    });
     window.addEventListener("online", () => {
+      refreshTimeStepFromDb(true);
       if(data){
         clearChecklistRetry();
         loadFromServer();
       }
     });
     function refreshSharedTabsAfterReturn(){
+      if(navigator.onLine)refreshTimeStepFromDb();
       if(!navigator.onLine||!data)return;
       if(!checklistLoading&&Date.now()-lastChecklistReadAt>15000)loadFromServer();
       if((currentTab==="sleep"||currentTab==="settings")&&Date.now()-sleepLastVisibleRefreshAt>15000)
