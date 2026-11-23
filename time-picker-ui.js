@@ -5,6 +5,40 @@
 (function(root){
 "use strict";
 const PAD=n=>String(n).padStart(2,"0");
+const MINUTE_STEP_KEY="yuha_time_minute_step_device_v1";
+const MINUTE_STEPS=[1,2,3,5,10,15,20,30];
+const DEFAULT_MINUTE_STEP=5;
+let minuteStepMemory=null;
+function getMinuteStep(){
+ if(minuteStepMemory!==null)return minuteStepMemory;
+ try{
+  const raw=root.localStorage?.getItem(MINUTE_STEP_KEY);
+  const value=raw===null||raw===undefined?DEFAULT_MINUTE_STEP:Number(raw);
+  minuteStepMemory=MINUTE_STEPS.includes(value)?value:DEFAULT_MINUTE_STEP;
+ }catch(_){minuteStepMemory=DEFAULT_MINUTE_STEP;}
+ return minuteStepMemory;
+}
+function setMinuteStep(value){
+ const step=Number(value);
+ if(!MINUTE_STEPS.includes(step))return false;
+ minuteStepMemory=step;
+ try{root.localStorage?.setItem(MINUTE_STEP_KEY,String(step));}catch(_){}
+ return true;
+}
+const wrap=(value,delta,modulus)=>((value+delta)%modulus+modulus)%modulus;
+// The visible hour is 12-hour, but typing 00 or 13–23 intentionally
+// converts an explicit 24-hour entry to the matching AM/PM state.
+function interpretHour(text,period){
+ const raw=String(text??"").trim();
+ if(!/^\d{1,2}$/.test(raw))return null;
+ const number=Number(raw);
+ if(number===0)return {hour:12,period:"am",converted:true};
+ if(number>=13&&number<=23)
+  return {hour:number-12,period:"pm",converted:true};
+ if(number>=1&&number<=12)
+  return {hour:number,period,converted:false};
+ return null;
+}
 const two=(text,lo,hi)=>{
  const raw=String(text??"").trim();
  if(!/^\d{1,2}$/.test(raw))return null;
@@ -75,7 +109,7 @@ function enhance(scope){
    const decrement=doc.createElement("button");decrement.type="button";
    decrement.className="yuha-time-step";decrement.textContent="−";
    decrement.dataset.timeStep="minus";decrement.dataset.yuhaEditable="true";
-   decrement.setAttribute("aria-label",caption+" 1 감소");
+   decrement.setAttribute("aria-label",caption+(part==="hour"?" 1시간 감소":" 설정한 분 단위만큼 감소 (길게 누르면 연속 감소)"));
    const number=doc.createElement("input");number.type="text";
    number.className="yuha-time-number-input";
    number.inputMode="numeric";number.maxLength=2;number.autocomplete="off";
@@ -85,29 +119,86 @@ function enhance(scope){
    const increment=doc.createElement("button");increment.type="button";
    increment.className="yuha-time-step";increment.textContent="+";
    increment.dataset.timeStep="plus";increment.dataset.yuhaEditable="true";
-   increment.setAttribute("aria-label",caption+" 1 증가");
+   increment.setAttribute("aria-label",caption+(part==="hour"?" 1시간 증가":" 설정한 분 단위만큼 증가 (길게 누르면 연속 증가)"));
    stepper.append(decrement,number,increment);
    wrap.append(title,stepper);clock.append(wrap);
-   const move=(delta)=>{
-    const initial=two(number.value,min,max);
-    const current=initial===null?(part==="hour"?9:0):initial;
-    number.value=PAD(current===max&&delta>0?min:
-     current===min&&delta<0?max:current+delta);
+   const selectEntireValue=()=>{
+    // Selecting after both focus and pointer/click preserves replacement
+    // behavior on Android/iOS, where focus may reset the caret position.
+    try{number.select?.();number.setSelectionRange?.(0,String(number.value).length);}
+    catch(_){}
+   };
+   for(const eventName of ["focus","click","pointerup"])
+    number.addEventListener(eventName,selectEntireValue);
+   const normalizeTypedHour=()=>{
+    if(part!=="hour")return;
+    const entry=interpretHour(number.value,controls.period);
+    if(!entry)return;
+    if(entry.converted){
+     controls.period=entry.period;
+     number.value=PAD(entry.hour);
+    }
+   };
+   const move=(direction)=>{
+    if(part==="hour"){
+     const parsed=interpretHour(number.value,controls.period);
+     const current=parsed?.hour??9;
+     const period=parsed?.period||controls.period;
+     const hour24=wrap(current%12+(period==="pm"?12:0),direction,24);
+     number.value=PAD(hour24%12||12);
+     if(period)controls.period=hour24<12?"am":"pm";
+    }else{
+     const current=two(number.value,0,59)??0;
+     number.value=PAD(wrap(current,direction*getMinuteStep(),60));
+    }
     commit();
    };
-   decrement.addEventListener("click",event=>{
-    event.preventDefault();event.stopPropagation();move(-1);
+   const bindStepper=(button,direction)=>{
+    let timer=null,holdStarted=0,held=false,ignoreClick=false,releaseTimer=null;
+    const clearTimer=()=>{if(timer!==null){clearTimeout(timer);timer=null;}};
+    const stop=()=>{
+     clearTimer();
+     if(held){
+      ignoreClick=true;
+      if(releaseTimer!==null)clearTimeout(releaseTimer);
+      releaseTimer=setTimeout(()=>{ignoreClick=false;releaseTimer=null;},0);
+     }
+     held=false;
+    };
+    const repeat=()=>{
+     held=true;move(direction);
+     const elapsed=Date.now()-holdStarted;
+     const delay=elapsed>=2800?45:elapsed>=1200?80:140;
+     timer=setTimeout(repeat,delay);
+    };
+    button.addEventListener("pointerdown",event=>{
+     if(event.button!==undefined&&event.button!==0)return;
+     stop();ignoreClick=false;
+     holdStarted=Date.now();
+     timer=setTimeout(repeat,360);
+    });
+    for(const name of ["pointerup","pointercancel","pointerleave","lostpointercapture","blur"])
+     button.addEventListener(name,stop);
+    button.addEventListener("click",event=>{
+     event.preventDefault();event.stopPropagation();
+     if(ignoreClick){ignoreClick=false;return;}
+     move(direction);
+    });
+   };
+   bindStepper(decrement,-1);
+   bindStepper(increment,1);
+   number.addEventListener("input",()=>{
+    normalizeTypedHour();
+    commit();
    });
-   increment.addEventListener("click",event=>{
-    event.preventDefault();event.stopPropagation();move(1);
-   });
-   number.addEventListener("input",()=>commit());
    number.addEventListener("change",()=>{
+    normalizeTypedHour();
     const n=two(number.value,min,max);
     if(n!==null)number.value=PAD(n);
     commit();
    });
    number.addEventListener("blur",()=>{
+    normalizeTypedHour();
     const n=two(number.value,min,max);
     if(n!==null)number.value=PAD(n);
    });
@@ -213,5 +304,7 @@ function refresh(scope){
  if(!scope)return;
  for(const field of Array.from(scope.querySelectorAll?.("input.yuha-time-source")||[]))sync(field);
 }
-root.YuhaTimePicker={enhance,sync,refresh,parseClock,composeClock};
+root.YuhaTimePicker={enhance,sync,refresh,parseClock,composeClock,
+ getMinuteStep,setMinuteStep,minuteStepOptions:[...MINUTE_STEPS],
+ interpretHour};
 })(window);
