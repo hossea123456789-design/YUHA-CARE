@@ -200,8 +200,9 @@ function tap(button){button.dispatchEvent(new FakeEvent("click"));}
  assert(later>early,"continued holding accelerates repeat frequency");
  const stoppedAt=entry.value;
  steps[2].dispatchEvent(new FakeEvent("pointerup"));
+ advance(150); // browsers may deliver synthetic click in a later macrotask
  tap(steps[2]);
- assert.equal(entry.value,stoppedAt,"pointer-generated click after long hold must not add a step");
+ assert.equal(entry.value,stoppedAt,"delayed pointer-generated click after long hold must not add a step");
  advance(240);
  assert.equal(entry.value,stoppedAt,"release cancels repeating timer");
  steps[0].dispatchEvent(new FakeEvent("pointerdown"));
