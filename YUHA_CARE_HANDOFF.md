@@ -6,7 +6,7 @@
 - +/- 버튼을 누르고 있으면 반복 동작하며 지속할수록 속도 증가. 설정 탭에서 분 단위를 바꾸며, **추가 요청으로 설정은 기기 저장이 아닌 공용 Google Sheets 기록 DB에 저장해야 함.**
 
 ### 클라이언트 구현
-- `time-picker-ui.js`: `input[type=text][maxlength=2]`의 `focus`/`click`/`pointerup`에서 `select()`·`setSelectionRange(0,value.length)`로 전체 선택. `interpretHour`는 00→12 AM, 13~23→1~11 PM 변환, 01~12는 선택한 오전·오후 유지. 분 단위는 `getMinuteStep()`의 1·2·3·5·10·15·20·30 분 중 하나로 증감하고 모듈러 60으로 처리, 시는 24시간에서 1시간 증감해 AM/PM을 자연스럽게 전환. pointerdown 360ms 후 자동 반복, 1.2초부터 80ms, 2.8초부터 45ms로 점점 가속. pointerup/cancel/leave/blur 시 중단. 실제 원본 input의 `YYYY-MM-DDTHH:mm` / `HH:mm`, 기존 form-draft-guard, 기존 서버 기록은 변경 없음.
+- `time-picker-ui.js`: `input[type=text][maxlength=2]`의 `focus`/`click`/`pointerup`에서 `select()`·`setSelectionRange(0,value.length)`로 전체 선택. `interpretHour`는 00→12 AM, 13~23→1~11 PM 변환, 01~12는 선택한 오전·오후 유지. 분 단위는 `getMinuteStep()`의 1·2·3·5·10·15·20·30 분 중 하나로 증감하고 모듈러 60으로 처리, 시는 24시간에서 1시간 증감해 AM/PM을 자연스럽게 전환. pointerdown 360ms 후 자동 반복, 1.2초부터 80ms, 2.8초부터 45ms로 점점 가속. pointerup/cancel/leave/blur 시 중단. 길게 누르기 직후 모바일 지연 합성 click이 중복으로 1회 더 증가하지 않도록 마지막 연속 조작의 클릭을 억제한다. 실제 원본 input의 `YYYY-MM-DDTHH:mm` / `HH:mm`, 기존 form-draft-guard, 기존 서버 기록은 변경 없음.
 - `time-picker-ui.css`: 길게 누를 때 터치 콜아웃·텍스트 선택 방지, 입력값 선택 강조 및 설정 탭 2열 반응형. `index.html`의 새 `시간 입력 버튼 단위` 설정 카드와 `timeMinuteStepSettings` 선택. 서버 확인 전엔 선택 변경 불가능하고, 서버 조회·저장 중·재조회 검증 상태를 구체적으로 표시.
 - `time-picker-ui.js`에서는 기기 `localStorage` 선호 저장을 **완전히 사용하지 않음**. 메모리 기본값 5분만 유지하다 실제 서버 읽기/저장 후 재조회가 확인된 값으로 교체. 다른 브라우저에서 설정을 바꾸면 재연결/탭 재조회/앱 복귀 시 공유값 갱신. 기기별 마지막으로 열었던 탭은 별개로 로컬 유지.
 - 공용 시간 설정값 로딩·저장 중복요청 보호, 연결 오류 15초 백오프, 동시 수정으로 CAS 충돌이 발생하면 다시 서버 조회, 저장 ACK만으로 사용자 설정 저장 완료라고 표현하지 않고 `getTimePickerSettings()` readback 검증 후 확정.
@@ -14,12 +14,16 @@
 ### 서버 API · 보안
 - Google Sheets 기존 `APP_SETTINGS` 행 `key="timePickerMinuteStep", value="5", updated_at=<revision>`을 공용 기록 DB로 사용. 최초 GET에는 행을 만들지 않고 서버 기본 5분과 revision 빈 문자열을 반환. 신규 선택 저장에서만 `APP_SETTINGS`의 기존 `birthDate` 행 및 타 기록은 건드리지 않고 새 행을 삽입.
 - `apps-script/Code.gs`: `getTimePickerSettings` / `saveTimePickerSettings` 구현; 지원 단위 `[1,2,3,5,10,15,20,30]`. 원래의 script LockService에서 기존 revision과 expectedRevision을 검증, 늦은 기기의 저장은 conflict로 거절. `bridge-client.js`와 GAS 안에서 생성하는 bridge `ALLOWED`에 두 메서드 추가.
+- **오프라인:** 서버 연결이 끊긴 상태에서는 설정 변경을 승인하거나 기기 설정으로 대체 저장하지 않으며, 기존 마지막 서버 확인값과 오류 상태를 유지한다.
 - **운영 제약:** GitHub `main`은 Pages만 자동 배포하므로 Apps Script의 최신 `Code.gs`는 연결된 운영 `/exec` 배포에 자동 반영되지 않음. 기존 배포를 **새 버전**으로 수동 갱신해야 DB 설정을 저장할 수 있음. 구 API를 만나면 설정을 몰래 localStorage에 저장하지 않고 서버 연결/기능 미배포 상태를 표시함.
+
+### CI 확인
+- 2026-11-23 전체 자동 회귀 테스트, Pages 게시 및 공개 리소스 스모크 테스트: run `45135407456`, commit `a780df93049af0d9f814085335cf3fdb72ec7848`, `conclusion=success`. 단, Apps Script 운영 `/exec`에 새 API가 배포되었다는 뜻은 아니다. 이후 문서-only 커밋의 run 성공 여부는 별도 확인.
 
 ### 회귀 테스트 및 파일
 - `tests/time-picker-ui.test.js`: 입력 focus/터치 전체 선택, 23/00/18 자동 오전오후 전환, 24시 무효, 시 경계 전환, 분 +5 순환 및 설정 +10, 지속 누르기 가속과 해제 후 정지, 기존 약·수면 시각 형식.
 - `tests/time-picker-settings-api.test.js`: 빈 서버에서 기본값과 쓰기 없는 GET, DB 최초 행 생성, 기존 birthDate 보존, 서버 조회 동일성, 같은 버전 재저장 무변경, 다른 기기의 오래된 revision 충돌 및 지원 범위 밖 값 거부. `.github/workflows/pages.yml` 배포 전 둘 다 필수 테스트로 포함.
-- 변경 파일: `time-picker-ui.js`, `time-picker-ui.css`, `index.html`, `bridge-client.js`, `apps-script/Code.gs`, `tests/time-picker-ui.test.js`, `tests/time-picker-settings-api.test.js`, `.github/workflows/pages.yml`, `README.md`, `YUHA_CARE_HANDOFF.md`. `index.html` 자산 버전 `time-picker-ui.js/css?v=20261123-stepper-v1`, `bridge-client.js?v=20261123-shared-time-v1`. 개인 기록/스프레드시트 데이터는 자동으로 수정하지 않음.
+- 변경 파일: `time-picker-ui.js`, `time-picker-ui.css`, `index.html`, `bridge-client.js`, `apps-script/Code.gs`, `tests/time-picker-ui.test.js`, `tests/time-picker-settings-api.test.js`, `.github/workflows/pages.yml`, `README.md`, `YUHA_CARE_HANDOFF.md`. `index.html` 자산 버전 `time-picker-ui.js?v=20261123-shared-stepper-v2`, `time-picker-ui.css?v=20261123-stepper-v1`, `bridge-client.js?v=20261123-shared-time-v1`. 개인 기록/스프레드시트 데이터는 자동으로 수정하지 않음.
 
 ---
 ## 67. 2026-11-21 — 수면·질병 시각 선택 UI 컴팩트 개선
