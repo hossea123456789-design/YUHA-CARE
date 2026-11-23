@@ -146,15 +146,14 @@ function enhance(scope){
     commit();
    };
    const bindStepper=(button,direction)=>{
-    let timer=null,holdStarted=0,held=false,ignoreClick=false,releaseTimer=null;
+    let timer=null,holdStarted=0,held=false,ignoreClick=false;
     const clearTimer=()=>{if(timer!==null){clearTimeout(timer);timer=null;}};
     const stop=()=>{
      clearTimer();
-     if(held){
-      ignoreClick=true;
-      if(releaseTimer!==null)clearTimeout(releaseTimer);
-      releaseTimer=setTimeout(()=>{ignoreClick=false;releaseTimer=null;},0);
-     }
+     // Ignore only the synthetic click emitted after a repeated long press.
+     // The next real pointerdown clears this state; delayed mobile click is
+     // safe even if the browser dispatches it in a later task.
+     if(held)ignoreClick=true;
      held=false;
     };
     const repeat=()=>{
@@ -173,7 +172,8 @@ function enhance(scope){
      button.addEventListener(name,stop);
     button.addEventListener("click",event=>{
      event.preventDefault();event.stopPropagation();
-     if(ignoreClick){ignoreClick=false;return;}
+     if(ignoreClick&&event.detail!==0){ignoreClick=false;return;}
+     ignoreClick=false;
      move(direction);
     });
    };
