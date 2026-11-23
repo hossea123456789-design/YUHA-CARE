@@ -1525,7 +1525,8 @@
         timeStepStatus="서버 연결 후 공유 시간 설정을 확인합니다. 현재 표시된 기본 5분은 서버 확인 전 값입니다.";
         showTimeStepSettings();return;
       }
-      if(!force&&timeStepServerRevision!==null&&Date.now()-timeStepLastReadAt<15000)return;
+      if(!force&&Date.now()-timeStepLastReadAt<15000)return;
+      timeStepLastReadAt=Date.now();
       timeStepRequestBusy=true;
       timeStepStatus="공유 DB의 분 증가폭 확인 중";
       showTimeStepSettings();
