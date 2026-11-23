@@ -554,6 +554,59 @@ function getChildBirthDate_() {
   return String(sheet.getRange(2, 2).getDisplayValue() || CHILD_BIRTH_DEFAULT_).trim();
 }
 
+
+/**
+ * Time-picker minute increments are a shared app preference in APP_SETTINGS.
+ * The existing birthDate row stays untouched; other unrelated sheet records
+ * are never reset or overwritten by this API.
+ */
+const TIME_MINUTE_KEY_='timePickerMinuteStep';
+const TIME_MINUTE_DEFAULT_=5;
+const TIME_MINUTE_ALLOWED_=[1,2,3,5,10,15,20,30];
+function timeMinuteReadRow_(){
+  const sheet=getChildSettingsSheet_();
+  const last=sheet.getLastRow();
+  const rows=last>1?sheet.getRange(2,1,last-1,3).getDisplayValues():[];
+  for(let i=0;i<rows.length;i++){
+    if(String(rows[i][0]||'').trim()!==TIME_MINUTE_KEY_)continue;
+    const step=Number(String(rows[i][1]||'').trim());
+    if(!TIME_MINUTE_ALLOWED_.includes(step))
+      throw new Error('APP_SETTINGS 시간 단위가 유효하지 않습니다. 기존 값을 보호했습니다.');
+    return {sheet,row:i+2,step,revision:String(rows[i][2]||'')};
+  }
+  return {sheet,row:-1,step:TIME_MINUTE_DEFAULT_,revision:''};
+}
+function getTimePickerSettings(){
+  const state=timeMinuteReadRow_();
+  return {ok:true,schemaVersion:1,minuteStep:state.step,revision:state.revision};
+}
+function saveTimePickerSettings(payload){
+  const step=Number(payload?.minuteStep);
+  if(!TIME_MINUTE_ALLOWED_.includes(step)||!payload||
+      !Object.prototype.hasOwnProperty.call(payload,'expectedRevision'))
+    throw new Error('시간 분 증가폭과 이전 서버 버전을 확인하세요.');
+  const expected=String(payload.expectedRevision||'');
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(5000))
+    return {ok:false,busy:true,message:'설정 저장이 진행 중입니다. 다시 시도해 주세요.'};
+  try{
+    const current=timeMinuteReadRow_();
+    if(current.revision!==expected)
+      return {ok:false,conflict:true,minuteStep:current.step,
+        revision:current.revision,schemaVersion:1,
+        message:'다른 기기에서 시간 단위가 변경되었습니다. 서버 설정을 다시 조회합니다.'};
+    if(current.step===step)
+      return {ok:true,unchanged:true,minuteStep:step,
+        revision:current.revision,schemaVersion:1};
+    const revision=new Date().toISOString()+'-'+Utilities.getUuid().slice(0,8);
+    const row=current.row>0?current.row:current.sheet.getLastRow()+1;
+    current.sheet.getRange(row,1,1,3)
+      .setValues([[TIME_MINUTE_KEY_,String(step),revision]]);
+    SpreadsheetApp.flush();
+    return {ok:true,minuteStep:step,revision,schemaVersion:1};
+  }finally{lock.releaseLock();}
+}
+
 function checkBirthDate_(value) {
   validateSleepDate_(value);
   const d = new Date(value + 'T12:00:00Z');
@@ -1193,7 +1246,7 @@ function serveYuhaBridge_(e) {
   if (origin !== YUHA_ALLOWED_ORIGIN_ || !/^[a-zA-Z0-9_-]{16,128}$/.test(nonce)) {
     return HtmlService.createHtmlOutput('Invalid bridge parameters');
   }
-  const html = "<!DOCTYPE html>\n<html lang=\"ko\">\n<head><base target=\"_top\"><meta charset=\"UTF-8\"><title>유하 DB 연결</title></head>\n<body>\n<script>\n(() => {\n  'use strict';\n  const ORIGIN = __YUHA_TRUSTED_ORIGIN_JSON__;\n  const NONCE = __YUHA_BRIDGE_NONCE_JSON__;\n  const ALLOWED = new Set(['getAppData','saveAppData','getSleepMonth','syncSleepChanges','getMentalMonth','syncMentalEntry','reportMentalClientEvents','getMentalAuditLog','getIllnessCases','syncIllnessCase']);\n  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }\n  window.addEventListener('message',event=>{\n    if(event.origin !== ORIGIN) return;\n    const msg=event.data;\n    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;\n    if(typeof msg.id!=='string'||!/^\\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;\n    const args=Array.isArray(msg.args)?msg.args:[];\n    try{\n      google.script.run\n        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))\n        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))\n        [msg.method](...args);\n    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}\n  });\n  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.\n  send({type:'ready'});\n  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});\n})();\n</script>\n</body></html>";
+  const html = "<!DOCTYPE html>\n<html lang=\"ko\">\n<head><base target=\"_top\"><meta charset=\"UTF-8\"><title>유하 DB 연결</title></head>\n<body>\n<script>\n(() => {\n  'use strict';\n  const ORIGIN = __YUHA_TRUSTED_ORIGIN_JSON__;\n  const NONCE = __YUHA_BRIDGE_NONCE_JSON__;\n  const ALLOWED = new Set(['getAppData','saveAppData','getTimePickerSettings','saveTimePickerSettings','getSleepMonth','syncSleepChanges','getMentalMonth','syncMentalEntry','reportMentalClientEvents','getMentalAuditLog','getIllnessCases','syncIllnessCase']);\n  function send(payload) { window.top.postMessage(Object.assign({source:'yuha-db-bridge',nonce:NONCE},payload),ORIGIN); }\n  window.addEventListener('message',event=>{\n    if(event.origin !== ORIGIN) return;\n    const msg=event.data;\n    if(!msg||msg.source!=='yuha-db-client'||msg.nonce!==NONCE||msg.type!=='call')return;\n    if(typeof msg.id!=='string'||!/^\\d{1,9}$/.test(msg.id)||!ALLOWED.has(msg.method))return;\n    const args=Array.isArray(msg.args)?msg.args:[];\n    try{\n      google.script.run\n        .withSuccessHandler(result=>send({type:'result',id:msg.id,ok:true,result}))\n        .withFailureHandler(error=>send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)}))\n        [msg.method](...args);\n    }catch(error){send({type:'result',id:msg.id,ok:false,error:String(error&&error.message||error)});}\n  });\n  // top 페이지에 실제 내부 프레임 참조를 전달하면 그 프레임으로 요청을 보낼 수 있습니다.\n  send({type:'ready'});\n  // 모바일 백그라운드에서 복귀했을 때 대기 중인 클라이언트 재연결용\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)send({type:'ready'});});\n})();\n</script>\n</body></html>";
   return HtmlService.createHtmlOutput(html
     .replace('__YUHA_TRUSTED_ORIGIN_JSON__', JSON.stringify(origin))
     .replace('__YUHA_BRIDGE_NONCE_JSON__', JSON.stringify(nonce)))
