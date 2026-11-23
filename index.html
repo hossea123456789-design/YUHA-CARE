@@ -329,7 +329,7 @@
   <link rel="stylesheet" href="design.css?v=20261115-common-tabs-v1" />
   <link rel="stylesheet" href="mental.css?v=20261115-common-tabs-v2">
   <link rel="stylesheet" href="illness-care.css?v=20261118-purpose-v1">
-  <link rel="stylesheet" href="time-picker-ui.css?v=20261121-compact-v2">
+  <link rel="stylesheet" href="time-picker-ui.css?v=20261123-stepper-v1">
 </head>
 
 <body>
@@ -490,7 +490,7 @@
   <script src="bridge-client.js?v=20261028-deviceaudit-final2"></script>
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
   <script src="form-draft-guard.js?v=20261121-formguard-time-v2"></script>
-  <script src="time-picker-ui.js?v=20261121-compact-v2"></script>
+  <script src="time-picker-ui.js?v=20261123-stepper-v1"></script>
   <script src="checklist-reconcile.js?v=20261119-sync-guard-v1"></script>
   <script src="mental.js?v=20261118-editor-guard-v2"></script>
   <script src="illness-care.js?v=20261121-am-pm-v1"></script>
@@ -1515,7 +1515,7 @@
           </div>
         </div>
 
-        <p class="help-note">구역 이름을 추가·정렬할 수 있습니다. 구역을 삭제하면 안에 있는 항목도 함께 삭제됩니다.</p>
+        <p class="help-note">시간 입력 방식과 체크리스트 구역을 설정할 수 있습니다.</p>
 
         <div class="settings-card">
           <h3>유하 생년월일</h3>
@@ -1525,6 +1525,19 @@
           </div>
           <div class="sleep-sync-note">현재 ${ageLabel(ageAtSleepDate(localDateKey(new Date())))} · 수면 평가 월령 기준</div>
           <p class="sleep-sync-note" id="settingsBirthSyncStatus" role="status" aria-live="polite">${sleepPending.some(op=>op.date==="@profile")?"생년월일 기기에 저장 · 서버 저장 대기":sleepSessionOnline?"생년월일 서버 기록 확인됨":"서버 생년월일 확인 전 · 기기 저장값 표시"}</p>
+        </div>
+        <div class="settings-card">
+          <h3>시간 입력 버튼 단위</h3>
+          <div class="settings-row settings-time-step-row">
+            <label for="timeMinuteStepSettings">분 + / − 버튼의 증가폭</label>
+            <select id="timeMinuteStepSettings" aria-label="시간 선택 분 단위">
+              ${(window.YuhaTimePicker?.minuteStepOptions||[1,2,3,5,10,15,20,30]).map(step=>
+                `<option value="${step}"${step===(window.YuhaTimePicker?.getMinuteStep?.()||5)?" selected":""}>${step}분</option>`).join("")}
+            </select>
+          </div>
+          <p class="sleep-sync-note" id="timeMinuteStepNotice" role="status" aria-live="polite">
+            기본 5분 · 시는 1시간씩, 분은 선택한 단위로 움직입니다. 길게 누르면 점점 빨라집니다. 이 기기에만 저장됩니다.
+          </p>
         </div>
         <div class="settings-card">
           <h3>작은 제목 추가</h3>
@@ -1546,6 +1559,15 @@
         <div id="sectionManageWrap"></div>
       `;
 
+      document.getElementById("timeMinuteStepSettings").addEventListener("change",(event)=>{
+        const value=Number(event.target.value);
+        const applied=window.YuhaTimePicker?.setMinuteStep?.(value)===true;
+        const step=window.YuhaTimePicker?.getMinuteStep?.()||5;
+        event.target.value=String(step);
+        document.getElementById("timeMinuteStepNotice").textContent=applied?
+          "분 + / − 버튼 증가폭이 "+step+"분으로 변경됐습니다. 길게 누르면 자동 반복이 가속됩니다. 이 기기에만 적용됩니다.":
+          "설정값을 적용하지 못했습니다. 현재 "+step+"분 단위를 사용합니다.";
+      });
       document.getElementById("addSectionBtn").addEventListener("click", addSectionFromSettings);
       document.getElementById("newSectionInput").addEventListener("keydown", (event) => {
         if (event.key === "Enter") addSectionFromSettings();
