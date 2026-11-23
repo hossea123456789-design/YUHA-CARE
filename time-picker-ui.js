@@ -5,24 +5,16 @@
 (function(root){
 "use strict";
 const PAD=n=>String(n).padStart(2,"0");
-const MINUTE_STEP_KEY="yuha_time_minute_step_device_v1";
 const MINUTE_STEPS=[1,2,3,5,10,15,20,30];
 const DEFAULT_MINUTE_STEP=5;
-let minuteStepMemory=null;
-function getMinuteStep(){
- if(minuteStepMemory!==null)return minuteStepMemory;
- try{
-  const raw=root.localStorage?.getItem(MINUTE_STEP_KEY);
-  const value=raw===null||raw===undefined?DEFAULT_MINUTE_STEP:Number(raw);
-  minuteStepMemory=MINUTE_STEPS.includes(value)?value:DEFAULT_MINUTE_STEP;
- }catch(_){minuteStepMemory=DEFAULT_MINUTE_STEP;}
- return minuteStepMemory;
-}
+// APP_SETTINGS on the shared Google Sheet is authoritative. This memory
+// value is only a read-through view of the last verified server response.
+let minuteStepMemory=DEFAULT_MINUTE_STEP;
+function getMinuteStep(){return minuteStepMemory;}
 function setMinuteStep(value){
  const step=Number(value);
  if(!MINUTE_STEPS.includes(step))return false;
  minuteStepMemory=step;
- try{root.localStorage?.setItem(MINUTE_STEP_KEY,String(step));}catch(_){}
  return true;
 }
 const wrapRange=(value,delta,modulus)=>((value+delta)%modulus+modulus)%modulus;
