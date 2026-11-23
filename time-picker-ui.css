@@ -121,3 +121,16 @@
 .sleep-modal #sleepModalTimeHint{margin:7px 0 0}
 .sleep-modal #sleepModalTimeHint:empty{display:none}
 .sleep-modal .sleep-modal-actions{margin-top:10px}
+
+/* Touch-friendly press-and-hold stepper: allow repeated pointer events without
+   long-press text selection, double-tap zoom, or browser callout menus. */
+.yuha-time-picker .yuha-time-step{
+ touch-action:manipulation;-webkit-user-select:none;user-select:none;
+ -webkit-touch-callout:none;
+}
+.yuha-time-picker .yuha-time-number-input::selection{
+ background:#b9e7ce;color:#143e31;
+}
+.settings-time-step-row{grid-template-columns:minmax(0,1fr) minmax(95px,125px)!important;align-items:center}
+.settings-time-step-row label{font-size:13px;font-weight:750;color:#465c6a}
+.settings-time-step-row select{width:100%;min-width:0}
