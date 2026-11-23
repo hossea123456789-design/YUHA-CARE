@@ -25,7 +25,7 @@ function setMinuteStep(value){
  try{root.localStorage?.setItem(MINUTE_STEP_KEY,String(step));}catch(_){}
  return true;
 }
-const wrap=(value,delta,modulus)=>((value+delta)%modulus+modulus)%modulus;
+const wrapRange=(value,delta,modulus)=>((value+delta)%modulus+modulus)%modulus;
 // The visible hour is 12-hour, but typing 00 or 13–23 intentionally
 // converts an explicit 24-hour entry to the matching AM/PM state.
 function interpretHour(text,period){
@@ -144,12 +144,12 @@ function enhance(scope){
      const parsed=interpretHour(number.value,controls.period);
      const current=parsed?.hour??9;
      const period=parsed?.period||controls.period;
-     const hour24=wrap(current%12+(period==="pm"?12:0),direction,24);
+     const hour24=wrapRange(current%12+(period==="pm"?12:0),direction,24);
      number.value=PAD(hour24%12||12);
      if(period)controls.period=hour24<12?"am":"pm";
     }else{
      const current=two(number.value,0,59)??0;
-     number.value=PAD(wrap(current,direction*getMinuteStep(),60));
+     number.value=PAD(wrapRange(current,direction*getMinuteStep(),60));
     }
     commit();
    };
