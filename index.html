@@ -490,7 +490,7 @@
   <script src="bridge-client.js?v=20261123-shared-time-v1"></script>
   <script src="mental-diagnostics.js?v=20261028-deviceaudit-final2"></script>
   <script src="form-draft-guard.js?v=20261121-formguard-time-v2"></script>
-  <script src="time-picker-ui.js?v=20261123-stepper-v1"></script>
+  <script src="time-picker-ui.js?v=20261123-shared-stepper-v2"></script>
   <script src="checklist-reconcile.js?v=20261119-sync-guard-v1"></script>
   <script src="mental.js?v=20261118-editor-guard-v2"></script>
   <script src="illness-care.js?v=20261121-am-pm-v1"></script>
@@ -1554,6 +1554,10 @@
     function saveTimeStepToDb(value){
       const step=Number(value);
       const picker=window.YuhaTimePicker;
+      if(!navigator.onLine||!window.YuhaDBBridge?.connected?.()){
+        timeStepStatus="서버 연결 후 변경할 수 있습니다. 공유 DB에 저장되지 않은 설정은 적용하지 않았습니다.";
+        showTimeStepSettings();return;
+      }
       if(!picker?.minuteStepOptions?.includes(step)||timeStepServerRevision===null||
         timeStepRequestBusy||timeStepSaveBusy){
         timeStepStatus="서버의 기존 설정을 확인한 뒤 변경할 수 있습니다.";
