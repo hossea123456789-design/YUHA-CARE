@@ -38,7 +38,7 @@ function mental(env){
  let src=fs.readFileSync('mental.js','utf8');
  const marker='window.YuhaMental={render,lock,activate';
  assert(src.includes(marker));
- src=src.replace(marker,'window.__test={normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,hydrate,conflicts,conflictChoices,progressViewState,markMonth:k=>loadedMentalMonths.add(k),setMonth:k=>month=k,setCloudBusy:v=>cloudBusy=v,setCloudReady:v=>cloudReady=v,setCloudSaving:v=>cloudSaving=v,setArchiveSupport:v=>conflictArchiveSupported=v,setReactionSupport:v=>reactionBackendSupported=v,setEaseSupport:v=>mentalEaseBackendSupported=v,scoresOf,mainSummary,dateEditor,weeklyMatrix,setSelectedDate:d=>selected=d,changes,husbandLetterHTML,syncSafetyHTML,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
+ src=src.replace(marker,'window.__test={activate,lock,refreshCloudRecords,normalize,localIsRicher,mergeCloudMonth,syncNext,registerConflict,differingFields,resolveConflict,hydrate,conflicts,conflictChoices,progressViewState,markMonth:k=>loadedMentalMonths.add(k),setMonth:k=>month=k,setCloudBusy:v=>cloudBusy=v,setCloudReady:v=>cloudReady=v,setCloudSaving:v=>cloudSaving=v,setArchiveSupport:v=>conflictArchiveSupported=v,setReactionSupport:v=>reactionBackendSupported=v,setEaseSupport:v=>mentalEaseBackendSupported=v,scoresOf,mainSummary,dateEditor,weeklyMatrix,setSelectedDate:d=>selected=d,changes,husbandLetterHTML,syncSafetyHTML,setRecords:x=>records=x,getRecords:()=>records,setPending:x=>pending=x,getPending:()=>pending,setSession:()=>{cloudReady=true;cloudCode="1234";unlocked=true;cloudEpoch=1;cloudSaving=false;letterBackendSupported=true;conflictArchiveSupported=true},protected:()=>[...locallyProtectedDates]};'+marker);
  env.win.YuhaMentalDiagnostics={emit:()=>{},metadata:()=>({requestId:'test'}),flush:()=>{},setBackendSupport:()=>{}};
  vm.runInNewContext(src,env.ctx,{filename:'mental.js'});
  return env.win.__test;
@@ -349,4 +349,35 @@ function rpc(env,save,read){
  assert.equal(saves,1,'v7 permits writing the eighth score');
  assert.equal(Object.keys(t.getPending()).length,0,'v7 readback can acknowledge the eighth score');
  console.log('PASS mental: v6 queue protects ease score, v7 sync verifies and clears pending');
+})();
+
+// The receiving device stays visible without a focus event.
+(function testVisibleReceiverRefreshAndForeground(){
+ const e=env(),timers=new Map(),docListeners={};
+ let next=0,now=Date.now(),reads=0,remote={};
+ e.ctx.Date=class extends Date{static now(){return now;}};
+ e.ctx.setTimeout=(fn,ms)=>{const id=++next;timers.set(id,{fn,ms});return id;};
+ e.ctx.clearTimeout=id=>timers.delete(id);
+ e.ctx.document.addEventListener=(name,fn)=>{docListeners[name]=fn;};
+ e.ctx.document.visibilityState="visible";
+ const t=mental(e),date="2026-11-23";
+ t.setMonth("2026-11");t.setSession();
+ e.win.google={script:{run:{withSuccessHandler(ok){return {withFailureHandler(){
+  return {getMentalMonth(_pass,_year,month){reads++;ok({ok:true,schemaVersion:7,records:month===11?remote:{}});}};
+ }};}}}};
+ t.activate("1234");
+ assert(!t.getRecords()[date],"receiver initially has no new row");
+ remote={[date]:{...record(date),revision:"2026-11-24T00:00:00Z"}};
+ const tick=()=>{const task=[...timers.entries()].find(([,x])=>x.ms===30000);assert(task,"periodic refresh scheduled");timers.delete(task[0]);now+=30000;task[1].fn();};
+ tick();
+ assert.equal(t.getRecords()[date].scores.energy,7,"receiver picks up server row without manual reload");
+ const before=reads;e.ctx.document.hidden=true;e.ctx.document.visibilityState="hidden";tick();
+ assert.equal(reads,before,"hidden device does not poll");
+ remote={[date]:{...remote[date],scores:{...remote[date].scores,energy:9},revision:"2026-11-24T00:01:00Z"}};
+ e.ctx.document.hidden=false;e.ctx.document.visibilityState="visible";docListeners.visibilitychange();
+ assert.equal(t.getRecords()[date].scores.energy,9,"foreground updates verified stale data");
+ assert.equal([...timers.values()].filter(x=>x.ms===30000).length,1,"no duplicate refresh timers");
+ t.lock();
+ assert.equal([...timers.values()].filter(x=>x.ms===30000).length,0,"PIN lock stops polling");
+ console.log("PASS: passive receiving device refresh, hidden pause, foreground refresh and PIN lock cleanup");
 })();

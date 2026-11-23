@@ -110,6 +110,8 @@ let syncingTimer=null, retryTimer=null,mutating=false,storageOkay=true,contextsO
 let screen=null,unlocked=false,unlockBusy=false;
 let letterEditing=false,letterEditDate="",letterDraft="",letterBackendSupported=false,mentalEaseBackendSupported=false;
 let pinFailures=0,pinBlockedUntil=0,cloudEpoch=0,lastCloudRefreshAt=0;
+let cloudReadGeneration=0,cloudRefreshTimer=null,lastCloudVerifiedAt=0;
+const MENTAL_REFRESH_MS=30000;
 const MENTAL_SERVER_BASELINE="yuha_mental_last_verified_server_v1";
 const mentalServerBaseline=storageRead(MENTAL_SERVER_BASELINE,{});
 const loadedMentalMonths=new Set(),loadingMentalMonths=new Set(); // per-page throttling; not cryptographic brute-force protection.
@@ -161,7 +163,8 @@ async function sha256(value){
  return sha256Fallback(bytes);
 }
 function lock(){
-  cloudEpoch++;
+  cloudEpoch++;cloudReadGeneration++;
+  clearTimeout(cloudRefreshTimer);cloudRefreshTimer=null;lastCloudVerifiedAt=0;
   loadedMentalMonths.clear();loadingMentalMonths.clear();
   if(unlocked&&Object.keys(pending).length)saveLocal();
   locallyProtectedDates.clear();
@@ -569,7 +572,7 @@ function progressViewState(){
   return {state:"pending",message:month+" 서버 기록 조회 전 · 기기 기록 표시"};
  if(Object.keys(pending).length||Object.keys(conflicts).length||locallyProtectedDates.size)
   return {state:"pending",message:"서버 저장 미확인 · 기기 기록 보호 중"};
- return {state:"loaded",message:"회복 기록 서버 불러오기 완료"};
+ return {state:"loaded",message:lastCloudVerifiedAt?"회복 기록 서버 조회 "+new Date(lastCloudVerifiedAt).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}):"회복 기록 서버 불러오기 완료"};
 }
 function publishProgress(){const x=progressViewState();progress(x.state,x.message);}
 
@@ -577,15 +580,17 @@ function cloudCall(method,args,onSuccess,onFail){
  if(!window.google?.script?.run){onFail(new Error("서버 연결을 기다리는 중입니다."));return;}
  try{window.google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFail)[method](...args)}catch(e){onFail(e)}
 }
-function activate(pass){
+function activate(pass,refresh=false){
  if(!pass)return;
  lastCloudRefreshAt=Date.now();
  mentalEaseBackendSupported=false;
  traceMental('CLOUD_SESSION_START',{localCount:Object.keys(records).length,pendingCount:Object.keys(pending).length});
  letterBackendSupported=false;
- const epoch=++cloudEpoch;
+ // Background reads must not invalidate an authorized export or PIN session.
+ const epoch=refresh?cloudEpoch:++cloudEpoch,generation=++cloudReadGeneration;
  loadedMentalMonths.clear();loadingMentalMonths.clear();
  cloudCode=pass;
+ scheduleCloudRefresh();
  cloudBusy=true;cloudReady=false;cloudError="";
  setState("비공개 서버 연결 중");
  progress("loading","회복 기록 서버 불러오는 중");
@@ -596,7 +601,7 @@ function activate(pass){
   const req=diagMeta();
   traceMental('CLOUD_MONTH_REQUEST',{month:k,requestId:req.requestId});
   cloudCall("getMentalMonth",[cloudCode,y,m,req],result=>{
-   if(epoch!==cloudEpoch || !unlocked)return;
+   if(anyFailed||epoch!==cloudEpoch||generation!==cloudReadGeneration||!unlocked)return;
    if(!result?.ok){failed(new Error("조회 실패"));return;}
    if(Number(result.schemaVersion)>=3)letterBackendSupported=true;
    diag()?.setBackendSupport(Number(result.schemaVersion)>=4);
@@ -608,14 +613,14 @@ function activate(pass){
    loadedMentalMonths.add(k);
    saveLocal();
    if(--outstanding===0&&!anyFailed){
-     cloudBusy=false;cloudReady=true;cloudError="";
+     cloudBusy=false;cloudReady=true;cloudError="";lastCloudVerifiedAt=Date.now();
      setState(stateText());
      render({background:true});scheduleCloud(100);diag()?.flush(cloudCode);
      publishProgress();
    }
   },failed);
  });
- function failed(err){if(anyFailed||epoch!==cloudEpoch||!unlocked)return;anyFailed=true;cloudBusy=false;cloudReady=false;
+ function failed(err){if(anyFailed||epoch!==cloudEpoch||generation!==cloudReadGeneration||!unlocked)return;anyFailed=true;cloudBusy=false;cloudReady=false;
    const reason=String(err?.message||err);
    traceMental('CLOUD_CONNECT_ERROR',{code:reason.slice(0,65),pendingCount:Object.keys(pending).length});
    setState("연결 실패: "+reason,true);render({background:true});
@@ -740,6 +745,8 @@ function syncNext(){
    if(!valid){retry('readback_mismatch');return;}
    traceMental('CLOUD_READBACK_OK',{date,requestId:check.requestId,
      revision:String(server.revision||''),serverComplete:numberFilled(server)});
+   // Keep the exact verified server baseline, including letter-only saves.
+   mentalServerBaseline[date]=normalize(date,server);
    if(pending[date]&&JSON.stringify(pending[date].entry)===version){
     if(p.letterOnly){
      // Never replace richer device-only recovery details with the letter ACK row.
@@ -784,18 +791,31 @@ function syncNext(){
  },()=>retry('save_rpc_failed'));
 }
 function refreshCloudRecords(force=false){
- if(!unlocked||!cloudCode||cloudBusy||cloudSaving)return false;
+ if(!unlocked||!cloudCode||cloudBusy||cloudSaving||loadingMentalMonths.size)return false;
  if(!force && Date.now()-lastCloudRefreshAt<15000)return false;
- activate(cloudCode);
+ activate(cloudCode,true);
  return true;
 }
+// A visible browser may remain open indefinitely without any focus event.
+function scheduleCloudRefresh(){
+ clearTimeout(cloudRefreshTimer);cloudRefreshTimer=null;
+ if(!unlocked||!cloudCode)return;
+ cloudRefreshTimer=setTimeout(()=>{
+  cloudRefreshTimer=null;
+  if(!unlocked||!cloudCode)return;
+  if(!document.hidden&&document.visibilityState!=="hidden")refreshCloudRecords();
+  scheduleCloudRefresh();
+ },MENTAL_REFRESH_MS);
+}
 window.addEventListener("online",()=>{
- if(cloudReady){scheduleCloud(300);refreshCloudRecords(true);}
+ if(cloudReady)scheduleCloud(300);
+ refreshCloudRecords(true);
 });
 document.addEventListener?.("visibilitychange",()=>{
- if(document.visibilityState==="visible")refreshCloudRecords();
+ if(document.visibilityState==="visible")refreshCloudRecords(true);
 });
-window.addEventListener("focus",()=>{refreshCloudRecords();});
+window.addEventListener("focus",()=>{if(!document.hidden)refreshCloudRecords(true);});
+window.addEventListener("pageshow",event=>{if(event?.persisted&&!document.hidden)refreshCloudRecords(true);});
 window.addEventListener("pagehide",()=>{
  traceMental('APP_PAGEHIDE',{pendingCount:Object.keys(pending).length,localCount:Object.keys(records).length});
  if(unlocked)saveLocal();

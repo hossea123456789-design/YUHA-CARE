@@ -5,7 +5,7 @@
 const KEY='yuha_mental_diagnostic_events_v1';
 const DEVICE='yuha_mental_diagnostic_device_v1';
 const ROLE='yuha_mental_diagnostic_role_v1';
-const VERSION='20261028-trace1';
+const VERSION='20261124-live-refresh-v1';
 const ROLES=['wife','husband','shared','unassigned'];
 function get(k, fallback){try{return localStorage.getItem(k)||fallback;}catch(_){return fallback;}}
 function put(k,v){try{localStorage.setItem(k,v);return true;}catch(_){return false;}}
